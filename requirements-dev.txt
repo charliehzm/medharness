@@ -7,7 +7,7 @@ pytest-asyncio>=0.23,<1.0
 
 # Lint / format
 ruff>=0.4,<1.0
-black>=26.3.1,<27.0  # CVE-fix: arbitrary file writes via cache file name in < 26.3.1
+black>=26.5.1,<27.0  # CVE-fix: arbitrary file writes via cache file name in < 26.3.1
 mypy>=1.10,<2.0
 
 # Pre-commit
