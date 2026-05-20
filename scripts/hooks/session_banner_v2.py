@@ -10,10 +10,13 @@ v2.2 改进：
 - 一键申诉路径
 """
 from __future__ import annotations
-import json, os, re, sys
+
+import json
+import os
+import re
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-
 
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 
@@ -36,7 +39,7 @@ def get_recent_blocks() -> int:
         return 0
     cutoff = datetime.utcnow() - timedelta(days=7)
     n = 0
-    with open(p, "r", encoding="utf-8") as f:
+    with open(p, encoding="utf-8") as f:
         for line in f:
             try:
                 rec = json.loads(line)

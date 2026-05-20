@@ -10,10 +10,13 @@ skill_invocations_log.py · 采集 Skill 命中数据（M2 起接入）
 落盘: .audit/skill_invocations.jsonl
 """
 from __future__ import annotations
-import json, os, re, sys
+
+import json
+import os
+import re
+import sys
 from datetime import datetime
 from pathlib import Path
-
 
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 LOG_PATH = PROJECT_DIR / ".audit" / "skill_invocations.jsonl"

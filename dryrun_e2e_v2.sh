@@ -14,22 +14,36 @@ c_err() { printf "\033[1;31m❌ %s\033[0m\n" "$*" >&2; }
 c_step() { printf "\n\033[1;36m── %s ──\033[0m\n" "$*"; }
 
 guard_python() {
-  if ! command -v python3 >/dev/null 2>&1; then
+  # 优先用 venv 里的 python（如已存在）；否则找 python3.10/3.11/3.12，最后 fallback python3
+  local py=""
+  if [[ -x ".venv/bin/python" ]]; then
+    py=".venv/bin/python"
+  else
+    for cand in python3.12 python3.11 python3.10 python3; do
+      if command -v "$cand" >/dev/null 2>&1; then
+        py="$cand"; break
+      fi
+    done
+  fi
+  if [[ -z "$py" ]]; then
     c_err "未找到 python3，请安装 Python 3.10+"
     exit 1
   fi
   local ver
-  ver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+  ver=$($py -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
   if [[ "$(printf '%s\n3.10' "$ver" | sort -V | head -1)" != "3.10" ]]; then
-    c_err "Python ≥ 3.10 required, found $ver"
+    c_err "Python ≥ 3.10 required, found $ver (at $py)"
+    c_err "如系统默认 python3 < 3.10，建议安装 python3.11+ 或先创建 .venv"
     exit 1
   fi
+  PY="$py"
+  export PY
 }
 
 guard_deps() {
   if [[ ! -d ".venv" ]]; then
     c_step "Step -1 · 创建 venv + 安装依赖（一次性 ~2 min）"
-    python3 -m venv .venv
+    "$PY" -m venv .venv
   fi
   # shellcheck disable=SC1091
   source .venv/bin/activate

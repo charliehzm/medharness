@@ -18,7 +18,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 AUDIT_LOG_BIN = str(PROJECT_DIR / "mcp" / "audit-log" / "server.py")
 HOOK_MODE = os.environ.get("CLAUDE_HOOK_MODE", "warn")

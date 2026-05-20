@@ -18,7 +18,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 ROUTER_BIN = str(PROJECT_DIR / "mcp" / "model-router" / "server_v2.py")
 AUDIT_LOG_BIN = str(PROJECT_DIR / "mcp" / "audit-log" / "server.py")

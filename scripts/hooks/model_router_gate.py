@@ -19,7 +19,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 LLM_ENDPOINT_PATTERNS = {
     "openai-public": re.compile(r"api\.openai\.com"),
     "anthropic-public": re.compile(r"api\.anthropic\.com"),

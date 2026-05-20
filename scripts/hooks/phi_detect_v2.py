@@ -22,7 +22,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 PHI_DETECTOR_BIN = os.environ.get(
     "PHI_DETECTOR_BIN",

@@ -32,9 +32,9 @@ COMPANY_TYPES = {
 }
 
 COMPLIANCE_FRAMEWORKS = {
-    "1": ["HIPAA"],
-    "2": ["PIPL", "数据安全法", "健康医疗数据安全指南"],
-    "3": ["HIPAA", "PIPL", "数据安全法", "健康医疗数据安全指南"],
+    "仅 HIPAA": ["HIPAA"],
+    "仅 PIPL 系": ["PIPL", "数据安全法", "健康医疗数据安全指南"],
+    "HIPAA + PIPL 双合规": ["HIPAA", "PIPL", "数据安全法", "健康医疗数据安全指南"],
 }
 
 MODELS = {
@@ -142,7 +142,7 @@ def next_steps(answers: dict) -> None:
     print("\n" + "=" * 60)
     print(" 下一步")
     print("=" * 60)
-    print(f"""
+    print("""
 1. 跑 dryrun：
    bash dryrun_e2e_v2.sh
 

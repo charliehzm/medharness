@@ -43,6 +43,10 @@ target-version = "py310"
 select = ["E", "F", "I", "W", "UP", "B", "SIM"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# Hook 脚本是 best-effort 容错路径，故意 try/except/pass 而不抛错
+"scripts/hooks/*.py" = ["SIM105"]
+
 [tool.black]
 line-length = 100
 target-version = ["py310", "py311", "py312"]

@@ -4,8 +4,12 @@
 TODO: implement before v0.2.0. Currently emits structured placeholder.
 """
 from __future__ import annotations
-import argparse, json, sys
+
+import argparse
+import json
+import sys
 from pathlib import Path
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

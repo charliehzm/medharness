@@ -24,7 +24,6 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-
 # ====== M1 占位规则层 ======
 PHI_RULES = [
     ("CN-ID", re.compile(r"\b\d{17}[\dXx]\b")),
