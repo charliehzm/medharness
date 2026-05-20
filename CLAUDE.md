@@ -121,12 +121,13 @@ PRD 系列 2（v2.1 合并后）：prd-implementation-precheck / prd
 
 ## 10. 链接索引
 
-- 6 层架构：[docs/architecture/](docs/architecture/)
+- 6 层架构：[docs/architecture/dependency-graph.md](docs/architecture/dependency-graph.md)
 - 12 步 SOP：[研发交付SOP-v2.md](研发交付SOP-v2.md)
 - 5 步 micro：[研发交付SOP-v2.2-micro.md](研发交付SOP-v2.2-micro.md)
 - 培训：[training/](training/)
 - 示例 change：[examples/示例-患者匹配最小可行版/](examples/示例-患者匹配最小可行版/)
-- 治理：[docs/governance/](docs/governance/)（可选启用）
+- 路线图：[docs/roadmap.md](docs/roadmap.md)
+- 商业边界：[docs/community-vs-commercial.md](docs/community-vs-commercial.md)
 
 ---
 

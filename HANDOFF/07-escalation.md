@@ -190,7 +190,7 @@ HANDOFF/inbox/
 Maintainer 处理后：
 - 在原文件底部加"DECISION"段（写决定 + 日期 + 签字）
 - 移到 `_archived/`
-- 必要时把决议加到 [05-decisions-log.md](05-decisions-log.md)
+- 必要时把决议加到 maintainer 的私有决策日志（公仓不存运营战略级决策）
 
 ---
 

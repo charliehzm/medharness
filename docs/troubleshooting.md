@@ -144,7 +144,7 @@ find AUDIT_BUNDLE_*/prompts -name '*.jsonl' -exec gzip {} \;
 ## 找不到答案？
 
 1. 搜 [Discussions Q&A](https://github.com/charliehzm/medharness/discussions/categories/q-a)
-2. 看 [training/FAQ.md](../training/FAQ.md)
+2. 看 [training/lessons/FAQ.md](../training/lessons/FAQ.md)
 3. 提 Issue 用 `bug_report` 或 `feature_request` 模板
 4. 微信群（README 里有邀请链接）
 

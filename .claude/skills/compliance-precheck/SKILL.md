@@ -41,7 +41,7 @@ Your job: turn the first sentence into the structured second sentence.
 
 Two artifacts, both inside the change directory:
 
-1. `openspec/changes/<slug>/COMPLIANCE_TAG.md` — human-readable signed contract (template at [openspec/templates/COMPLIANCE_TAG.md](../../../openspec/templates/COMPLIANCE_TAG.md))
+1. `openspec/changes/<slug>/COMPLIANCE_TAG.md` — human-readable signed contract (template at [openspec/templates/COMPLIANCE_TAG.template.md](../../../openspec/templates/COMPLIANCE_TAG.template.md))
 2. `openspec/changes/<slug>/MODEL_ALLOWLIST.json` — machine-readable, injected into mcp-model-router
 
 ## When NOT to use this skill
