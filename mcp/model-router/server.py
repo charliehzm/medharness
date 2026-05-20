@@ -54,18 +54,27 @@ def route(req: dict) -> dict:
     change_id = req.get("change_id")
     task_type = req.get("task_type")
     if not change_id or not task_type:
-        return {"decision": "deny", "reason": "missing_inputs",
-                "routing_log_id": _log({"req": req, "reason": "missing_inputs"})}
+        return {
+            "decision": "deny",
+            "reason": "missing_inputs",
+            "routing_log_id": _log({"req": req, "reason": "missing_inputs"}),
+        }
 
     allowlist = _load_allowlist(change_id)
     if not allowlist:
-        return {"decision": "deny", "reason": "allowlist_missing",
-                "routing_log_id": _log({"req": req, "reason": "allowlist_missing"})}
+        return {
+            "decision": "deny",
+            "reason": "allowlist_missing",
+            "routing_log_id": _log({"req": req, "reason": "allowlist_missing"}),
+        }
 
     candidates = (allowlist.get("models") or {}).get(task_type) or []
     if not candidates:
-        return {"decision": "deny", "reason": "no_candidate_for_task_type",
-                "routing_log_id": _log({"req": req, "reason": "no_candidate"})}
+        return {
+            "decision": "deny",
+            "reason": "no_candidate_for_task_type",
+            "routing_log_id": _log({"req": req, "reason": "no_candidate"}),
+        }
 
     # M1: 不做 phi-detector 二次校验（M2 加上）
     chosen = candidates[0]
@@ -74,9 +83,7 @@ def route(req: dict) -> dict:
         "model_id": chosen,
         "deployment": "placeholder",
         "endpoint": "stub://placeholder",
-        "routing_log_id": _log({
-            "req": req, "decision": "allow", "model_id": chosen
-        }),
+        "routing_log_id": _log({"req": req, "decision": "allow", "model_id": chosen}),
         "_meta": {"version": "0.1-placeholder", "ts": datetime.utcnow().isoformat() + "Z"},
     }
 
@@ -98,10 +105,14 @@ def main() -> int:
 
     if cmd == "inject_allowlist":
         # M1: 占位 —— allowlist 实际由开发者直接放到 change 目录下
-        print(json.dumps({
-            "status": "noop-placeholder",
-            "note": "M1 由 compliance-precheck Skill 直接写入 change 目录。M2 起本端点强制 token 校验。",
-        }))
+        print(
+            json.dumps(
+                {
+                    "status": "noop-placeholder",
+                    "note": "M1 由 compliance-precheck Skill 直接写入 change 目录。M2 起本端点强制 token 校验。",
+                }
+            )
+        )
         return 0
 
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)

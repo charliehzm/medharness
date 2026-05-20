@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CI gate: parse drill outputs and fail if recall below threshold."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,8 +23,11 @@ def main() -> int:
         return 2
     data = json.loads(recall_file.read_text(encoding="utf-8"))
     ok = data.get("recall", 0) >= args.min
-    print(json.dumps({"recall": data.get("recall"), "min": args.min, "passed": ok},
-                     ensure_ascii=False))
+    print(
+        json.dumps(
+            {"recall": data.get("recall"), "min": args.min, "passed": ok}, ensure_ascii=False
+        )
+    )
     return 0 if ok else 1
 
 

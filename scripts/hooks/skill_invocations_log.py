@@ -9,6 +9,7 @@ skill_invocations_log.py · 采集 Skill 命中数据（M2 起接入）
 
 落盘: .audit/skill_invocations.jsonl
 """
+
 from __future__ import annotations
 
 import json

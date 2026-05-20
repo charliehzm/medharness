@@ -16,16 +16,14 @@ import json
 import re
 import sys
 from datetime import datetime
-from pathlib import Path
-
 
 RULES = [
-    ("CN-ID",      re.compile(r"\b\d{17}[\dXx]\b"),    0.95, "desensitize"),
-    ("CN-Phone",   re.compile(r"\b1[3-9]\d{9}\b"),     0.95, "desensitize"),
-    ("CN-Bank",    re.compile(r"\b\d{16,19}\b"),       0.7,  "review"),
-    ("Email",      re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"), 0.9, "desensitize"),
-    ("Date-ISO",   re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b"),     0.6,  "review"),
-    ("Date-CJK",   re.compile(r"\b\d{4}年\d{1,2}月\d{1,2}日?\b"),       0.6,  "review"),
+    ("CN-ID", re.compile(r"\b\d{17}[\dXx]\b"), 0.95, "desensitize"),
+    ("CN-Phone", re.compile(r"\b1[3-9]\d{9}\b"), 0.95, "desensitize"),
+    ("CN-Bank", re.compile(r"\b\d{16,19}\b"), 0.7, "review"),
+    ("Email", re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"), 0.9, "desensitize"),
+    ("Date-ISO", re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b"), 0.6, "review"),
+    ("Date-CJK", re.compile(r"\b\d{4}年\d{1,2}月\d{1,2}日?\b"), 0.6, "review"),
 ]
 
 
@@ -34,12 +32,14 @@ def detect(text: str, context: dict | None = None) -> dict:
     max_conf = 0.0
     for name, pat, conf, action in RULES:
         for m in pat.finditer(text or ""):
-            hits.append({
-                "type": name,
-                "span": [m.start(), m.end()],
-                "confidence": conf,
-                "suggested": action,
-            })
+            hits.append(
+                {
+                    "type": name,
+                    "span": [m.start(), m.end()],
+                    "confidence": conf,
+                    "suggested": action,
+                }
+            )
             if conf > max_conf:
                 max_conf = conf
 
@@ -53,7 +53,7 @@ def detect(text: str, context: dict | None = None) -> dict:
         "_meta": {
             "version": "0.1-placeholder",
             "checked_at": datetime.utcnow().isoformat() + "Z",
-            "passes": ["rule"],   # M2 会加 "classifier"
+            "passes": ["rule"],  # M2 会加 "classifier"
         },
     }
 
@@ -67,11 +67,15 @@ def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "detect"
 
     if cmd == "health":
-        print(json.dumps({
-            "status": "ok-placeholder",
-            "rules_version": "0.1",
-            "classifier": "not-loaded (M1)",
-        }))
+        print(
+            json.dumps(
+                {
+                    "status": "ok-placeholder",
+                    "rules_version": "0.1",
+                    "classifier": "not-loaded (M1)",
+                }
+            )
+        )
         return 0
 
     if cmd == "detect":

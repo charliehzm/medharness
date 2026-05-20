@@ -17,19 +17,16 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import re
 import sys
 import uuid
 from datetime import datetime
-from pathlib import Path
-
 
 # === 占位符规则（与 phi-detector 对齐） ===
 SUBSTITUTIONS = [
-    ("CN-ID",    re.compile(r"\b\d{17}[\dXx]\b"),                    "ID"),
-    ("CN-Phone", re.compile(r"\b1[3-9]\d{9}\b"),                     "PH"),
-    ("Email",    re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"), "EM"),
+    ("CN-ID", re.compile(r"\b\d{17}[\dXx]\b"), "ID"),
+    ("CN-Phone", re.compile(r"\b1[3-9]\d{9}\b"), "PH"),
+    ("Email", re.compile(r"\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b"), "EM"),
 ]
 
 
@@ -51,15 +48,15 @@ def desensitize(text: str, change_id: str = "unknown") -> dict:
             if placeholder not in mapping:
                 mapping[placeholder] = original
         # 第二遍替换（避免 finditer 与替换交叉）
-        new_text = pat.sub(lambda mm: next(
-            ph for ph, orig in mapping.items() if orig == mm.group()
-        ), new_text)
+        new_text = pat.sub(
+            lambda mm: next(ph for ph, orig in mapping.items() if orig == mm.group()), new_text
+        )
 
     map_id = str(uuid.uuid4())
     return {
         "desensitized": new_text,
         "map_id": map_id,
-        "map_ref": f"local-placeholder://{map_id}",   # M2 改为 kms://...
+        "map_ref": f"local-placeholder://{map_id}",  # M2 改为 kms://...
         "_unsafe_map_preview_count": len(mapping),
         "residual_risk": [],
         "_meta": {
@@ -73,10 +70,14 @@ def main() -> int:
     cmd = sys.argv[1] if len(sys.argv) > 1 else "desensitize"
 
     if cmd == "health":
-        print(json.dumps({
-            "status": "ok-placeholder",
-            "kms": "not-integrated (M1)",
-        }))
+        print(
+            json.dumps(
+                {
+                    "status": "ok-placeholder",
+                    "kms": "not-integrated (M1)",
+                }
+            )
+        )
         return 0
 
     if cmd == "desensitize":
@@ -93,9 +94,12 @@ def main() -> int:
 
     if cmd == "reverse":
         # M1: 拒绝 reverse —— 未集成 KMS 不允许返回明文
-        print(json.dumps({
-            "error": "reverse not available in M1 placeholder. Requires KMS integration."
-        }), file=sys.stderr)
+        print(
+            json.dumps(
+                {"error": "reverse not available in M1 placeholder. Requires KMS integration."}
+            ),
+            file=sys.stderr,
+        )
         return 2
 
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)

@@ -46,6 +46,10 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 # Hook 脚本是 best-effort 容错路径，故意 try/except/pass 而不抛错
 "scripts/hooks/*.py" = ["SIM105"]
+# MCP server v2 是 demo / stub 实现，故意用紧凑 dispatch 风格（一行多语句）
+"mcp/*/server.py" = ["E701", "E702", "SIM110", "F841"]
+"mcp/*/server_v2.py" = ["E701", "E702", "SIM110", "F841"]
+"mcp/*/server_v3.py" = ["E701", "E702", "SIM110", "F841"]
 
 [tool.black]
 line-length = 100

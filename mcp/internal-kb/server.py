@@ -23,7 +23,6 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-
 PHI_DETECTOR_BIN = os.environ.get(
     "PHI_DETECTOR_BIN",
     str(Path(__file__).resolve().parent.parent / "phi-detector" / "server_v2.py"),
@@ -52,8 +51,14 @@ def _default_corpus() -> list[dict]:
             continue
         for f in base.rglob("*.md"):
             try:
-                docs.append({"id": str(f.relative_to(root)), "title": f.name,
-                             "category": d.split("/")[0], "text": f.read_text(encoding="utf-8")})
+                docs.append(
+                    {
+                        "id": str(f.relative_to(root)),
+                        "title": f.name,
+                        "category": d.split("/")[0],
+                        "text": f.read_text(encoding="utf-8"),
+                    }
+                )
             except Exception:
                 continue
     return docs
@@ -88,7 +93,9 @@ def _phi_scan(text: str) -> bool:
         p = subprocess.run(
             ["python3", PHI_DETECTOR_BIN, "detect"],
             input=json.dumps({"text": text}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if p.returncode != 0:
             return True
@@ -118,11 +125,16 @@ def search(query: str, k: int = 5, filter: dict | None = None) -> dict:
         inj = _injection_scan(snippet)
         if inj == "quarantined":
             continue
-        scored.append({
-            "id": d["id"], "title": d["title"], "snippet": snippet,
-            "source": d["id"], "confidence": round(score, 4),
-            "injection_scan": inj,
-        })
+        scored.append(
+            {
+                "id": d["id"],
+                "title": d["title"],
+                "snippet": snippet,
+                "source": d["id"],
+                "confidence": round(score, 4),
+                "injection_scan": inj,
+            }
+        )
     scored.sort(key=lambda x: -x["confidence"])
     return {"hits": scored[:k]}
 
@@ -142,8 +154,10 @@ def _serve_stdio() -> int:
             result = search(params.get("query", ""), params.get("k", 5), params.get("filter"))
             resp = {"id": req.get("id"), "result": result}
         elif method == "health":
-            resp = {"id": req.get("id"), "result": {"status": "ok",
-                    "corpus_size": len(_default_corpus())}}
+            resp = {
+                "id": req.get("id"),
+                "result": {"status": "ok", "corpus_size": len(_default_corpus())},
+            }
         else:
             resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
         sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
@@ -160,8 +174,11 @@ def main() -> int:
         return 0
     if cmd == "search":
         req = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        print(json.dumps(search(req.get("query", ""), req.get("k", 5), req.get("filter")),
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                search(req.get("query", ""), req.get("k", 5), req.get("filter")), ensure_ascii=False
+            )
+        )
         return 0
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)
     return 1

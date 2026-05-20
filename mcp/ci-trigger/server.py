@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 import uuid
 from datetime import datetime
@@ -41,8 +40,12 @@ def _save_flags(flags: dict) -> None:
 def _audit(event_type: str, payload: dict) -> str:
     audit_id = str(uuid.uuid4())
     p = _project_root() / ".audit" / "ci_trigger.jsonl"
-    rec = {"ts": datetime.utcnow().isoformat() + "Z", "id": audit_id,
-           "event_type": event_type, "payload": payload}
+    rec = {
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "id": audit_id,
+        "event_type": event_type,
+        "payload": payload,
+    }
     with open(p, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
     return audit_id
@@ -56,9 +59,17 @@ def set_flag(req: dict) -> dict:
     prev = flags.get(key, False)
     flags[key] = bool(req.get("value", False))
     _save_flags(flags)
-    audit_id = _audit("set_flag", {"flag": flag, "env": env, "prev": prev,
-                                   "new": flags[key], "change_id": req.get("change_id"),
-                                   "actor": req.get("actor")})
+    audit_id = _audit(
+        "set_flag",
+        {
+            "flag": flag,
+            "env": env,
+            "prev": prev,
+            "new": flags[key],
+            "change_id": req.get("change_id"),
+            "actor": req.get("actor"),
+        },
+    )
     return {"prev_value": prev, "new_value": flags[key], "audit_id": audit_id}
 
 
@@ -67,11 +78,16 @@ def trigger_pipeline(req: dict) -> dict:
     args = req.get("args", {})
     run_id = str(uuid.uuid4())
     # M4 占位：仅记录调用；M4 起调真实 CI
-    audit_id = _audit("trigger_pipeline", {"pipeline": pipeline, "args": args, "run_id": run_id,
-                                           "actor": req.get("actor")})
-    return {"run_id": run_id, "audit_id": audit_id,
-            "status_url": f"local://ci/{run_id}",
-            "_note": "M4 占位 — 未实际执行 CI；M4 起接入 GitHub Actions"}
+    audit_id = _audit(
+        "trigger_pipeline",
+        {"pipeline": pipeline, "args": args, "run_id": run_id, "actor": req.get("actor")},
+    )
+    return {
+        "run_id": run_id,
+        "audit_id": audit_id,
+        "status_url": f"local://ci/{run_id}",
+        "_note": "M4 占位 — 未实际执行 CI；M4 起接入 GitHub Actions",
+    }
 
 
 def rollback_stage(req: dict) -> dict:
@@ -86,9 +102,15 @@ def rollback_stage(req: dict) -> dict:
             changes[k] = flags[k]
             flags[k] = False
     _save_flags(flags)
-    audit_id = _audit("rollback_stage", {"change_id": change_id, "stage": stage,
-                                         "flags_cleared": list(changes.keys()),
-                                         "reason": req.get("reason")})
+    audit_id = _audit(
+        "rollback_stage",
+        {
+            "change_id": change_id,
+            "stage": stage,
+            "flags_cleared": list(changes.keys()),
+            "reason": req.get("reason"),
+        },
+    )
     return {"rolled_back_flags": list(changes.keys()), "audit_id": audit_id}
 
 
@@ -115,8 +137,13 @@ def _serve_stdio() -> int:
             elif method == "health":
                 result = {"status": "ok-placeholder", "flag_count": len(_load_flags())}
             else:
-                resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
-                sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n"); sys.stdout.flush(); continue
+                resp = {
+                    "id": req.get("id"),
+                    "error": {"code": -32601, "message": "Method not found"},
+                }
+                sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
+                sys.stdout.flush()
+                continue
             resp = {"id": req.get("id"), "result": result}
         except Exception as e:
             resp = {"id": req.get("id"), "error": {"code": -32603, "message": str(e)}}
@@ -134,11 +161,14 @@ def main() -> int:
         return 0
     req = json.load(sys.stdin) if not sys.stdin.isatty() else {}
     if cmd == "set_flag":
-        print(json.dumps(set_flag(req), ensure_ascii=False)); return 0
+        print(json.dumps(set_flag(req), ensure_ascii=False))
+        return 0
     if cmd == "trigger_pipeline":
-        print(json.dumps(trigger_pipeline(req), ensure_ascii=False)); return 0
+        print(json.dumps(trigger_pipeline(req), ensure_ascii=False))
+        return 0
     if cmd == "rollback_stage":
-        print(json.dumps(rollback_stage(req), ensure_ascii=False)); return 0
+        print(json.dumps(rollback_stage(req), ensure_ascii=False))
+        return 0
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)
     return 1
 

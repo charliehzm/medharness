@@ -3,6 +3,7 @@
 
 TODO: implement before v0.2.0. Currently emits structured placeholder.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,6 +20,7 @@ def main() -> int:
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(out, ensure_ascii=False))
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

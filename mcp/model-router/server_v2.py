@@ -20,8 +20,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from server import _load_allowlist, _log, _change_dir  # noqa: E402
-
+from server import _change_dir, _load_allowlist, _log  # noqa: E402
 
 PHI_DETECTOR_BIN = os.environ.get(
     "PHI_DETECTOR_BIN",
@@ -51,44 +50,65 @@ def route_v2(req: dict) -> dict:
     task_type = req.get("task_type")
     prompt = req.get("prompt", "")
     if not change_id or not task_type:
-        return {"decision": "deny", "reason": "missing_inputs",
-                "routing_log_id": _log({"req": req, "reason": "missing_inputs"})}
+        return {
+            "decision": "deny",
+            "reason": "missing_inputs",
+            "routing_log_id": _log({"req": req, "reason": "missing_inputs"}),
+        }
 
     allowlist = _load_allowlist(change_id)
     if not allowlist:
-        return {"decision": "deny", "reason": "allowlist_missing",
-                "routing_log_id": _log({"req": req, "reason": "allowlist_missing"})}
+        return {
+            "decision": "deny",
+            "reason": "allowlist_missing",
+            "routing_log_id": _log({"req": req, "reason": "allowlist_missing"}),
+        }
 
     # 二次 PHI 校验
     phi = _phi_check(prompt)
     if phi.get("summary", {}).get("blocking_recommendation"):
-        return {"decision": "deny", "reason": "phi_in_prompt",
-                "routing_log_id": _log({"req": req, "reason": "phi_in_prompt",
-                                        "phi_result": phi.get("summary")})}
+        return {
+            "decision": "deny",
+            "reason": "phi_in_prompt",
+            "routing_log_id": _log(
+                {"req": req, "reason": "phi_in_prompt", "phi_result": phi.get("summary")}
+            ),
+        }
 
     candidates = (allowlist.get("models") or {}).get(task_type) or []
     if not candidates:
-        return {"decision": "deny", "reason": "no_candidate_for_task_type",
-                "routing_log_id": _log({"req": req, "reason": "no_candidate"})}
+        return {
+            "decision": "deny",
+            "reason": "no_candidate_for_task_type",
+            "routing_log_id": _log({"req": req, "reason": "no_candidate"}),
+        }
 
     # M2: 简单选第一个；M3+ 加 health/cost/affinity policy
     chosen = candidates[0]
     denied_models = set(allowlist.get("denied_models", []) or [])
     if chosen in denied_models:
-        return {"decision": "deny", "reason": "model_explicitly_denied",
-                "routing_log_id": _log({"req": req, "reason": "model_explicitly_denied",
-                                        "model": chosen})}
+        return {
+            "decision": "deny",
+            "reason": "model_explicitly_denied",
+            "routing_log_id": _log(
+                {"req": req, "reason": "model_explicitly_denied", "model": chosen}
+            ),
+        }
 
     return {
         "decision": "allow",
         "model_id": chosen,
         "deployment": "tier-based-placeholder",
         "endpoint": f"private://{chosen}",  # M3 起接真实 endpoint registry
-        "routing_log_id": _log({
-            "req": {k: v for k, v in req.items() if k != "prompt"},  # 不在 routing log 留 prompt 全文
-            "decision": "allow",
-            "model_id": chosen,
-        }),
+        "routing_log_id": _log(
+            {
+                "req": {
+                    k: v for k, v in req.items() if k != "prompt"
+                },  # 不在 routing log 留 prompt 全文
+                "decision": "allow",
+                "model_id": chosen,
+            }
+        ),
         "_meta": {"version": "0.2-v2", "ts": datetime.utcnow().isoformat() + "Z"},
     }
 
@@ -107,8 +127,11 @@ def inject_allowlist(req: dict) -> dict:
     target = _change_dir(change_id) / "MODEL_ALLOWLIST.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(allowlist, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"status": "injected", "path": str(target),
-            "audit_id": _log({"event": "inject_allowlist", "change_id": change_id})}
+    return {
+        "status": "injected",
+        "path": str(target),
+        "audit_id": _log({"event": "inject_allowlist", "change_id": change_id}),
+    }
 
 
 def main() -> int:
@@ -130,7 +153,10 @@ def main() -> int:
             elif method == "health":
                 resp = {"id": req.get("id"), "result": {"status": "ok-v2"}}
             else:
-                resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
+                resp = {
+                    "id": req.get("id"),
+                    "error": {"code": -32601, "message": "Method not found"},
+                }
             sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
             sys.stdout.flush()
         return 0

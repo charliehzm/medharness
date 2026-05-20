@@ -22,18 +22,16 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 # 从 v1 复用规则
 sys.path.insert(0, str(Path(__file__).parent))
-from server import RULES as RULE_PASS1, detect as detect_rule  # noqa: E402
-
+from server import detect as detect_rule  # noqa: E402
 
 # ====== Pass 2 · 分类器接口（M2 实现注入） ======
+
 
 def _classifier_call(text: str) -> list[dict]:
     """
@@ -81,6 +79,7 @@ def _name_near_dob_upgrade(hits: list[dict]) -> list[dict]:
 
 # ====== 仲裁 ======
 
+
 def merge(rule_hits: list[dict], classifier_hits: list[dict]) -> list[dict]:
     """规则与分类器结果合并：取 OR；同 span 取高 confidence。"""
     by_span: dict[tuple[int, int], dict] = {}
@@ -119,6 +118,7 @@ def detect_v2(text: str, context: dict | None = None) -> dict:
 # 协议参考：https://modelcontextprotocol.io/specification
 # 简化实现：行级 JSON-RPC
 
+
 def serve_stdio() -> int:
     for line in sys.stdin:
         line = line.strip()
@@ -131,9 +131,18 @@ def serve_stdio() -> int:
         method = req.get("method")
         params = req.get("params", {})
         if method == "detect":
-            resp = {"id": req.get("id"), "result": detect_v2(params.get("text", ""), params.get("context"))}
+            resp = {
+                "id": req.get("id"),
+                "result": detect_v2(params.get("text", ""), params.get("context")),
+            }
         elif method == "health":
-            resp = {"id": req.get("id"), "result": {"status": "ok-v2", "classifier_loaded": bool(os.environ.get("PHI_CLASSIFIER_ENDPOINT"))}}
+            resp = {
+                "id": req.get("id"),
+                "result": {
+                    "status": "ok-v2",
+                    "classifier_loaded": bool(os.environ.get("PHI_CLASSIFIER_ENDPOINT")),
+                },
+            }
         else:
             resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
         sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")

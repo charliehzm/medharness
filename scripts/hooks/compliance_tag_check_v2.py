@@ -67,7 +67,9 @@ def call_audit(event_type: str, payload: dict) -> None:
         subprocess.run(
             ["python3", AUDIT_LOG_BIN, "append"],
             input=json.dumps({"event_type": event_type, "payload": payload}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
     except Exception:
         pass

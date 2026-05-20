@@ -39,7 +39,9 @@ def call_detector(text: str) -> dict:
         p = subprocess.run(
             ["python3", PHI_DETECTOR_BIN, "detect"],
             input=json.dumps({"text": text}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if p.returncode != 0:
             return {"_fail_closed": True, "stderr": p.stderr}
@@ -53,7 +55,9 @@ def call_audit_append(event_type: str, payload: dict) -> None:
         subprocess.run(
             ["python3", AUDIT_LOG_BIN, "append"],
             input=json.dumps({"event_type": event_type, "payload": payload}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
     except Exception:
         pass
@@ -91,24 +95,31 @@ def main() -> int:
         call_audit_append("phi_block", record)
         # v2.1 升级：高严重等级即使 warn 模式也强制阻断
         # 严重等级 = max_confidence 阈值
-        severity = "high" if summary.get("max_confidence", 0) >= 0.9 else \
-                   "medium" if summary.get("max_confidence", 0) >= 0.7 else "low"
+        severity = (
+            "high"
+            if summary.get("max_confidence", 0) >= 0.9
+            else "medium"
+            if summary.get("max_confidence", 0) >= 0.7
+            else "low"
+        )
         forced_block = (HOOK_MODE == "block") or (severity == "high")
         record["severity"] = severity
-        record["forced_block_in_warn_mode"] = (severity == "high" and HOOK_MODE != "block")
+        record["forced_block_in_warn_mode"] = severity == "high" and HOOK_MODE != "block"
         msg = {
             "decision": "block",
-            "reason": "phi_in_prompt" if not fail_closed else "phi_detector_unavailable_fail_closed",
+            "reason": "phi_in_prompt"
+            if not fail_closed
+            else "phi_detector_unavailable_fail_closed",
             "severity": severity,
             "hook_mode": HOOK_MODE,
             "summary": summary,
             "next_action": "对含 PHI 的内容先经 phi-desensitize Skill 处理，再提交。"
-                           + (" [本次因严重等级 high 强制阻断]" if record["forced_block_in_warn_mode"] else ""),
+            + (" [本次因严重等级 high 强制阻断]" if record["forced_block_in_warn_mode"] else ""),
         }
         print(json.dumps(msg, ensure_ascii=False), file=sys.stderr)
         if forced_block:
             return 2  # 硬阻断（含 warn 模式下的 high 兜底）
-        return 0     # warn 模式 medium/low 仅打 stderr
+        return 0  # warn 模式 medium/low 仅打 stderr
 
     return 0
 

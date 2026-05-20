@@ -18,7 +18,6 @@ v3 改进：
 from __future__ import annotations
 
 import json
-import os
 import re
 import sys
 from datetime import datetime
@@ -26,10 +25,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from server_v2 import (
-    detect_v2,  # 留底
     _classifier_call,
+    detect_v2,  # 留底
 )
-
 
 # ====== v3 规则升级 ======
 
@@ -47,8 +45,39 @@ LOG_TIMESTAMP_CTX = re.compile(
 
 # CN-Name 白名单（医院/科室/药品等机构性词汇不算人名）
 NON_NAME_TOKENS = set(
-    "医院 卫生 病房 诊所 科室 门诊 急诊 药房 药品 检查 化验 检验 手术 病区 楼层 床位".split()
-    + "公司 集团 总部 分部 部门 团队 项目 系统 平台 服务 接口 数据库 表格".split()
+    [
+        "医院",
+        "卫生",
+        "病房",
+        "诊所",
+        "科室",
+        "门诊",
+        "急诊",
+        "药房",
+        "药品",
+        "检查",
+        "化验",
+        "检验",
+        "手术",
+        "病区",
+        "楼层",
+        "床位",
+    ]
+    + [
+        "公司",
+        "集团",
+        "总部",
+        "分部",
+        "部门",
+        "团队",
+        "项目",
+        "系统",
+        "平台",
+        "服务",
+        "接口",
+        "数据库",
+        "表格",
+    ]
 )
 
 # CN-Name 启发式（v3 新增；v2 没有此规则）
@@ -72,7 +101,7 @@ def _looks_like_hash(text: str, span: tuple[int, int]) -> bool:
 
 def _looks_like_log_timestamp(text: str, span: tuple[int, int]) -> bool:
     """命中位置是否在日志时间戳上下文"""
-    snippet = text[max(0, span[0] - 30): min(len(text), span[1] + 30)]
+    snippet = text[max(0, span[0] - 30) : min(len(text), span[1] + 30)]
     return bool(LOG_TIMESTAMP_CTX.search(snippet))
 
 
@@ -85,12 +114,12 @@ def _is_in_placeholder(text: str, span: tuple[int, int]) -> bool:
 
 
 def _has_bank_context(text: str, span: tuple[int, int]) -> bool:
-    snippet = text[max(0, span[0] - 20): span[0]]
+    snippet = text[max(0, span[0] - 20) : span[0]]
     return any(kw in snippet for kw in BANK_CONTEXT_KEYWORDS)
 
 
 def _has_id_context(text: str, span: tuple[int, int]) -> bool:
-    snippet = text[max(0, span[0] - 20): span[0]]
+    snippet = text[max(0, span[0] - 20) : span[0]]
     return any(kw in snippet for kw in ID_CARD_CONTEXT_KEYWORDS)
 
 
@@ -103,27 +132,31 @@ def _check_name_heuristic(text: str) -> list[dict]:
         if token in NON_NAME_TOKENS:
             continue
         # 太短（2 字）单独不够；要求附近有"病人/患者/姓名/医生"等触发词
-        ctx_before = text[max(0, m.start() - 10): m.start()]
-        ctx_after = text[m.end(): m.end() + 10]
+        ctx_before = text[max(0, m.start() - 10) : m.start()]
+        ctx_after = text[m.end() : m.end() + 10]
         ctx = ctx_before + ctx_after
         if not any(t in ctx for t in ["病人", "患者", "姓名", "医生", "Mr.", "Ms.", "Mrs."]):
             continue
         # 长度 2-3 字，邻近触发词 → 可能为人名
-        out.append({
-            "type": "CN-Name-heuristic",
-            "span": [m.start(), m.end()],
-            "confidence": 0.7,
-            "suggested": "review",
-        })
+        out.append(
+            {
+                "type": "CN-Name-heuristic",
+                "span": [m.start(), m.end()],
+                "confidence": 0.7,
+                "suggested": "review",
+            }
+        )
     return out
 
 
 def detect_v3(text: str, context: dict | None = None) -> dict:
     """v3 主入口"""
     if not text:
-        return {"hits": [], "summary": {"total_hits": 0, "max_confidence": 0,
-                                        "blocking_recommendation": False},
-                "_meta": {"version": "0.3-v3", "passes": ["rule-v3"]}}
+        return {
+            "hits": [],
+            "summary": {"total_hits": 0, "max_confidence": 0, "blocking_recommendation": False},
+            "_meta": {"version": "0.3-v3", "passes": ["rule-v3"]},
+        }
 
     # Step 1: 跑 v2 规则层
     v2_result = detect_v2(text, context)
@@ -159,7 +192,7 @@ def detect_v3(text: str, context: dict | None = None) -> dict:
             h["_demoted"] = "no_bank_context"
         # 4e: Date 缺人名邻近，降级
         if h["type"] in ("Date-ISO", "Date-CJK"):
-            snippet = text[max(0, span[0] - 30): min(len(text), span[1] + 30)]
+            snippet = text[max(0, span[0] - 30) : min(len(text), span[1] + 30)]
             if not any(t in snippet for t in ["病人", "患者", "出生", "Mr.", "Ms.", "Mrs.", "DOB"]):
                 h["confidence"] = max(0.4, h["confidence"] - 0.3)
                 h["_demoted"] = "no_name_proximity"
@@ -186,7 +219,8 @@ def detect_v3(text: str, context: dict | None = None) -> dict:
         "_meta": {
             "version": "0.3-v3",
             "checked_at": datetime.utcnow().isoformat() + "Z",
-            "passes": ["rule-v2", "name-heuristic-v3"] + (["classifier"] if classifier_hits else []),
+            "passes": ["rule-v2", "name-heuristic-v3"]
+            + (["classifier"] if classifier_hits else []),
         },
     }
 

@@ -6,6 +6,7 @@
 
 不可逆：会写入 .medharness-customized 标记文件，二次运行需要 --force 重置。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -81,17 +82,26 @@ def check_marker(force: bool) -> None:
 
 def collect() -> dict:
     answers: dict = {}
-    answers["project_name"] = ask("1. 项目名（英文 + 数字，将出现在 repo / Skill description 中）",
-                                   default="my-medharness-project")
+    answers["project_name"] = ask(
+        "1. 项目名（英文 + 数字，将出现在 repo / Skill description 中）",
+        default="my-medharness-project",
+    )
     answers["company_type"] = ask("2. 公司类型", COMPANY_TYPES, default="1")
     answers["team_size"] = ask("3. 团队规模（数字）", default="20")
     answers["compliance"] = COMPLIANCE_FRAMEWORKS[
-        ask("4. 主合规框架", {"1": "仅 HIPAA", "2": "仅 PIPL 系", "3": "HIPAA + PIPL 双合规"}, default="3")
+        ask(
+            "4. 主合规框架",
+            {"1": "仅 HIPAA", "2": "仅 PIPL 系", "3": "HIPAA + PIPL 双合规"},
+            default="3",
+        )
     ]
-    answers["residency"] = ask("5. 数据驻留",
-                                {"1": "境内 only", "2": "境内 + 境外可分流"}, default="1")
+    answers["residency"] = ask(
+        "5. 数据驻留", {"1": "境内 only", "2": "境内 + 境外可分流"}, default="1"
+    )
     answers["model_main"] = ask("6. 编码主力模型", MODELS, default="1")
-    answers["model_compliance"] = ask("7. 合规 Agent 模型（必须与编码主力**异构**）", MODELS, default="2")
+    answers["model_compliance"] = ask(
+        "7. 合规 Agent 模型（必须与编码主力**异构**）", MODELS, default="2"
+    )
     answers["phase"] = ask("8. 当前阶段（M1-M6）", default="M1")
     answers["timestamp"] = datetime.now(timezone.utc).isoformat()
     return answers
@@ -102,16 +112,12 @@ def write_memory(answers: dict) -> None:
     template = MEMORY_TEMPLATE.read_text(encoding="utf-8")
     replacements = {
         r"项目名：<your-project-name>": f"项目名：{answers['project_name']}",
-        r"公司类型：医疗 SaaS / 数据中台 / 互联网医院 / 药企 CRO / 其他":
-            f"公司类型：{answers['company_type']}",
+        r"公司类型：医疗 SaaS / 数据中台 / 互联网医院 / 药企 CRO / 其他": f"公司类型：{answers['company_type']}",
         r"团队规模：__ 人": f"团队规模：{answers['team_size']} 人",
-        r"主合规框架：HIPAA / PIPL / 数据安全法 / 健康医疗数据安全指南":
-            f"主合规框架：{' + '.join(answers['compliance'])}",
+        r"主合规框架：HIPAA / PIPL / 数据安全法 / 健康医疗数据安全指南": f"主合规框架：{' + '.join(answers['compliance'])}",
         r"数据驻留：境内 only / 境内\+境外可分流": f"数据驻留：{answers['residency']}",
-        r"\| 编码主力 \| ____ \| 公共 API / 私有 \|":
-            f"| 编码主力 | {answers['model_main']} | 见上 |",
-        r"\| 合规 Agent（异构 · 必填） \| ____ \| 同 \|":
-            f"| 合规 Agent（异构 · 必填） | {answers['model_compliance']} | 见上 |",
+        r"\| 编码主力 \| ____ \| 公共 API / 私有 \|": f"| 编码主力 | {answers['model_main']} | 见上 |",
+        r"\| 合规 Agent（异构 · 必填） \| ____ \| 同 \|": f"| 合规 Agent（异构 · 必填） | {answers['model_compliance']} | 见上 |",
         r"当前月：M__": f"当前月：{answers['phase']}",
     }
     for old, new in replacements.items():
@@ -130,9 +136,11 @@ def warn_heterogeneity(answers: dict) -> None:
 
 def write_marker(answers: dict) -> None:
     MARKER.write_text(
-        json.dumps({"customized_at": answers["timestamp"],
-                    "project_name": answers["project_name"]},
-                   ensure_ascii=False, indent=2),
+        json.dumps(
+            {"customized_at": answers["timestamp"], "project_name": answers["project_name"]},
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     print(f"✅ 标记文件 {MARKER.relative_to(ROOT)} 已生成")

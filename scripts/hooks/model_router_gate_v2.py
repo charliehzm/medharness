@@ -62,10 +62,17 @@ def call_router(change_id: str, task_type: str, prompt: str) -> dict:
     try:
         p = subprocess.run(
             ["python3", ROUTER_BIN, "route"],
-            input=json.dumps({
-                "change_id": change_id, "task_type": task_type, "prompt": prompt,
-            }, ensure_ascii=False),
-            capture_output=True, text=True, timeout=3,
+            input=json.dumps(
+                {
+                    "change_id": change_id,
+                    "task_type": task_type,
+                    "prompt": prompt,
+                },
+                ensure_ascii=False,
+            ),
+            capture_output=True,
+            text=True,
+            timeout=3,
         )
         if p.returncode != 0:
             return {"decision": "deny", "reason": "router_unavailable"}
@@ -79,7 +86,9 @@ def call_audit(event_type: str, payload: dict) -> None:
         subprocess.run(
             ["python3", AUDIT_LOG_BIN, "append"],
             input=json.dumps({"event_type": event_type, "payload": payload}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
     except Exception:
         pass

@@ -11,7 +11,6 @@ M4 升级：真正接 Milvus + BGE-M3。
 from __future__ import annotations
 
 import json
-import os
 import sys
 
 
@@ -38,8 +37,7 @@ def _serve_stdio() -> int:
             continue
         method = req.get("method")
         if method == "health":
-            resp = {"id": req.get("id"),
-                    "result": {"status": "stub", "implements": ["M4-pending"]}}
+            resp = {"id": req.get("id"), "result": {"status": "stub", "implements": ["M4-pending"]}}
         elif method == "search":
             resp = {"id": req.get("id"), "result": search(req.get("params", {}))}
         elif method == "index_document":
@@ -60,9 +58,11 @@ def main() -> int:
         return 0
     req = json.load(sys.stdin) if not sys.stdin.isatty() else {}
     if cmd == "search":
-        print(json.dumps(search(req), ensure_ascii=False)); return 0
+        print(json.dumps(search(req), ensure_ascii=False))
+        return 0
     if cmd == "index_document":
-        print(json.dumps(index_document(req), ensure_ascii=False)); return 0
+        print(json.dumps(index_document(req), ensure_ascii=False))
+        return 0
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)
     return 1
 

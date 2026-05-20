@@ -4,6 +4,7 @@
 Goal: detector must catch ≥ 92% of synthetic PHI mentions.
 Source data: tests/red-team-drills/fixtures/synthetic_phi_corpus.jsonl
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,14 +41,13 @@ def main() -> int:
             "\n".join(
                 json.dumps(x, ensure_ascii=False)
                 for x in [
-                    {"text": "Patient 张三 (ID 110101199001011234) seen 2026-03-12",
-                     "expected": ["cn_id", "cn_name"]},
-                    {"text": "Contact 13800138000 for follow-up",
-                     "expected": ["cn_phone"]},
-                    {"text": "MRN AB12345678 in record",
-                     "expected": ["cn_mrn"]},
-                    {"text": "weather is nice today",
-                     "expected": []},
+                    {
+                        "text": "Patient 张三 (ID 110101199001011234) seen 2026-03-12",
+                        "expected": ["cn_id", "cn_name"],
+                    },
+                    {"text": "Contact 13800138000 for follow-up", "expected": ["cn_phone"]},
+                    {"text": "MRN AB12345678 in record", "expected": ["cn_mrn"]},
+                    {"text": "weather is nice today", "expected": []},
                 ]
             ),
             encoding="utf-8",

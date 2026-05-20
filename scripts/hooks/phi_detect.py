@@ -38,7 +38,9 @@ def detect(text: str) -> list[dict]:
     hits = []
     for name, pat in PHI_RULES:
         for m in pat.finditer(text or ""):
-            hits.append({"rule": name, "match": m.group()[:6] + "***", "span": [m.start(), m.end()]})
+            hits.append(
+                {"rule": name, "match": m.group()[:6] + "***", "span": [m.start(), m.end()]}
+            )
     return hits
 
 

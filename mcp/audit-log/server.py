@@ -15,7 +15,6 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator
 
 
 def _store_dir() -> Path:
@@ -67,10 +66,14 @@ def _load_event_types() -> dict:
         return _EVENT_TYPES_CACHE
     try:
         import yaml  # type: ignore
+
         data = yaml.safe_load(yml_path.read_text(encoding="utf-8"))
         by_name = {e["name"]: e for e in (data.get("event_types") or [])}
-        _EVENT_TYPES_CACHE = {"_relaxed": False, "by_name": by_name,
-                              "severities": set(data.get("severities") or [])}
+        _EVENT_TYPES_CACHE = {
+            "_relaxed": False,
+            "by_name": by_name,
+            "severities": set(data.get("severities") or []),
+        }
     except Exception:
         _EVENT_TYPES_CACHE = {"_relaxed": True, "by_name": {}}
     return _EVENT_TYPES_CACHE
@@ -119,7 +122,7 @@ def append(event: dict) -> dict:
 def query(change_id: str | None = None, event_type: str | None = None, limit: int = 1000) -> dict:
     results = []
     for f in sorted(_store_dir().glob("ledger_*.jsonl")):
-        with open(f, "r", encoding="utf-8") as fh:
+        with open(f, encoding="utf-8") as fh:
             for line in fh:
                 try:
                     rec = json.loads(line)
@@ -140,7 +143,7 @@ def verify(change_id: str | None = None) -> dict:
     bad = []
     count = 0
     for f in sorted(_store_dir().glob("ledger_*.jsonl")):
-        with open(f, "r", encoding="utf-8") as fh:
+        with open(f, encoding="utf-8") as fh:
             for line in fh:
                 try:
                     rec = json.loads(line)
@@ -148,7 +151,14 @@ def verify(change_id: str | None = None) -> dict:
                     continue
                 count += 1
                 if rec.get("prev_hash") != prev:
-                    bad.append({"id": rec.get("id"), "reason": "prev_hash_mismatch", "expected": prev, "got": rec.get("prev_hash")})
+                    bad.append(
+                        {
+                            "id": rec.get("id"),
+                            "reason": "prev_hash_mismatch",
+                            "expected": prev,
+                            "got": rec.get("prev_hash"),
+                        }
+                    )
                 base = {k: v for k, v in rec.items() if k != "self_hash"}
                 expect = _hash(_canonical(base))
                 if rec.get("self_hash") != expect:
@@ -158,11 +168,13 @@ def verify(change_id: str | None = None) -> dict:
 
 
 def seal_bundle(change_id: str, root_sha256: str, manifest_hash: str) -> dict:
-    receipt = append({
-        "event_type": "bundle_seal",
-        "change_id": change_id,
-        "payload": {"root_sha256": root_sha256, "manifest_hash": manifest_hash},
-    })
+    receipt = append(
+        {
+            "event_type": "bundle_seal",
+            "change_id": change_id,
+            "payload": {"root_sha256": root_sha256, "manifest_hash": manifest_hash},
+        }
+    )
     return {
         "receipt_id": receipt["id"],
         "storage_uri": str(_ledger_path()),
@@ -185,16 +197,25 @@ def _serve_stdio() -> int:
             if method == "append":
                 result = append(params)
             elif method == "query":
-                result = query(params.get("change_id"), params.get("event_type"), params.get("limit", 1000))
+                result = query(
+                    params.get("change_id"), params.get("event_type"), params.get("limit", 1000)
+                )
             elif method == "verify":
                 result = verify(params.get("change_id"))
             elif method == "seal_bundle":
-                result = seal_bundle(params["change_id"], params["root_sha256"], params["manifest_hash"])
+                result = seal_bundle(
+                    params["change_id"], params["root_sha256"], params["manifest_hash"]
+                )
             elif method == "health":
                 result = {"status": "ok", "ledger_dir": str(_store_dir())}
             else:
-                resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
-                sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n"); sys.stdout.flush(); continue
+                resp = {
+                    "id": req.get("id"),
+                    "error": {"code": -32601, "message": "Method not found"},
+                }
+                sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
+                sys.stdout.flush()
+                continue
             resp = {"id": req.get("id"), "result": result}
         except Exception as e:
             resp = {"id": req.get("id"), "error": {"code": -32603, "message": str(e)}}
@@ -219,14 +240,20 @@ def main() -> int:
             print(json.dumps(append(req), ensure_ascii=False))
             return 0
         except ValueError as e:
-            print(json.dumps({"error": "schema_violation", "detail": str(e)},
-                             ensure_ascii=False), file=sys.stderr)
+            print(
+                json.dumps({"error": "schema_violation", "detail": str(e)}, ensure_ascii=False),
+                file=sys.stderr,
+            )
             return 2
 
     if cmd == "query":
         req = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        print(json.dumps(query(req.get("change_id"), req.get("event_type"), req.get("limit", 1000)),
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                query(req.get("change_id"), req.get("event_type"), req.get("limit", 1000)),
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     if cmd == "verify":
@@ -236,8 +263,12 @@ def main() -> int:
 
     if cmd == "seal_bundle":
         req = json.load(sys.stdin) if not sys.stdin.isatty() else {}
-        print(json.dumps(seal_bundle(req["change_id"], req["root_sha256"], req["manifest_hash"]),
-                         ensure_ascii=False))
+        print(
+            json.dumps(
+                seal_bundle(req["change_id"], req["root_sha256"], req["manifest_hash"]),
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)

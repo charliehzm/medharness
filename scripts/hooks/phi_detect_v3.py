@@ -55,8 +55,7 @@ def _cache_check(text: str) -> dict | None:
 def _cache_save(text: str, result: dict) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     h = _prompt_hash(text)
-    (CACHE_DIR / f"{h}.json").write_text(json.dumps(result, ensure_ascii=False),
-                                         encoding="utf-8")
+    (CACHE_DIR / f"{h}.json").write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
 
 
 def call_detector(text: str) -> dict:
@@ -68,7 +67,9 @@ def call_detector(text: str) -> dict:
         p = subprocess.run(
             ["python3", PHI_DETECTOR_BIN, "detect"],
             input=json.dumps({"text": text}, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if p.returncode != 0:
             return {"_fail_closed": True, "stderr": p.stderr}
@@ -83,13 +84,19 @@ def call_audit_append(event_type: str, payload: dict) -> None:
     try:
         subprocess.run(
             ["python3", AUDIT_LOG_BIN, "append"],
-            input=json.dumps({
-                "event_type": event_type,
-                "change_id": payload.get("change_id") or os.environ.get("CLAUDE_ACTIVE_CHANGE", "unknown"),
-                "summary": payload.get("summary", {}),
-                "payload": payload,
-            }, ensure_ascii=False),
-            capture_output=True, text=True, timeout=2,
+            input=json.dumps(
+                {
+                    "event_type": event_type,
+                    "change_id": payload.get("change_id")
+                    or os.environ.get("CLAUDE_ACTIVE_CHANGE", "unknown"),
+                    "summary": payload.get("summary", {}),
+                    "payload": payload,
+                },
+                ensure_ascii=False,
+            ),
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
     except Exception:
         pass
@@ -126,17 +133,24 @@ def main() -> int:
 
     if block:
         # v2.1 兜底：高严重等级即使 warn 模式也强制阻断
-        severity = "high" if summary.get("max_confidence", 0) >= 0.9 else \
-                   "medium" if summary.get("max_confidence", 0) >= 0.7 else "low"
+        severity = (
+            "high"
+            if summary.get("max_confidence", 0) >= 0.9
+            else "medium"
+            if summary.get("max_confidence", 0) >= 0.7
+            else "low"
+        )
         forced_block = (HOOK_MODE == "block") or (severity == "high")
         record["severity"] = severity
-        record["forced_block_in_warn_mode"] = (severity == "high" and HOOK_MODE != "block")
+        record["forced_block_in_warn_mode"] = severity == "high" and HOOK_MODE != "block"
 
         call_audit_append("phi_block", record)
 
         msg = {
             "decision": "block",
-            "reason": "phi_in_prompt" if not fail_closed else "phi_detector_unavailable_fail_closed",
+            "reason": "phi_in_prompt"
+            if not fail_closed
+            else "phi_detector_unavailable_fail_closed",
             "severity": severity,
             "hook_mode": HOOK_MODE,
             "suppressed": result.get("suppressed", []),  # v3 新增：显示被 v3 规则忽略的
@@ -146,7 +160,7 @@ def main() -> int:
                 + (" [本次因严重等级 high 强制阻断]" if record["forced_block_in_warn_mode"] else "")
             ),
             "appeal_path": "governance/合规例外申请单.md",
-            "appeal_template": f"hash={record.get('session_id','')}+{datetime.utcnow().date()}",
+            "appeal_template": f"hash={record.get('session_id', '')}+{datetime.utcnow().date()}",
         }
         print(json.dumps(msg, ensure_ascii=False), file=sys.stderr)
         if forced_block:

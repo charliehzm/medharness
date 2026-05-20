@@ -9,6 +9,7 @@ v2.2 改进：
 - 显示开发者上次 NPS 得分
 - 一键申诉路径
 """
+
 from __future__ import annotations
 
 import json
@@ -47,7 +48,9 @@ def get_recent_blocks() -> int:
                     ts = rec.get("ts", "")
                     if ts:
                         try:
-                            t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=None)
+                            t = datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(
+                                tzinfo=None
+                            )
                             if t >= cutoff:
                                 n += 1
                         except Exception:
@@ -103,29 +106,37 @@ def main() -> int:
     ]
     if health:
         lines.append(f"  Memory 健康   : {health} (目标 ≥ 0.92)")
-    lines.extend([
-        "─────────────────────────────────────────────────────────────────────",
-        "  快速路由提示:",
-        "    micro change (改 ≤ 2 文件): `$quick-fix`",
-        "    feature work:               `$prd-implementation-precheck`",
-        "    debugging:                  `$systematic-debugging`",
-        "  Hook 误阻断申诉: governance/合规例外申请单.md",
-        "═══════════════════════════════════════════════════════════════════",
-    ])
+    lines.extend(
+        [
+            "─────────────────────────────────────────────────────────────────────",
+            "  快速路由提示:",
+            "    micro change (改 ≤ 2 文件): `$quick-fix`",
+            "    feature work:               `$prd-implementation-precheck`",
+            "    debugging:                  `$systematic-debugging`",
+            "  Hook 误阻断申诉: governance/合规例外申请单.md",
+            "═══════════════════════════════════════════════════════════════════",
+        ]
+    )
     print("\n".join(lines))
 
     # 落审计
     log_dir = PROJECT_DIR / ".audit"
     log_dir.mkdir(exist_ok=True)
     with open(log_dir / "session_starts.jsonl", "a", encoding="utf-8") as f:
-        f.write(json.dumps({
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "change": change.name if change else None,
-            "tier": tier,
-            "hook_mode": hook_mode,
-            "blocks_7d": blocks_7d,
-            "memory_health": health,
-        }, ensure_ascii=False) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "ts": datetime.utcnow().isoformat() + "Z",
+                    "change": change.name if change else None,
+                    "tier": tier,
+                    "hook_mode": hook_mode,
+                    "blocks_7d": blocks_7d,
+                    "memory_health": health,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
     return 0
 
 
