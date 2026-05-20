@@ -1,0 +1,211 @@
+# Audit Event Types · Strict Schema
+# ====================================
+# 所有 mcp-audit-log append 的 event_type 必须在以下枚举中
+# 维护：Harness Engineer · 修订需技委 + 合规委双签
+# 任何新增 event_type 必须先 PR 入本文件，CI 校验
+
+version: "1.0"
+last_updated: "2026-05-16"
+
+# 强 enum：枚举内有效；非枚举 event_type → mcp-audit-log append 拒绝（v2.1 起）
+event_types:
+
+  # === Hook 类 ===
+  - name: phi_block
+    description: PHI 检测命中阻断
+    required_fields: [change_id, summary]
+    severity_default: high
+
+  - name: phi_warn
+    description: PHI 检测命中但 warn 模式放行
+    required_fields: [change_id, summary]
+    severity_default: medium
+
+  - name: compliance_tag_block
+    description: COMPLIANCE_TAG 校验失败
+    required_fields: [change_id, problems]
+    severity_default: high
+
+  - name: model_route_allow
+    description: 模型路由通过 allowlist
+    required_fields: [change_id, model_id, task_type]
+    severity_default: info
+
+  - name: model_route_block
+    description: 模型路由拒绝
+    required_fields: [change_id, reason]
+    severity_default: high
+
+  - name: tool_call
+    description: 任何 tool 调用
+    required_fields: [session_id, tool_name]
+    severity_default: info
+
+  # === Skill 类 ===
+  - name: skill_invocation_explicit
+    description: 用户显式 $skill 调用
+    required_fields: [session_id, skill]
+    severity_default: info
+
+  - name: skill_invocation_implicit
+    description: Claude 推断调用某 Skill
+    required_fields: [session_id, skill]
+    severity_default: info
+
+  - name: skill_invocation_failed
+    description: Skill 调用失败
+    required_fields: [skill, error]
+    severity_default: medium
+
+  # === 合规类 ===
+  - name: compliance_review_pass
+    required_fields: [change_id, auditor_model]
+    severity_default: info
+
+  - name: compliance_review_fail
+    required_fields: [change_id, high_count, medium_count]
+    severity_default: high
+
+  - name: compliance_exception_request
+    description: 合规例外申请提交
+    required_fields: [requester, type]
+    severity_default: medium
+
+  - name: compliance_exception_decision
+    required_fields: [request_id, decision]
+    severity_default: medium
+
+  - name: compliance_agent_launch
+    required_fields: [change_id, coder, compliance]
+    severity_default: info
+
+  # === Bundle / 审计 类 ===
+  - name: bundle_seal
+    description: AUDIT_BUNDLE 生成并上链
+    required_fields: [change_id, root_sha256, manifest_hash]
+    severity_default: info
+
+  - name: bundle_replay_request
+    required_fields: [change_id, requester]
+    severity_default: info
+
+  - name: bundle_replay_fail
+    required_fields: [change_id, reason]
+    severity_default: high
+
+  # === Data Steward 类 ===
+  - name: desensitize_call
+    required_fields: [change_id]
+    severity_default: info
+
+  - name: reverse_token_issued
+    required_fields: [map_id, issued_by, expires_at]
+    severity_default: medium
+
+  - name: reverse_invocation
+    required_fields: [map_id, token_id, requester]
+    severity_default: medium
+
+  - name: reverse_invocation_failed
+    required_fields: [reason]
+    severity_default: high
+
+  - name: fingerprint_collision
+    description: 测试数据指纹与真实样本碰撞
+    required_fields: [change_id, fingerprint]
+    severity_default: high
+
+  # === KMS 类 ===
+  - name: kms_key_create
+    required_fields: [key_purpose, change_id]
+    severity_default: info
+
+  - name: kms_key_rotate
+    required_fields: [key_id, reason]
+    severity_default: medium
+
+  - name: kms_key_destroy
+    required_fields: [key_id, bundle_ref]
+    severity_default: high
+
+  - name: kms_key_compromise
+    required_fields: [key_id, scope]
+    severity_default: critical
+
+  # === 流程 / CI 类 ===
+  - name: stage_flag_set
+    required_fields: [flag, env, value, change_id, actor]
+    severity_default: medium
+
+  - name: stage_rollback
+    required_fields: [change_id, from_env, to_env, reason]
+    severity_default: high
+
+  - name: pipeline_triggered
+    required_fields: [pipeline, run_id]
+    severity_default: info
+
+  # === 治理 类 ===
+  - name: tech_committee_decision
+    required_fields: [decision_id, topic]
+    severity_default: info
+
+  - name: compliance_committee_decision
+    required_fields: [decision_id, topic]
+    severity_default: info
+
+  - name: emergency_degrade
+    required_fields: [target, mode, reason]
+    severity_default: high
+
+  - name: incident_p0
+    required_fields: [incident_id, summary]
+    severity_default: critical
+
+  - name: incident_p1
+    required_fields: [incident_id, summary]
+    severity_default: high
+
+  - name: incident_p2_or_p3
+    required_fields: [incident_id, summary]
+    severity_default: medium
+
+  # === 数据生命周期 ===
+  - name: data_destruction
+    required_fields: [bundle_id, destroyed_at, witnesses]
+    severity_default: medium
+
+  - name: legal_hold
+    required_fields: [scope, reason, applied_at]
+    severity_default: high
+
+  - name: legal_hold_lifted
+    required_fields: [scope, lifted_at]
+    severity_default: medium
+
+  # === Memory ===
+  - name: memory_curate_run
+    required_fields: [health_score]
+    severity_default: info
+
+  # === 自指 ===
+  - name: ci_smoke
+    description: CI 烟测事件（不入正式审计统计）
+    required_fields: []
+    severity_default: info
+
+# 严重等级枚举（不可扩展）
+severities:
+  - info
+  - low
+  - medium
+  - high
+  - critical
+
+# 校验规则
+# ----------
+# mcp-audit-log append 时:
+# 1. event_type ∈ event_types[*].name
+# 2. 所有 required_fields 在 payload 中存在
+# 3. severity（若提供）∈ severities
+# 4. 不满足任一 → 拒绝（fail-loud）

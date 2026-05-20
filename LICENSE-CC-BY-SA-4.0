@@ -1,0 +1,37 @@
+Creative Commons Attribution-ShareAlike 4.0 International Public License
+
+适用范围 / Scope
+================
+
+本 license 适用于 MedHarness 仓库下的以下子树：
+- `training/**` 培训方法论 / 课程 / 模板
+- `governance/**` 治理文件 / 章程 / SOP 文档
+- `docs/**` 项目文档与白皮书
+- 所有 `*.md` 文档（除代码内 docstring 外）
+
+代码部分（`mcp/` / `scripts/` / `.claude/` / `tests/` / `tools/` / `examples/` 中的可执行片段）
+适用根目录 LICENSE（Apache License 2.0）。
+
+License 全文 / Full Text
+========================
+
+完整文本见 https://creativecommons.org/licenses/by-sa/4.0/legalcode
+
+简要 / Summary
+==============
+
+- ✅ 你可以分享 / 改编 / 商用本作品
+- ⚠️ 你必须 **署名**（注明 MedHarness 项目原作者）
+- ⚠️ 你的改编版必须以 **同样的 CC BY-SA 4.0** 发布
+
+License 永久承诺 / Perpetual Open Source Commitment
+==================================================
+
+所有已发布的本仓库内容（代码 + 文档），license 永久不会
+收紧到 SSPL / BSL / Proprietary 等限制性许可证。
+
+任何收紧只可能适用于未来全新的商业版组件，并以独立 repo 发布；
+不会以"重命名 + 改 license"形式回收社区版资源。
+
+Issued by: MedHarness Maintainers
+Effective: 2026-05-19

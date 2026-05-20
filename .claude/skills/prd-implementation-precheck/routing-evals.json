@@ -1,0 +1,30 @@
+{
+  "skill": "prd-implementation-precheck",
+  "version": "1.1-v2.2",
+  "trigger_examples": {
+    "positive": [
+      {"prompt": "帮我检查这个 PRD 是否可以开始开发", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "PRD 预检", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "Step 1 PRD 预检与补全", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "把这份需求文档查一遍 blocker", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "PRD 是否实现就绪", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "$prd-implementation-precheck", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "需求文档审查", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "PRD 缺口扫描", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "TDD 对齐检查", "expected_skill": "prd-implementation-precheck"},
+      {"prompt": "Step 2 TDD 对齐", "expected_skill": "prd-implementation-precheck"}
+    ],
+    "negative_should_be_prd_skill": [
+      {"prompt": "帮我写一份 PRD", "expected_skill": "prd", "reason": "撰写用 prd，不是检查"},
+      {"prompt": "补全这份 PRD", "expected_skill": "prd", "reason": "撰写 / 补全用 prd"},
+      {"prompt": "PRD 起草", "expected_skill": "prd"},
+      {"prompt": "PRD 分阶段", "expected_skill": "prd", "reason": "撰写阶段拆分"}
+    ],
+    "negative_should_not_trigger": [
+      {"prompt": "实现这个功能", "expected_skill": "openspec-apply-change"},
+      {"prompt": "review 这个代码", "expected_skill": "requesting-code-review"},
+      {"prompt": "重新审视一下", "expected_skill": null, "reason": "太抽象，不应触发"}
+    ]
+  },
+  "disambiguation_with_prd": "本 Skill **检查** PRD；prd Skill **撰写** PRD。混淆点：'PRD 完善' 既可以是检查也可以是撰写——按上下文：如果用户给了 PRD 文档要审，用本 Skill；如果是从零起草，用 prd。"
+}

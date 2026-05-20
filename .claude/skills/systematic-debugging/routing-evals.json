@@ -1,0 +1,22 @@
+{
+  "skill": "systematic-debugging",
+  "version": "1.1-v2.2",
+  "_note": "v2.2 调优：v2.1 实测发现过度触发率 31%。本版加严'触发应建立在已有可重现错误上'。",
+  "trigger_examples": {
+    "positive": [
+      {"prompt": "测试 testcase X 失败，error 是 NullPointerException，怎么定位"},
+      {"prompt": "Step 8 review 反馈 3 个 critical，需要根因"},
+      {"prompt": "线上 bug 报告：用户匹配在 99% 失败"},
+      {"prompt": "$systematic-debugging（带 trace）"},
+      {"prompt": "调用堆栈如下... 怎么找根因"}
+    ],
+    "negative_should_not_trigger": [
+      {"prompt": "我有个语法错", "reason": "语法错直接看错误信息修，不需要系统化"},
+      {"prompt": "import 报错", "reason": "import 错通常 1 行修，不进 systematic"},
+      {"prompt": "代码格式问题", "reason": "用 linter / formatter"},
+      {"prompt": "找不到 module", "reason": "PATH / install 问题，直接修"},
+      {"prompt": "代码看起来不对", "reason": "不够具体——必须有可观察现象 + 错误"}
+    ]
+  },
+  "disambiguation": "本 Skill 用于'多假设 / 多分支 / 难复现'的调试。如果错误信息已经直接指出根因，直接修复，不入 systematic。"
+}

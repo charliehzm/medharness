@@ -1,0 +1,25 @@
+{
+  "skill": "task-decomposition",
+  "version": "1.1-v2.2",
+  "_note": "v2.2 调优：v2.1 实测触发率 < 50%（开发者直接写代码）。本版加强'Step 4 必经'信号。",
+  "trigger_examples": {
+    "positive": [
+      {"prompt": "开始 Step 4 任务拆解"},
+      {"prompt": "把这个 spec 拆成任务"},
+      {"prompt": "$task-decomposition"},
+      {"prompt": "前后端分开拆任务"},
+      {"prompt": "OpenSpec change 拆解任务"},
+      {"prompt": "我有 5 个 spec，怎么拆任务"}
+    ],
+    "negative_should_not_trigger": [
+      {"prompt": "开始实现 X", "reason": "已是单任务实现，直接 openspec-apply"},
+      {"prompt": "改个 typo", "reason": "micro-change 不进 task-decomposition"},
+      {"prompt": "重构这段代码", "reason": "重构走 full SOP 但不一定要 decomposition"}
+    ]
+  },
+  "guidance_to_developers": [
+    "在 spec 完善后（Step 3 结束），实现前（Step 6 开始），主动调用本 Skill",
+    "颗粒度：1 spec 通常拆 1-3 任务；> 5 任务 = 颗粒过细，回退到 spec 合并",
+    "每任务 ≤ 2 文件；> 2 → 必须再拆"
+  ]
+}

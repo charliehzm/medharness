@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medharness"
+version = "0.1.0a0"
+description = "Harness Engineering for Medical AI Coding · HIPAA + PIPL compliant"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "MedHarness Maintainers"}]
+keywords = ["ai-coding", "medical", "healthcare", "hipaa", "pipl", "phi", "compliance", "claude-code", "presidio", "openspec", "mcp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Healthcare Industry",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+[project.urls]
+Homepage = "https://github.com/charliehzm/medharness"
+Documentation = "https://medharness.dev"
+Source = "https://github.com/charliehzm/medharness"
+Changelog = "https://github.com/charliehzm/medharness/blob/main/CHANGELOG.md"
+Security = "https://github.com/charliehzm/medharness/blob/main/SECURITY.md"
+
+[project.scripts]
+medharness-customize = "tools.customize:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "-ra -q --strict-markers"

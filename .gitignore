@@ -1,0 +1,82 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node (mkdocs etc.)
+node_modules/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local secrets / config (never commit)
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+config.local.*
+
+# Patient / PHI data (absolute prohibition)
+patient_data/
+phi_samples/
+**/phi_real_*.csv
+**/phi_real_*.json
+**/patient_records_*.csv
+
+# Audit artifacts (auto-generated, large)
+AUDIT_BUNDLE_*.tar.gz
+audit_logs/*.jsonl
+.audit_cache/
+
+# Test outputs
+tests/output/
+tests/_tmp/
+
+# Build
+dist/
+build/
+*.egg
+
+# Logs
+*.log
+
+# Customized via tools/customize.py
+.medharness-customized
+
+# 私有运营文件（不进公开仓库）
+D-1_handoff/
+HANDOFF/CURRENT_TODOS.md
+HANDOFF/02-phase-dev.md
+HANDOFF/03-phase-test.md
+HANDOFF/04-phase-ops.md
+HANDOFF/05-decisions-log.md
+HANDOFF/inbox/*
+!HANDOFF/inbox/.gitkeep
+!HANDOFF/inbox/_archived/.gitkeep
+
+# customize.py 生成的本地配置（含真实模型偏好 / maintainer 身份）
+.memory/项目档案.local.md
+.memory/*.local.md
+
+# 内部备份目录（如不慎建在仓库内）
+.private/
+.medharness-private/

@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "$comment": [
+    "企业级 Claude Code baseline — 医疗数据 SaaS",
+    "合规约束：HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南",
+    "本文件是 L2 Harness 层的入口治理点，所有团队成员仓库 settings.local.json 必须在此基础上扩展，不允许放宽 deny",
+    "维护：Harness Engineer（M1-M3 由 Senior 兼任）",
+    "审计：每月由技术委员会复核一次",
+    "升级流程：修改本文件须经技术委员会签字 + 合规委员会会签（如涉及 L5 合规层）"
+  ],
+
+  "permissions": {
+    "$comment": "deny 优先于 allow；ask 用于敏感但可控的命令，由开发者当场决定",
+
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~/*)",
+      "Bash(curl * | bash)",
+      "Bash(curl * | sh)",
+      "Bash(wget * | bash)",
+      "Bash(wget * | sh)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -fd*)",
+      "Bash(git checkout -- *)",
+      "Bash(* --no-verify*)",
+      "Bash(* --no-gpg-sign*)",
+
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/secrets/**)",
+      "Read(**/credentials/**)",
+      "Read(**/private_key*)",
+      "Read(**/*.pem)",
+      "Read(**/*.p12)",
+
+      "Read(**/patient_data/**)",
+      "Read(**/phi/**)",
+      "Read(**/real_patient/**)",
+      "Read(**/production_data/**)",
+
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(**/secrets/**)",
+
+      "WebFetch(domain:openai.com)",
+      "WebFetch(domain:api.openai.com)",
+      "$comment_webfetch": "境外 LLM API 默认禁止；如需 architecture-only 调用，由 Compliance Officer 加入白名单"
+    ],
+
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(npm install *)",
+      "Bash(pip install *)",
+      "Bash(docker *)",
+      "Bash(kubectl *)",
+      "Bash(curl *)",
+      "Bash(psql *)",
+      "Bash(mysql *)",
+      "WebFetch(*)"
+    ],
+
+    "allow": [
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find . *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(pytest *)",
+      "Bash(python -m pytest *)",
+      "Bash(npm test *)",
+      "Bash(npm run *)",
+      "Bash(make *)",
+      "Read(**)",
+      "Edit(**)",
+      "Write(**)"
+    ]
+  },
+
+  "hooks": {
+    "$comment": "L5 合规层强约束：本节是 PHI 漏出兜底，不可禁用",
+
+    "UserPromptSubmit": [
+      {
+        "$comment_step1": "step 1: PHI 检测 — 命中即阻断（M2 上线）",
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/phi_detect.py",
+            "timeout": 5,
+            "$comment": "调用 mcp-phi-detector；非零退出码 + stderr JSON 触发阻断；M1 占位脚本仅写日志"
+          }
+        ]
+      },
+      {
+        "$comment_step2": "step 2: 当前 change 的 COMPLIANCE_TAG 校验",
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/compliance_tag_check.py",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+
+    "PreToolUse": [
+      {
+        "$comment": "拦截任何模型调用前校验 MODEL_ALLOWLIST",
+        "matcher": "WebFetch|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/model_router_gate.py",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "$comment": "审计日志：每个 tool call 落 mcp-audit-log（append-only）",
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/audit_log_append.py",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/session_banner.py",
+            "$comment": "提示当前 change 的合规等级、允许模型、Skill Owner、本周 Memory 刷新状态"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PROJECT_DIR}/scripts/hooks/stop_summary.py",
+            "$comment": "回合结束：把本次 prompt / 模型 / 工具调用 / 修改文件汇总写入 .audit/session_*.jsonl"
+          }
+        ]
+      }
+    ]
+  },
+
+  "env": {
+    "CLAUDE_PROJECT_ROLE": "enterprise-medical-data-saas",
+    "CLAUDE_COMPLIANCE_TIER": "L5-strict",
+    "CLAUDE_AUDIT_RETENTION_DAYS": "2190",
+    "$comment_retention": "6 年 = 2190 天，对齐 HIPAA"
+  },
+
+  "$slot_model_alias": {
+    "$comment": "Model alias 由 mcp-model-router 根据 COMPLIANCE_TAG 在运行时绑定，不在此硬编码"
+  },
+
+  "$slot_skill_router": {
+    "$comment": "Skill 自动路由通过 .claude/skills/*/SKILL.md 的 description 触发；M2 上线前先用人工显式 $skill-name 调用"
+  }
+}

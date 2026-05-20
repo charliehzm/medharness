@@ -1,0 +1,40 @@
+name: Compliance Drills
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'mcp/phi-detector/**'
+      - 'mcp/desensitize/**'
+      - 'mcp/model-router/**'
+      - 'scripts/hooks/**'
+      - '.claude/skills/compliance-*'
+      - '.claude/skills/phi-desensitize/**'
+      - '.claude/skills/audit-snapshot/**'
+      - 'tests/red-team-drills/**'
+  schedule:
+    - cron: '0 1 * * 1'  # every Monday 09:00 CST
+
+permissions:
+  contents: read
+
+jobs:
+  red-team:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run PHI red-team drills
+        run: bash tests/red-team-drills/run_all.sh
+      - name: Verify recall >= 92%
+        run: python tests/red-team-drills/check_recall.py --min 0.92
+      - name: Upload drill report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-team-report-${{ github.run_id }}
+          path: tests/red-team-drills/output/

@@ -1,0 +1,24 @@
+{
+  "skill": "prd",
+  "version": "1.1-v2.2",
+  "trigger_examples": {
+    "positive": [
+      {"prompt": "帮我写一份 PRD"},
+      {"prompt": "PRD 起草"},
+      {"prompt": "补全这份 PRD（业务方说不清楚我帮想想）"},
+      {"prompt": "PRD 分阶段"},
+      {"prompt": "PRD 完善 — 把缺的章节补全"},
+      {"prompt": "$prd 帮我写"},
+      {"prompt": "PRD 撰写"},
+      {"prompt": "起草需求文档"},
+      {"prompt": "需求文档撰写"},
+      {"prompt": "把业务目标转成 PRD"}
+    ],
+    "negative_should_be_precheck": [
+      {"prompt": "PRD 检查", "expected": "prd-implementation-precheck"},
+      {"prompt": "Step 1 PRD 预检", "expected": "prd-implementation-precheck"},
+      {"prompt": "PRD 是否实现就绪", "expected": "prd-implementation-precheck"}
+    ]
+  },
+  "disambiguation_with_precheck": "本 Skill **撰写**；prd-implementation-precheck **检查**。"
+}
