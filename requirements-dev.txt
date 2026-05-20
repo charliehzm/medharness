@@ -2,7 +2,7 @@
 
 # 测试
 pytest>=9.0.3,<10.0  # CVE-fix: vulnerable tmpdir handling in < 9.0.3
-pytest-cov>=5.0,<7.0
+pytest-cov>=7.1.0,<8.0
 pytest-asyncio>=0.23,<1.0
 
 # Lint / format
