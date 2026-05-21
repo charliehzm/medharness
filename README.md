@@ -154,6 +154,37 @@ M10-M12 (Q4) 商业完整 + 团队扩张 + v2.0
 
 ---
 
+## 社区 / 联系
+
+我们**统一通过 GitHub + 邮箱**接住反馈，不接受个人微信加好友。
+这是为了对**所有人公平**（个人加友会进 spam 海洋，问题反而沉底）。
+
+### 当下（v0.1.0-alpha · M1）
+
+| 渠道 | 用途 | SLA |
+|---|---|---|
+| [GitHub Discussions](https://github.com/charliehzm/medharness/discussions) | 提问 / 想法 / 案例分享（已开 5 主题 thread） | 24h 内首次回复 |
+| [GitHub Issues](https://github.com/charliehzm/medharness/issues/new/choose) | bug / feature / case study | 同上 |
+| `hello@medharness.io` *(D-1 启用)* | 一般咨询 | 48h |
+| `security@medharness.io` *(D-1 启用)* | PHI 泄漏 / 合规漏洞披露（**勿在 public issue 提**） | 2h（高敏） |
+| `conduct@medharness.io` *(D-1 启用)* | 行为准则相关 | 24h |
+
+### 后续
+
+- **M3**（约 2 个月内）：上线**微信用户群**（实名 + 邀请制 + 上限 200）
+  - 入群 QR 7 天有效，本节会贴二维码占位
+- **M6**：上线**微信公众号**「医疗 AI Coding 工程实践」
+- **M7+**：上线 **Discord 国际频道** + **LinkedIn 公司主页**
+
+> **不打算加个人微信？没关系**。所有讨论 GitHub Discussions 都可见，新人更易跟进。
+
+<!-- M3 群 QR 占位（建好后替换）
+![加入用户群](docs/img/community-wx-group.png)
+群 QR 每周一更新（防 spam），扫码失败可在 Discussions 留言。
+-->
+
+---
+
 ## 贡献 / 安全 / License
 
 - 贡献：[CONTRIBUTING.md](CONTRIBUTING.md)
