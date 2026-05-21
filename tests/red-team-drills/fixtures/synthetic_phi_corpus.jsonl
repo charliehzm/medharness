@@ -1,0 +1,220 @@
+{"id":"pos-cn_id-001","text":"身份证 990101199001011003","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-002","text":"合成门诊记录提示证件号 990101199102021016 已完成核验。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-003","text":"患者证件号 990101199203031029 与随访问卷关联。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-004","text":"字段 cn_id=990101199304041031","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-005","text":"身份证 990101199405051044","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-006","text":"合成门诊记录提示证件号 990101199506061057 已完成核验。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-007","text":"患者证件号 99010119960707106X 与随访问卷关联。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-008","text":"字段 cn_id=990101199708081072","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-009","text":"身份证 990101199809091085","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-010","text":"合成门诊记录提示证件号 99010119991010109X 已完成核验。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-011","text":"患者证件号 99010120001111110X 与随访问卷关联。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-012","text":"字段 cn_id=990101200112121112","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-013","text":"身份证 990101200201131128","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-014","text":"合成门诊记录提示证件号 990101200302141130 已完成核验。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-015","text":"患者证件号 990101200403151143 与随访问卷关联。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-016","text":"字段 cn_id=990101200504161156","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-017","text":"身份证 990101200605171169","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-018","text":"合成门诊记录提示证件号 990101200706181171 已完成核验。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-019","text":"患者证件号 990101200807191184 与随访问卷关联。","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_id-020","text":"字段 cn_id=990101200908201193","expected":["cn_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_id"}
+{"id":"pos-cn_phone-001","text":"手机 13920000000","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-002","text":"随访联系手机号 15020000001，用于合成提醒。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-003","text":"患者联系电话 16620000002 已写入测试记录。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-004","text":"字段 cn_phone=17320000003","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-005","text":"手机 18120000004","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-006","text":"随访联系手机号 19020000005，用于合成提醒。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-007","text":"患者联系电话 19920000006 已写入测试记录。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-008","text":"字段 cn_phone=13520000007","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-009","text":"手机 18720000008","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-010","text":"随访联系手机号 14720000009，用于合成提醒。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-011","text":"患者联系电话 13920000010 已写入测试记录。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-012","text":"字段 cn_phone=15020000011","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-013","text":"手机 16620000012","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-014","text":"随访联系手机号 17320000013，用于合成提醒。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-015","text":"患者联系电话 18120000014 已写入测试记录。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-016","text":"字段 cn_phone=19020000015","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-017","text":"手机 19920000016","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-018","text":"随访联系手机号 13520000017，用于合成提醒。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-019","text":"患者联系电话 18720000018 已写入测试记录。","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_phone-020","text":"字段 cn_phone=14720000019","expected":["cn_phone"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_phone"}
+{"id":"pos-cn_mrn-001","text":"病案号 AH23000000","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-002","text":"住院号 BI23000001 出现在合成入院单。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-003","text":"MRN CJ23000002 与合成检查单关联。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-004","text":"字段 cn_mrn=DK23000003","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-005","text":"病案号 EL23000004","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-006","text":"住院号 FM23000005 出现在合成入院单。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-007","text":"MRN GN23000006 与合成检查单关联。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-008","text":"字段 cn_mrn=HO23000007","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-009","text":"病案号 IP23000008","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-010","text":"住院号 JQ23000009 出现在合成入院单。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-011","text":"MRN KR23000010 与合成检查单关联。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-012","text":"字段 cn_mrn=LS23000011","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-013","text":"病案号 MT23000012","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-014","text":"住院号 NA23000013 出现在合成入院单。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-015","text":"MRN OB23000014 与合成检查单关联。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-016","text":"字段 cn_mrn=PC23000015","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-017","text":"病案号 QD23000016","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-018","text":"住院号 RE23000017 出现在合成入院单。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-019","text":"MRN SF23000018 与合成检查单关联。","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_mrn-020","text":"字段 cn_mrn=TG23000019","expected":["cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_mrn"}
+{"id":"pos-cn_bank-001","text":"银行卡 6222020000000007","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-002","text":"合成付款卡号 6217000000000006 仅用于 Luhn 测试。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-003","text":"银联卡号 6201230000000007 出现在测试账单。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-004","text":"字段 cn_bank=9558800000000000","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-005","text":"银行卡 6013820000000003","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-006","text":"合成付款卡号 6228480000000007 仅用于 Luhn 测试。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-007","text":"银联卡号 6227000000000004 出现在测试账单。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-008","text":"字段 cn_bank=6230520000000006","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-009","text":"银行卡 6259070000000008","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-010","text":"合成付款卡号 6282880000000001 仅用于 Luhn 测试。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-011","text":"银联卡号 6222020000000007 出现在测试账单。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-012","text":"字段 cn_bank=6217000000000006","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-013","text":"银行卡 6201230000000007","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-014","text":"合成付款卡号 9558800000000000 仅用于 Luhn 测试。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-015","text":"银联卡号 6013820000000003 出现在测试账单。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-016","text":"字段 cn_bank=6228480000000007","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-017","text":"银行卡 6227000000000004","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-018","text":"合成付款卡号 6230520000000006 仅用于 Luhn 测试。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-019","text":"银联卡号 6259070000000008 出现在测试账单。","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_bank-020","text":"字段 cn_bank=6282880000000001","expected":["cn_bank"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_bank"}
+{"id":"pos-cn_passport-001","text":"护照 E30000000","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-002","text":"合成出入境记录护照号 E30000001。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-003","text":"passport E30000002 写入测试旅程。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-004","text":"字段 cn_passport=E30000003","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-005","text":"护照 E30000004","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-006","text":"合成出入境记录护照号 E30000005。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-007","text":"passport E30000006 写入测试旅程。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-008","text":"字段 cn_passport=E30000007","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-009","text":"护照 E30000008","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-010","text":"合成出入境记录护照号 E30000009。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-011","text":"passport E30000010 写入测试旅程。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-012","text":"字段 cn_passport=E30000011","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-013","text":"护照 E30000012","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-014","text":"合成出入境记录护照号 E30000013。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-015","text":"passport E30000014 写入测试旅程。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-016","text":"字段 cn_passport=E30000015","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-017","text":"护照 E30000016","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-018","text":"合成出入境记录护照号 E30000017。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-019","text":"passport E30000018 写入测试旅程。","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_passport-020","text":"字段 cn_passport=E30000019","expected":["cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_passport"}
+{"id":"pos-cn_hk_id-001","text":"HKID A400000(0)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-002","text":"香港身份证 B400001(1) 出现在合成档案。","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-003","text":"合成证件字段 hk_id=C400002(2)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-004","text":"字段 cn_hk_id=D400003(3)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-005","text":"HKID E400004(4)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-006","text":"香港身份证 K400005(5) 出现在合成档案。","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-007","text":"合成证件字段 hk_id=M400006(6)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-008","text":"字段 cn_hk_id=P400007(7)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-009","text":"HKID R400008(8)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-010","text":"香港身份证 S400009(9) 出现在合成档案。","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-011","text":"合成证件字段 hk_id=A400010(0)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-012","text":"字段 cn_hk_id=B400011(1)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-013","text":"HKID C400012(2)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-014","text":"香港身份证 D400013(3) 出现在合成档案。","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-015","text":"合成证件字段 hk_id=E400014(4)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-016","text":"字段 cn_hk_id=K400015(5)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-017","text":"HKID M400016(6)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-018","text":"香港身份证 P400017(7) 出现在合成档案。","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-019","text":"合成证件字段 hk_id=R400018(8)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_hk_id-020","text":"字段 cn_hk_id=S400019(9)","expected":["cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_hk_id"}
+{"id":"pos-cn_drivers_license-001","text":"驾驶证 99020119940905300X","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-002","text":"驾照 990201199510063018 出现在合成交通病史。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-003","text":"患者驾驶证 990201199611073020 已通过规则检测。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-004","text":"字段 driver_license=驾驶证 990201199712083033","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-005","text":"驾驶证 990201199801093049","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-006","text":"驾照 990201199902103058 出现在合成交通病史。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-007","text":"患者驾驶证 990201200003113063 已通过规则检测。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-008","text":"字段 driver_license=驾驶证 990201200104123076","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-009","text":"驾驶证 990201200205133089","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-010","text":"驾照 990201200306143091 出现在合成交通病史。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-011","text":"患者驾驶证 990201200407153109 已通过规则检测。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-012","text":"字段 driver_license=驾驶证 990201200508163111","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-013","text":"驾驶证 990201200609173124","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-014","text":"驾照 990201200710183132 出现在合成交通病史。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-015","text":"患者驾驶证 990201200811193145 已通过规则检测。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-016","text":"字段 driver_license=驾驶证 990201200912203154","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-017","text":"驾驶证 990201201001213161","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-018","text":"驾照 990201201102223174 出现在合成交通病史。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-019","text":"患者驾驶证 990201201203233187 已通过规则检测。","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_drivers_license-020","text":"字段 driver_license=驾驶证 99020120130424319X","expected":["cn_drivers_license"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drivers_license"}
+{"id":"pos-cn_address-001","text":"住址 广东省广州市天河区天河路100号1楼1室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-002","text":"家庭住址 江苏省南京市鼓楼区中央路101号2楼2室 写入合成随访单。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-003","text":"现住 浙江省杭州市西湖区文三路102号3楼3室 用于地址召回测试。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-004","text":"地址 四川省成都市武侯区人民南路103号4楼4室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-005","text":"住址 湖北省武汉市江岸区解放大道104号5楼5室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-006","text":"家庭住址 山东省青岛市市南区香港中路105号6楼6室 写入合成随访单。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-007","text":"现住 福建省厦门市思明区湖滨南路106号7楼7室 用于地址召回测试。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-008","text":"地址 陕西省西安市雁塔区科技路107号8楼8室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-009","text":"住址 辽宁省沈阳市和平区南京北街108号9楼9室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-010","text":"家庭住址 云南省昆明市五华区青年路109号1楼10室 写入合成随访单。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-011","text":"现住 广东省广州市天河区天河路110号2楼11室 用于地址召回测试。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-012","text":"地址 江苏省南京市鼓楼区中央路111号3楼12室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-013","text":"住址 浙江省杭州市西湖区文三路112号4楼13室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-014","text":"家庭住址 四川省成都市武侯区人民南路113号5楼14室 写入合成随访单。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-015","text":"现住 湖北省武汉市江岸区解放大道114号6楼15室 用于地址召回测试。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-016","text":"地址 山东省青岛市市南区香港中路115号7楼16室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-017","text":"住址 福建省厦门市思明区湖滨南路116号8楼17室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-018","text":"家庭住址 陕西省西安市雁塔区科技路117号9楼18室 写入合成随访单。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-019","text":"现住 辽宁省沈阳市和平区南京北街118号1楼19室 用于地址召回测试。","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_address-020","text":"地址 云南省昆明市五华区青年路119号2楼20室","expected":["cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_address"}
+{"id":"pos-cn_disease_code-001","text":"诊断 ICD-10: E11.9","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-002","text":"出院诊断 I10 记录为合成病种。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-003","text":"疾病编码 J45.9 出现在测试病历。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-004","text":"入院诊断 K35.8","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-005","text":"诊断 ICD-10: N18.5","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-006","text":"出院诊断 A09 记录为合成病种。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-007","text":"疾病编码 B18.1 出现在测试病历。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-008","text":"入院诊断 C50.9","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-009","text":"诊断 ICD-10: M54.5","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-010","text":"出院诊断 R50.9 记录为合成病种。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-011","text":"疾病编码 E11.9 出现在测试病历。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-012","text":"入院诊断 I10","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-013","text":"诊断 ICD-10: J45.9","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-014","text":"出院诊断 K35.8 记录为合成病种。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-015","text":"疾病编码 N18.5 出现在测试病历。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-016","text":"入院诊断 A09","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-017","text":"诊断 ICD-10: B18.1","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-018","text":"出院诊断 C50.9 记录为合成病种。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-019","text":"疾病编码 M54.5 出现在测试病历。","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_disease_code-020","text":"入院诊断 R50.9","expected":["cn_disease_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_disease_code"}
+{"id":"pos-cn_drug_code-001","text":"药品 国药准字H20010000","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-002","text":"处方药品批准文号 国药准字Z20010001。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-003","text":"医嘱用药 国药准字S20010002 写入合成处方。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-004","text":"国药准字字段 国药准字J20010003","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-005","text":"药品 国药准字B20010004","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-006","text":"处方药品批准文号 国药准字T20010005。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-007","text":"医嘱用药 国药准字F20010006 写入合成处方。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-008","text":"国药准字字段 国药准字C20010007","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-009","text":"药品 国药准字H20010008","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-010","text":"处方药品批准文号 国药准字Z20010009。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-011","text":"医嘱用药 国药准字S20010010 写入合成处方。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-012","text":"国药准字字段 国药准字J20010011","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-013","text":"药品 国药准字B20010012","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-014","text":"处方药品批准文号 国药准字T20010013。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-015","text":"医嘱用药 国药准字F20010014 写入合成处方。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-016","text":"国药准字字段 国药准字C20010015","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-017","text":"药品 国药准字H20010016","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-018","text":"处方药品批准文号 国药准字Z20010017。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-019","text":"医嘱用药 国药准字S20010018 写入合成处方。","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-cn_drug_code-020","text":"国药准字字段 国药准字J20010019","expected":["cn_drug_code"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/cn_drug_code"}
+{"id":"pos-multifield-001","text":"合成复诊记录：身份证 990101201001214003，手机 13920000300，病案号 AH23000300。","expected":["cn_id","cn_phone","cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-002","text":"合成结算记录：银行卡 6217000000000006，护照 E30000301。","expected":["cn_bank","cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-003","text":"合成交通记录：驾照 990201200007115023，HKID C400302(2)。","expected":["cn_drivers_license","cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-004","text":"合成医嘱：诊断 ICD-10: K35.8，药品 国药准字C20010303，住址 四川省成都市武侯区人民南路403号7楼4室。","expected":["cn_disease_code","cn_drug_code","cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-005","text":"合成复诊记录：身份证 990101201405254044，手机 18120000304，病案号 EL23000304。","expected":["cn_id","cn_phone","cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-006","text":"合成结算记录：银行卡 6228480000000007，护照 E30000305。","expected":["cn_bank","cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-007","text":"合成交通记录：驾照 99020120041115506X，HKID M400306(6)。","expected":["cn_drivers_license","cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-008","text":"合成医嘱：诊断 ICD-10: C50.9，药品 国药准字J20010307，住址 陕西省西安市雁塔区科技路407号2楼8室。","expected":["cn_disease_code","cn_drug_code","cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-009","text":"合成复诊记录：身份证 990101199009014081，手机 18720000308，病案号 IP23000308。","expected":["cn_id","cn_phone","cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-010","text":"合成结算记录：银行卡 6282880000000001，护照 E30000309。","expected":["cn_bank","cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-011","text":"合成交通记录：驾照 990201200803195108，HKID A400310(0)。","expected":["cn_drivers_license","cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-012","text":"合成医嘱：诊断 ICD-10: I10，药品 国药准字C20010311，住址 江苏省南京市鼓楼区中央路411号6楼12室。","expected":["cn_disease_code","cn_drug_code","cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-013","text":"合成复诊记录：身份证 990101199401054125，手机 16620000312，病案号 MT23000312。","expected":["cn_id","cn_phone","cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-014","text":"合成结算记录：银行卡 9558800000000000，护照 E30000313。","expected":["cn_bank","cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-015","text":"合成交通记录：驾照 990201201207235147，HKID E400314(4)。","expected":["cn_drivers_license","cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-016","text":"合成医嘱：诊断 ICD-10: A09，药品 国药准字J20010315，住址 山东省青岛市市南区香港中路415号1楼16室。","expected":["cn_disease_code","cn_drug_code","cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-017","text":"合成复诊记录：身份证 990101199805094166，手机 19920000316，病案号 QD23000316。","expected":["cn_id","cn_phone","cn_mrn"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-018","text":"合成结算记录：银行卡 6230520000000006，护照 E30000317。","expected":["cn_bank","cn_passport"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-019","text":"合成交通记录：驾照 990201201611275183，HKID R400318(8)。","expected":["cn_drivers_license","cn_hk_id"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
+{"id":"pos-multifield-020","text":"合成医嘱：诊断 ICD-10: R50.9，药品 国药准字C20010319，住址 云南省昆明市五华区青年路419号5楼20室。","expected":["cn_disease_code","cn_drug_code","cn_address"],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/multifield"}
