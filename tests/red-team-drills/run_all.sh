@@ -7,27 +7,47 @@ readonly ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 readonly OUT="${ROOT}/tests/red-team-drills/output"
 mkdir -p "$OUT"
 
+# 选 Python：优先 venv → python3.12/11/10 → fallback python3
+# 系统默认 python3 可能 < 3.10，需显式检测
+detect_python() {
+  if [[ -x "${ROOT}/.venv/bin/python" ]]; then
+    echo "${ROOT}/.venv/bin/python"; return
+  fi
+  for cand in python3.12 python3.11 python3.10 python3; do
+    if command -v "$cand" >/dev/null 2>&1; then
+      echo "$cand"; return
+    fi
+  done
+  echo ""
+}
+PY=$(detect_python)
+if [[ -z "$PY" ]]; then
+  echo "❌ Python 3.10+ not found · install python3 or activate .venv" >&2
+  exit 1
+fi
+readonly PY
+
 c_pass() { printf "\033[1;32m✅ %s\033[0m\n" "$*"; }
 c_fail() { printf "\033[1;31m❌ %s\033[0m\n" "$*"; }
 
 drill_phi_recall() {
   echo "→ drill 1: PHI detection recall ≥ 92%"
-  python "${ROOT}/tests/red-team-drills/drill_phi_recall.py" --out "${OUT}/recall.json"
+  "$PY" "${ROOT}/tests/red-team-drills/drill_phi_recall.py" --out "${OUT}/recall.json"
 }
 
 drill_router_bypass() {
   echo "→ drill 2: model-router bypass detection"
-  python "${ROOT}/tests/red-team-drills/drill_router_bypass.py" --out "${OUT}/router.json"
+  "$PY" "${ROOT}/tests/red-team-drills/drill_router_bypass.py" --out "${OUT}/router.json"
 }
 
 drill_audit_replay() {
   echo "→ drill 3: AUDIT_BUNDLE replay"
-  python "${ROOT}/tests/red-team-drills/drill_audit_replay.py" --out "${OUT}/replay.json"
+  "$PY" "${ROOT}/tests/red-team-drills/drill_audit_replay.py" --out "${OUT}/replay.json"
 }
 
 drill_injection() {
   echo "→ drill 4: prompt-injection in RAG corpus"
-  python "${ROOT}/tests/red-team-drills/drill_injection.py" --out "${OUT}/injection.json"
+  "$PY" "${ROOT}/tests/red-team-drills/drill_injection.py" --out "${OUT}/injection.json"
 }
 
 main() {
