@@ -69,8 +69,8 @@
 | 角色 | 姓名 | 日期 | 签字 |
 |---|---|---|---|
 | 提案人 | charliehzm | 2026-05-21 | ✅ |
-| Compliance Officer | charliehzm（兼任） | ____ | ☐ |
-| 技术 Lead | charliehzm | ____ | ☐ |
+| Compliance Officer | charliehzm（兼任 · M4 拆岗） | 2026-05-21 | ✅ |
+| 技术 Lead | charliehzm | 2026-05-21 | ✅ |
 
 ⚠️ Compliance Officer 兼任风险：MVP 期可接受（v2.2 沿用）。M4 后强制拆岗。
 
