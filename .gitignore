@@ -80,3 +80,6 @@ HANDOFF/inbox/*
 # 内部备份目录（如不慎建在仓库内）
 .private/
 .medharness-private/
+
+# Red-team drill runtime artifacts (auto-generated)
+tests/red-team-drills/output/

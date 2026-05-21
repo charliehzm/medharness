@@ -130,11 +130,18 @@ step_12() {
   tar -czf "$bundle" \
     --exclude='*.pyc' --exclude='__pycache__' \
     "$EXAMPLE" 2>/dev/null || true
-  local sz
-  sz=$(du -h "$bundle" | cut -f1)
+  # 默认值防 set -u + du 失败时 sz 未定义
+  local sz="(unknown)"
+  if [[ -f "$bundle" ]]; then
+    sz=$(du -h "$bundle" 2>/dev/null | cut -f1) || sz="(du-failed)"
+  else
+    sz="(missing)"
+  fi
   c_ok "$bundle 已生成（$sz）"
-  shasum -a 256 "$bundle" > "${bundle}.sha256"
-  c_ok "$(cat "${bundle}.sha256")"
+  if [[ -f "$bundle" ]]; then
+    shasum -a 256 "$bundle" > "${bundle}.sha256"
+    c_ok "$(cat "${bundle}.sha256")"
+  fi
 }
 
 report() {
