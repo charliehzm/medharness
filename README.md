@@ -4,7 +4,7 @@
 >
 > 一套面向医疗数据 SaaS / 数据中台公司的开源 AI Coding 落地体系。
 > HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南 全部合规。
-> 6 个月从"零散使用 Cursor"到"企业级、可审计、可演进"。
+> 6 个月从"零散个人用 AI 编辑器"到"企业级、可审计、可演进"。
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-CC_BY--SA_4.0-lightgrey.svg)](LICENSE-CC-BY-SA-4.0)
