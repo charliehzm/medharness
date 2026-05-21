@@ -15,10 +15,12 @@
 # 项目一句话
 MedHarness · 医疗 SaaS 公司的开源 AI Coding 落地体系。HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南。Apache 2.0 + CC BY-SA 4.0。永久开源承诺。
 
-# 仓库 + 分支
+# 仓库 + 分支（trunk-based · 不用父分支）
 - Repo: https://github.com/charliehzm/medharness
-- 你工作的分支：feat/edge-tier-production-v0.5.0（从 main fork，必经 PR 才能 merge）
+- **每个 leaf sub-task 从 main 出分支**：`feat/T<N>.<M>-<slug>`
+- PR base = main · 合并 = squash + linear history
 - 你不能 push main。main 有强 BP（1 review + linear + 禁 force-push）。
+- "父 change" 只是 openspec/changes/feat-edge-tier-production-v0.5.0/ 这个 spec 目录，**不是 git 分支**
 
 # 立刻做这 6 件事（5 分钟）
 1. git clone https://github.com/charliehzm/medharness.git && cd medharness
@@ -56,23 +58,34 @@ R5 License 永久 Apache 2.0 / CC BY-SA 4.0（不改 SSPL/BSL）
 - 在 fixtures 引入真实 PHI（必经 test-data-generation Skill + 指纹核验）
 - 用云 LLM 直连（你自己的推理走 OpenAI 是 OK，但任何 mcp/* 代码内的 LLM 调用必经 mcp-model-router）
 
-# 你的工作循环（每个 task）
-1. 在 openspec/changes/feat-edge-tier-production-v0.5.0/T<N>-<slug>/ 下建子 change：
-   - proposal.md（继承父 change 但 task-level 细化）
-   - tasks.md（task 内部 step 拆解 ≤ 10 个）
-   - COMPLIANCE_TAG.md（用父 change 模板，可省略）
-2. git checkout -b feat/T<N>-<slug>
-3. 实现 → 跑 ruff check . / ruff format . / pytest tests/
-4. 跑 bash dryrun_e2e_v2.sh --ci 验证整体不退化
-5. 如触及合规规则 → 跑 bash tests/red-team-drills/run_all.sh
-6. Commit message 用 conventional commit + 含 task ID：
-   "feat(T1): phi-detector v3 presidio integration · recall 94% on synthetic corpus"
-7. gh pr create --base main --title "T<N>: <short>" --body 模板见 .github/pull_request_template.md
+# 你的工作循环（task group T<N> → leaf sub-task T<N>.<M>）
+
+## 阶段 A · task group 接手（每个 T<N> 开始时做一次）
+1. 在 openspec/changes/feat-edge-tier-production-v0.5.0/T<N>-<slug>/ 下建 group spec：
+   - tasks.md · 把 T<N> 拆为 T<N>.1..T<N>.K leaf sub-tasks · 每个 ≤ 2 文件
+   - proposal.md · 继承父 change 但 group-level 细化（可选 · 仅复杂 group 写）
+   - COMPLIANCE_TAG.md · 用父 change 模板复用（可省略）
+2. 把 tasks.md 提交 PR review（仅 spec · 0 代码）→ maintainer 确认拆解 OK
+
+## 阶段 B · leaf sub-task 实现（每个 T<N>.<M> 一遍）
+3. 在 T<N>-<slug>/T<N>.<M>-<slug>/ 下建 leaf spec（如必要）
+4. git checkout main && git pull && git checkout -b feat/T<N>.<M>-<slug>
+5. 改 ≤ 2 文件 → 单元测试 → 跑 ruff check . / ruff format . / pytest tests/
+6. 跑 bash dryrun_e2e_v2.sh --ci 验证整体不退化
+7. 如触及合规规则 → 跑 bash tests/red-team-drills/run_all.sh
+8. Commit message 用 conventional commit + leaf id：
+   "feat(T1.1): cn_id recognizer with Luhn check · recall 100% on cn_id corpus"
+9. gh pr create --base main --title "T<N>.<M>: <short>" --body 模板见 .github/pull_request_template.md
    - 合规自检 5 问必填
-   - 链接到子 change 目录
-8. 等 reviewer review（charliehzm + 异构 Compliance-Agent）
-9. 通过后 charliehzm squash merge
-10. 在 task 子 change 目录追加 AUDIT_BUNDLE 摘要
+   - 链接到 T<N>-<slug>/ spec 目录
+10. 等 reviewer review（charliehzm + 异构 Compliance-Agent）
+11. 通过后 charliehzm squash merge
+12. 在 T<N>-<slug>/AUDIT_BUNDLE.summary.md 追加 leaf 摘要
+
+## 阶段 C · task group 收尾（每个 T<N> 末尾做一次）
+13. 所有 leaf 合并后 → 给 maintainer "T<N> 完成报告"：DoD 逐项勾选 + KPI 数字
+14. 跑全套 red-team drills 确认无退化
+15. 进入下一个 T<N+1>
 
 # 任务依赖（见 tasks.md 末尾依赖图）
 T1, T2 可并行

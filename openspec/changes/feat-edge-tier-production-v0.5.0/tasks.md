@@ -1,7 +1,19 @@
 # Tasks · 20 任务 × 4 phase × 3-5 周
 
-> Step 4 拆解输出。每任务 ≤ 5 文件 + 单 PR + 走 12 步 SOP。
-> 命名：`T<N>-<slug>`，对应 sub-change 目录 `openspec/changes/feat-edge-tier-production-v0.5.0/T<N>-<slug>/`
+> Step 4 拆解输出。
+>
+> **关于"任务"粒度的两层定义**（避免与 [.claude/sub_agents/coder_agent.md](../../../.claude/sub_agents/coder_agent.md) "≤ 2 文件" 规则矛盾）：
+> - **Task group**（T1-T20，本文档）：spec / 路线图级别的逻辑组，平均 5-9 文件、对应**一组 PR**
+> - **Leaf sub-task**（T\<N\>.\<M\>）：codex 实际 commit 粒度，**≤ 2 文件 / 单 PR / 单 sub-change 目录**
+> - codex 接手任一 T\<N\> 时**必须**先把它拆为 T\<N\>.1..T\<N\>.K 的 leaf sub-tasks（写到该 T 子目录 tasks.md），再开第一个 PR
+>
+> **分支策略**（trunk-based · 不用父分支）：
+> - 每个 leaf sub-task 从 **main** 出分支：`feat/T<N>.<M>-<slug>`
+> - PR base = main
+> - 合并 = squash + linear history（main 已强 BP enforce）
+> - "父 change" 仅指 `openspec/changes/feat-edge-tier-production-v0.5.0/` spec 目录，**不是 git 分支**
+>
+> **leaf sub-task 文件数特例**：单 PR 文件数 3 时回 maintainer 评估（不机械回拆）；≥ 4 必拆。
 
 ---
 
