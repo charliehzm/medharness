@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from . import cn_finance_travel as finance
+from . import cn_medical_context as medical
 from .cn_core import CNIdRecognizer, CNMrnRecognizer, CNPhoneRecognizer
 
 
@@ -14,7 +16,16 @@ def load_cn_recognizers(fields_path: Path | str | None = None) -> list[object]:
     changing the public entrypoint.
     """
     _ = fields_path
-    return [CNIdRecognizer(), CNPhoneRecognizer(), CNMrnRecognizer()]
+    extra = (
+        finance.CNBankRecognizer,
+        finance.CNPassportRecognizer,
+        finance.CNHKIDRecognizer,
+        finance.CNDriversLicenseRecognizer,
+        medical.CNAddressRecognizer,
+        medical.CNDiseaseCodeRecognizer,
+        medical.CNDrugCodeRecognizer,
+    )
+    return [CNIdRecognizer(), CNPhoneRecognizer(), CNMrnRecognizer(), *(cls() for cls in extra)]
 
 
 __all__ = [
