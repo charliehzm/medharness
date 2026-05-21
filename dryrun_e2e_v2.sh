@@ -137,7 +137,8 @@ step_12() {
   else
     sz="(missing)"
   fi
-  c_ok "$bundle 已生成（$sz）"
+  # 用 ${var} 显式 braces · 防紧贴 CJK 全角括号在部分 shell / locale 下 identifier 解析歧义
+  c_ok "${bundle} 已生成（${sz}）"
   if [[ -f "$bundle" ]]; then
     shasum -a 256 "$bundle" > "${bundle}.sha256"
     c_ok "$(cat "${bundle}.sha256")"
