@@ -13,7 +13,20 @@
 > - 合并 = squash + linear history（main 已强 BP enforce）
 > - "父 change" 仅指 `openspec/changes/feat-edge-tier-production-v0.5.0/` spec 目录，**不是 git 分支**
 >
-> **leaf sub-task 文件数特例**：单 PR 文件数 3 时回 maintainer 评估（不机械回拆）；≥ 4 必拆。
+> **leaf sub-task 文件数规则**：
+> - **默认 ≤ 2 substantive 文件**（含新逻辑 / 业务实现 / 测试）
+> - **3 文件允许（无需评估）当且仅当**第 3 个文件满足全部：
+>   1. **wiring-only**：loader / 公共 API export / re-export / `__init__.py` index 更新
+>   2. **改动 ≤ 15 行**
+>   3. **必要的**：不改它，新代码无法被外部发现 / orphaned code
+> - **3 文件其他情况** → 回 maintainer 评估
+> - **≥ 4 文件** → 必拆
+>
+> **判定示例**：
+> - ✅ 允许：2 新 recognizer + `__init__.py` 加 import + 扩展列表（典型 T1.2 形态）
+> - ✅ 允许：1 模块 + 1 测试 + `CHANGELOG.md` 加一行
+> - ⚠️ 回评估：2 新模块 + 改 1 处既有业务逻辑（不是 wiring）
+> - ❌ 必拆：2 新模块 + 改 phi-detector v3 主流程 + 测试改动
 
 ---
 
