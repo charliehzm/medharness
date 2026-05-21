@@ -1,0 +1,131 @@
+fields:
+  - id: cn_id
+    presidio_entity: CN_ID
+    score_min: 0.60
+    must_pass_luhn: true
+    context_boost: {keywords: [身份证, 证件号, 公民身份号码, ID], window: 20}
+  - id: cn_phone
+    presidio_entity: CN_PHONE
+    score_min: 0.70
+    pattern: "^(13|14|15|16|17|18|19)\\d{9}$"
+    context_boost: {keywords: [手机, 电话, 联系, 手机号], window: 20}
+  - id: cn_mrn
+    presidio_entity: CN_MRN
+    score_min: 0.70
+    pattern: "^[A-Z]{2}\\d{8}$"
+    context_boost: {keywords: [病案号, 住院号, MRN, 病历号], window: 24}
+  - id: cn_bank
+    presidio_entity: CN_BANK
+    score_min: 0.80
+    must_pass_luhn: true
+    context_boost: {keywords: [银行卡, 卡号, 账号, 银联, 信用卡], window: 20}
+  - id: cn_name
+    presidio_entity: CN_NAME
+    score_min: 0.65
+    context_boost: {keywords: [患者, 病人, 姓名, 医生, 护士], window: 20}
+  - id: cn_address
+    presidio_entity: CN_ADDRESS
+    score_min: 0.70
+    context_boost: {keywords: [住址, 地址, 籍贯, 现住, 家庭住址], window: 30}
+  - id: cn_passport
+    presidio_entity: CN_PASSPORT
+    score_min: 0.72
+    pattern: "^E\\d{8}$"
+    context_boost: {keywords: [护照, passport], window: 20}
+  - id: cn_hk_id
+    presidio_entity: CN_HK_ID
+    score_min: 0.72
+    context_boost: {keywords: [香港身份证, HKID], window: 20}
+  - id: cn_drivers_license
+    presidio_entity: CN_DRIVERS_LICENSE
+    score_min: 0.72
+    context_boost: {keywords: [驾驶证, 驾照], window: 20}
+  - id: cn_disease_code
+    presidio_entity: CN_DISEASE_CODE
+    score_min: 0.68
+    context_boost: {keywords: [诊断, 疾病, ICD, 病种, 出院诊断, 入院诊断], window: 24}
+  - id: cn_drug_code
+    presidio_entity: CN_DRUG_CODE
+    score_min: 0.70
+    context_boost: {keywords: [药品, 处方, 国药准字, 用药, 医嘱], window: 24}
+  - id: email
+    presidio_entity: EMAIL_ADDRESS
+    score_min: 0.65
+    context_boost: {keywords: [邮箱, email, 联系方式], window: 20}
+  - id: ip_address
+    presidio_entity: IP_ADDRESS
+    score_min: 0.65
+    context_boost: {keywords: [IP, ip, 登录, 访问], window: 16}
+  - id: url
+    presidio_entity: URL
+    score_min: 0.60
+    context_boost: {keywords: [链接, URL, url, callback], window: 16}
+  - id: date_time
+    presidio_entity: DATE_TIME
+    score_min: 0.60
+    context_boost: {keywords: [出生, DOB, 日期, 就诊, 入院, 出院], window: 24}
+  - id: us_ssn
+    presidio_entity: US_SSN
+    score_min: 0.70
+    context_boost: {keywords: [SSN, social security], window: 20}
+  - id: us_driver_license
+    presidio_entity: US_DRIVER_LICENSE
+    score_min: 0.70
+    context_boost: {keywords: [driver license, 驾照], window: 20}
+  - id: us_passport
+    presidio_entity: US_PASSPORT
+    score_min: 0.70
+    context_boost: {keywords: [passport, 护照], window: 20}
+  - id: us_itin
+    presidio_entity: US_ITIN
+    score_min: 0.70
+    context_boost: {keywords: [ITIN, taxpayer], window: 20}
+  - id: us_bank_number
+    presidio_entity: US_BANK_NUMBER
+    score_min: 0.72
+    context_boost: {keywords: [bank, account, routing], window: 20}
+  - id: us_license_plate
+    presidio_entity: US_LICENSE_PLATE
+    score_min: 0.65
+    context_boost: {keywords: [license plate, 车牌], window: 20}
+  - id: iban_code
+    presidio_entity: IBAN_CODE
+    score_min: 0.72
+    context_boost: {keywords: [IBAN, bank account], window: 20}
+  - id: credit_card
+    presidio_entity: CREDIT_CARD
+    score_min: 0.72
+    must_pass_luhn: true
+    context_boost: {keywords: [credit card, 卡号, 支付], window: 20}
+  - id: crypto
+    presidio_entity: CRYPTO
+    score_min: 0.65
+    context_boost: {keywords: [wallet, crypto, address], window: 16}
+  - id: person
+    presidio_entity: PERSON
+    score_min: 0.60
+    context_boost: {keywords: [patient, doctor, name, 患者, 医生], window: 20}
+  - id: location
+    presidio_entity: LOCATION
+    score_min: 0.60
+    context_boost: {keywords: [location, address, 地址, 住址], window: 20}
+  - id: organization
+    presidio_entity: ORGANIZATION
+    score_min: 0.60
+    context_boost: {keywords: [hospital, clinic, 医院, 机构], window: 20}
+  - id: medical_record_number
+    presidio_entity: MEDICAL_RECORD_NUMBER
+    score_min: 0.70
+    context_boost: {keywords: [MRN, medical record, 病案号], window: 24}
+  - id: health_plan_beneficiary_number
+    presidio_entity: HEALTH_PLAN_BENEFICIARY_NUMBER
+    score_min: 0.70
+    context_boost: {keywords: [health plan, policy, insurance, 医保], window: 24}
+  - id: device_identifier
+    presidio_entity: DEVICE_IDENTIFIER
+    score_min: 0.68
+    context_boost: {keywords: [device, serial, implant, 设备, 序列号], window: 24}
+  - id: biometric_identifier
+    presidio_entity: BIOMETRIC_IDENTIFIER
+    score_min: 0.68
+    context_boost: {keywords: [fingerprint, voiceprint, faceprint, 指纹, 声纹, 人脸], window: 24}
