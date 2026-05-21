@@ -1,228 +1,369 @@
 #!/usr/bin/env python3
-"""
-mcp-phi-detector v3 · M3 后实战调优版（v2.2 升级）
-====================================================
-基于 M1-M2 实战反馈（governance/M1-M2实战反馈-v2.2触发.md §B1）的调优：
+"""mcp-phi-detector v3 · Presidio-backed detector.
 
-v3 改进：
-1. CN-Bank 加 Luhn 校验 + 字符上下文白名单（排除 commit hash / UUID / RFID）
-2. CN-Name heuristic 加上下文（"医院" / "病房" / "诊所" 等不算人名）
-3. Date 检测要求人名邻近才升级 high severity
-4. 已脱敏占位符 {{XX_yyyy}} 跳过扫描（信任脱敏）
-5. Session 级去重：同 prompt 内已扫描区段不重复
-6. 上下文白名单（log timestamp / commit hash / UUID）
-
-兼容 v2 接口；CLI 与 stdio 双模式。
+The v3 contract returns only offsets, entity types, scores, and SHA-256 hashes
+of matched substrings. Raw matched text must never leave this process.
 """
 
 from __future__ import annotations
 
 import json
-import re
+import logging
 import sys
-from datetime import datetime
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
-sys.path.insert(0, str(Path(__file__).parent))
-from server_v2 import (
-    _classifier_call,
-    detect_v2,  # 留底
-)
+BASE_DIR = Path(__file__).resolve().parent
+FIELDS_PATH = BASE_DIR / "fields.yml"
+MAX_TEXT_CHARS = 8192
+DEFAULT_LANGUAGE = "zh"
+DEFAULT_SCORE_THRESHOLD = 0.6
 
-# ====== v3 规则升级 ======
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-# 占位符 — 信任已脱敏文本
-PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*[A-Z]{2}_[a-z0-9]{2,10}\s*\}\}")
+from postprocess import Span, apply_context_rules  # noqa: E402
+from recognizers import load_cn_recognizers  # noqa: E402
+from recognizers.fields_loader import FieldSpec, load_fields_yml  # noqa: E402
 
-# UUID / sha hash / commit hash 白名单（防止 CN-Bank 误判）
-HEX_HASH_LIKE = re.compile(r"\b[a-f0-9]{16,64}\b")
-UUID_LIKE = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I)
-
-# 日志时间戳上下文（ISO 8601 + log level 前缀）
-LOG_TIMESTAMP_CTX = re.compile(
-    r"\b\d{4}-\d{1,2}-\d{1,2}[T ]\d{1,2}:\d{1,2}(:\d{1,2})?(Z|[+-]\d{2}:?\d{2})?\b"
-)
-
-# CN-Name 白名单（医院/科室/药品等机构性词汇不算人名）
-NON_NAME_TOKENS = set(
-    [
-        "医院",
-        "卫生",
-        "病房",
-        "诊所",
-        "科室",
-        "门诊",
-        "急诊",
-        "药房",
-        "药品",
-        "检查",
-        "化验",
-        "检验",
-        "手术",
-        "病区",
-        "楼层",
-        "床位",
-    ]
-    + [
-        "公司",
-        "集团",
-        "总部",
-        "分部",
-        "部门",
-        "团队",
-        "项目",
-        "系统",
-        "平台",
-        "服务",
-        "接口",
-        "数据库",
-        "表格",
-    ]
-)
-
-# CN-Name 启发式（v3 新增；v2 没有此规则）
-CN_NAME_HEURISTIC = re.compile(r"\b[一-龥]{2,4}\b")
-
-# 银行卡 / 身份证号上下文要求（必须邻近"银行卡|身份证|账号|卡号|证件号"才升 high）
-BANK_CONTEXT_KEYWORDS = ["银行卡", "卡号", "账号", "信用卡", "存折"]
-ID_CARD_CONTEXT_KEYWORDS = ["身份证", "证件号", "公民身份号码", "ID"]
+logger = logging.getLogger("medharness.phi_detector.server_v3")
 
 
-def _looks_like_hash(text: str, span: tuple[int, int]) -> bool:
-    """命中位置是否在 hash/UUID 区域内"""
-    for m in HEX_HASH_LIKE.finditer(text):
-        if m.start() <= span[0] < m.end():
-            return True
-    for m in UUID_LIKE.finditer(text):
-        if m.start() <= span[0] < m.end():
-            return True
-    return False
+class NoOpContextAwareEnhancer:
+    """Disable Presidio lemma context enhancement for regex-only fallback paths."""
+
+    def enhance_using_context(
+        self,
+        text: str,
+        raw_results: list[Any],
+        nlp_artifacts: Any,
+        recognizers: list[Any],
+        context: list[str] | None = None,
+    ) -> list[Any]:
+        del text, nlp_artifacts, recognizers, context
+        return raw_results
 
 
-def _looks_like_log_timestamp(text: str, span: tuple[int, int]) -> bool:
-    """命中位置是否在日志时间戳上下文"""
-    snippet = text[max(0, span[0] - 30) : min(len(text), span[1] + 30)]
-    return bool(LOG_TIMESTAMP_CTX.search(snippet))
+class RegexOnlyNlpEngine:
+    """Tiny Presidio NLP engine which never downloads spaCy models."""
+
+    def __init__(self, languages: tuple[str, ...] = ("zh", "en")) -> None:
+        self._languages = languages
+        self._loaded = False
+        self._blank_models: dict[str, Any] = {}
+
+    def load(self) -> None:
+        import spacy
+
+        self._blank_models = {
+            language: spacy.blank("zh" if language == "zh" else "en")
+            for language in self._languages
+        }
+        self._loaded = True
+
+    def is_loaded(self) -> bool:
+        return self._loaded
+
+    def process_text(self, text: str, language: str) -> Any:
+        from presidio_analyzer.nlp_engine import NlpArtifacts
+
+        if not self._loaded:
+            self.load()
+        nlp = self._blank_models.get(language) or self._blank_models[self._languages[0]]
+        doc = nlp.make_doc(text)
+        return NlpArtifacts(
+            entities=[],
+            tokens=doc,
+            tokens_indices=[token.idx for token in doc],
+            lemmas=[token.text for token in doc],
+            nlp_engine=self,
+            language=language,
+        )
+
+    def process_batch(
+        self,
+        texts: list[str],
+        language: str,
+        batch_size: int = 1,
+        n_process: int = 1,
+        **kwargs: Any,
+    ) -> Any:
+        del batch_size, n_process, kwargs
+        for text in texts:
+            yield text, self.process_text(text, language)
+
+    def is_stopword(self, word: str, language: str) -> bool:
+        del word, language
+        return False
+
+    def is_punct(self, word: str, language: str) -> bool:
+        del language
+        return len(word) == 1 and not word.isalnum()
+
+    def get_supported_entities(self) -> list[str]:
+        return []
+
+    def get_supported_languages(self) -> list[str]:
+        return list(self._languages)
 
 
-def _is_in_placeholder(text: str, span: tuple[int, int]) -> bool:
-    """命中位置是否在 {{PT_xxxx}} 占位符内"""
-    for m in PLACEHOLDER_PATTERN.finditer(text):
-        if m.start() <= span[0] < m.end():
-            return True
-    return False
+@dataclass(frozen=True)
+class DetectorRuntime:
+    analyzer: Any | None
+    recognizers: list[Any]
+    fields: list[FieldSpec]
+    entities_by_language: dict[str, list[str]]
+    registered_entities: set[str]
+    skipped_entities: tuple[str, ...]
+    regex_only: bool
+    init_warning: str | None = None
 
 
-def _has_bank_context(text: str, span: tuple[int, int]) -> bool:
-    snippet = text[max(0, span[0] - 20) : span[0]]
-    return any(kw in snippet for kw in BANK_CONTEXT_KEYWORDS)
+_RUNTIME: DetectorRuntime | None = None
 
 
-def _has_id_context(text: str, span: tuple[int, int]) -> bool:
-    snippet = text[max(0, span[0] - 20) : span[0]]
-    return any(kw in snippet for kw in ID_CARD_CONTEXT_KEYWORDS)
+def _load_runtime(fields_path: Path = FIELDS_PATH) -> DetectorRuntime:
+    fields = load_fields_yml(fields_path)
+    recognizers = load_cn_recognizers(fields_path)
+    registered_entities = {
+        entity
+        for recognizer in recognizers
+        for entity in getattr(recognizer, "supported_entities", [])
+    }
 
+    analyzer = None
+    regex_only = True
+    init_warning = _spacy_model_warning()
+    try:
+        from presidio_analyzer import AnalyzerEngine, RecognizerRegistry
 
-def _check_name_heuristic(text: str) -> list[dict]:
-    """v3 新增：CN-Name 启发式，但带上下文白名单"""
-    out = []
-    for m in CN_NAME_HEURISTIC.finditer(text):
-        token = m.group()
-        # 白名单：常见机构性词汇
-        if token in NON_NAME_TOKENS:
-            continue
-        # 太短（2 字）单独不够；要求附近有"病人/患者/姓名/医生"等触发词
-        ctx_before = text[max(0, m.start() - 10) : m.start()]
-        ctx_after = text[m.end() : m.end() + 10]
-        ctx = ctx_before + ctx_after
-        if not any(t in ctx for t in ["病人", "患者", "姓名", "医生", "Mr.", "Ms.", "Mrs."]):
-            continue
-        # 长度 2-3 字，邻近触发词 → 可能为人名
-        out.append(
+        registry = RecognizerRegistry(supported_languages=["zh", "en"])
+        nlp_engine = RegexOnlyNlpEngine()
+        nlp_engine.load()
+        registry.load_predefined_recognizers(languages=["en"], nlp_engine=nlp_engine)
+        for recognizer in recognizers:
+            registry.add_recognizer(recognizer)
+        registered_entities.update(
+            entity
+            for recognizer in registry.recognizers
+            for entity in getattr(recognizer, "supported_entities", [])
+        )
+        analyzer = AnalyzerEngine(
+            registry=registry,
+            nlp_engine=nlp_engine,
+            supported_languages=["zh", "en"],
+            context_aware_enhancer=NoOpContextAwareEnhancer(),
+        )
+        regex_only = bool(init_warning)
+    except Exception as exc:  # pragma: no cover - exercised by dependency failure.
+        init_warning = f"presidio unavailable; regex-only fallback active: {exc}"
+        logger.warning(init_warning)
+
+    skipped_entities = tuple(
+        sorted(
             {
-                "type": "CN-Name-heuristic",
-                "span": [m.start(), m.end()],
-                "confidence": 0.7,
-                "suggested": "review",
+                field.presidio_entity
+                for field in fields
+                if field.presidio_entity not in registered_entities
             }
         )
-    return out
+    )
+    if skipped_entities:
+        logger.warning("Skipping unregistered fields.yml entities: %s", ", ".join(skipped_entities))
+
+    entities_by_language = {
+        "zh": _entities_for_language(fields, registered_entities, language="zh"),
+        "en": _entities_for_language(fields, registered_entities, language="en"),
+    }
+    return DetectorRuntime(
+        analyzer=analyzer,
+        recognizers=recognizers,
+        fields=fields,
+        entities_by_language=entities_by_language,
+        registered_entities=registered_entities,
+        skipped_entities=skipped_entities,
+        regex_only=regex_only,
+        init_warning=init_warning,
+    )
 
 
-def detect_v3(text: str, context: dict | None = None) -> dict:
-    """v3 主入口"""
-    if not text:
-        return {
-            "hits": [],
-            "summary": {"total_hits": 0, "max_confidence": 0, "blocking_recommendation": False},
-            "_meta": {"version": "0.3-v3", "passes": ["rule-v3"]},
-        }
+def _runtime() -> DetectorRuntime:
+    global _RUNTIME
+    if _RUNTIME is None:
+        _RUNTIME = _load_runtime()
+    return _RUNTIME
 
-    # Step 1: 跑 v2 规则层
-    v2_result = detect_v2(text, context)
-    hits = v2_result["hits"]
 
-    # Step 2: 加 CN-Name heuristic（v3 新增）
-    hits.extend(_check_name_heuristic(text))
+def _spacy_model_warning() -> str | None:
+    try:
+        import spacy
 
-    # Step 3: 加分类器层（如配）
-    classifier_hits = _classifier_call(text)
-    hits.extend(classifier_hits)
+        if spacy.util.is_package("zh_core_web_sm") or (BASE_DIR / "zh_core_web_sm").exists():
+            return None
+        raise OSError("zh_core_web_sm is not installed")
+    except Exception as exc:
+        warning = f"zh_core_web_sm unavailable; regex-only fallback active: {exc}"
+        logger.warning(warning)
+        return warning
+    return None
 
-    # Step 4: v3 过滤——排除假阳性
-    filtered = []
-    suppressed = []
-    for h in hits:
-        span = tuple(h["span"])
-        # 4a: 已脱敏占位符跳过
-        if _is_in_placeholder(text, span):
-            suppressed.append({**h, "_suppressed": "in_placeholder"})
-            continue
-        # 4b: hash/UUID 区域跳过（针对 CN-Bank 误判）
-        if h["type"] == "CN-Bank" and _looks_like_hash(text, span):
-            suppressed.append({**h, "_suppressed": "hash_like"})
-            continue
-        # 4c: 日志时间戳跳过（针对 Date 误判）
-        if h["type"] in ("Date-ISO", "Date-CJK") and _looks_like_log_timestamp(text, span):
-            suppressed.append({**h, "_suppressed": "log_timestamp"})
-            continue
-        # 4d: 银行卡 上下文降级（CN-ID 18 位本身已是强信号，不降级）
-        if h["type"] == "CN-Bank" and not _has_bank_context(text, span):
-            h["confidence"] = max(0.5, h["confidence"] - 0.25)
-            h["_demoted"] = "no_bank_context"
-        # 4e: Date 缺人名邻近，降级
-        if h["type"] in ("Date-ISO", "Date-CJK"):
-            snippet = text[max(0, span[0] - 30) : min(len(text), span[1] + 30)]
-            if not any(t in snippet for t in ["病人", "患者", "出生", "Mr.", "Ms.", "Mrs.", "DOB"]):
-                h["confidence"] = max(0.4, h["confidence"] - 0.3)
-                h["_demoted"] = "no_name_proximity"
-        filtered.append(h)
 
-    # Step 5: 去重（同 span 取 max confidence）
-    by_span: dict[tuple, dict] = {}
-    for h in filtered:
-        key = tuple(h["span"])
-        if key not in by_span or h["confidence"] > by_span[key]["confidence"]:
-            by_span[key] = h
-    final = list(by_span.values())
+def _entities_for_language(
+    fields: list[FieldSpec],
+    registered_entities: set[str],
+    language: str,
+) -> list[str]:
+    entities = [
+        field.presidio_entity
+        for field in fields
+        if field.presidio_entity in registered_entities
+        and _entity_language(field.presidio_entity) == language
+    ]
+    return list(dict.fromkeys(entities))
 
-    max_conf = max((h["confidence"] for h in final), default=0.0)
+
+def _entity_language(entity: str) -> str:
+    if entity.startswith("CN_"):
+        return "zh"
+    return "en"
+
+
+def _context_keywords(fields: list[FieldSpec], entities: list[str]) -> list[str]:
+    allowed = set(entities)
+    keywords: list[str] = []
+    for field in fields:
+        if field.presidio_entity in allowed:
+            keywords.extend(field.context_boost.keywords)
+    return list(dict.fromkeys(keywords))
+
+
+def _normalize_language(language: str | None) -> str:
+    if language in {"zh", "en"}:
+        return language
+    return DEFAULT_LANGUAGE
+
+
+def _normalize_threshold(value: Any) -> float:
+    try:
+        threshold = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_SCORE_THRESHOLD
+    return min(max(threshold, 0.0), 1.0)
+
+
+def _analyze_with_presidio(
+    runtime: DetectorRuntime,
+    text: str,
+    language: str,
+    entities: list[str],
+    score_threshold: float,
+) -> list[Any]:
+    if runtime.analyzer is None or not entities:
+        return []
+    return runtime.analyzer.analyze(
+        text=text,
+        language=language,
+        entities=entities,
+        score_threshold=0.0,
+        context=_context_keywords(runtime.fields, entities),
+        return_decision_process=False,
+    )
+
+
+def _analyze_with_local_recognizers(
+    runtime: DetectorRuntime,
+    text: str,
+    entities: list[str],
+) -> list[Any]:
+    if not entities:
+        return []
+    output: list[Any] = []
+    for recognizer in runtime.recognizers:
+        supported = [
+            entity for entity in getattr(recognizer, "supported_entities", []) if entity in entities
+        ]
+        if supported:
+            output.extend(recognizer.analyze(text=text, entities=supported, nlp_artifacts=None))
+    return output
+
+
+def _to_envelope(
+    text: str,
+    spans: list[Span],
+    duration_ms: float,
+    runtime: DetectorRuntime | None = None,
+) -> dict[str, Any]:
+    max_score = max((span.score for span in spans), default=0.0)
     return {
-        "hits": final,
-        "suppressed": suppressed,
+        "spans": [
+            {
+                "start": span.start,
+                "end": span.end,
+                "entity_type": span.entity_type,
+                "type": span.entity_type,
+                "score": round(float(span.score), 6),
+                "text_sha256": sha256(text[span.start : span.end].encode("utf-8")).hexdigest(),
+            }
+            for span in spans
+        ],
+        "stats": {
+            "recall_estimate": round(max_score, 6),
+            "duration_ms": round(duration_ms, 3),
+        },
         "summary": {
-            "total_hits": len(final),
-            "suppressed_count": len(suppressed),
-            "max_confidence": max_conf,
-            "blocking_recommendation": max_conf >= 0.9,
+            "total_hits": len(spans),
+            "max_confidence": round(max_score, 6),
+            "blocking_recommendation": max_score >= 0.9,
         },
         "_meta": {
-            "version": "0.3-v3",
-            "checked_at": datetime.utcnow().isoformat() + "Z",
-            "passes": ["rule-v2", "name-heuristic-v3"]
-            + (["classifier"] if classifier_hits else []),
+            "version": "0.5-v3-presidio",
+            "checked_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "passes": ["presidio", "context-rules"],
+            "skipped_entities": list(runtime.skipped_entities) if runtime else [],
+            "regex_only": runtime.regex_only if runtime else False,
         },
     }
+
+
+def detect_v3(text: str, context: dict | None = None) -> dict[str, Any]:
+    """Detect PHI spans and return the v0.5 envelope."""
+    started = time.perf_counter()
+    context = context or {}
+    if not isinstance(text, str):
+        text = json.dumps(text, ensure_ascii=False)
+    text = text[:MAX_TEXT_CHARS]
+    if not text:
+        return _to_envelope("", [], (time.perf_counter() - started) * 1000)
+
+    runtime = _runtime()
+    language = _normalize_language(context.get("language"))
+    score_threshold = _normalize_threshold(context.get("score_threshold", DEFAULT_SCORE_THRESHOLD))
+    requested_entities = context.get("entities")
+    entities = runtime.entities_by_language.get(language, [])
+    if isinstance(requested_entities, list):
+        requested = {str(entity) for entity in requested_entities}
+        entities = [entity for entity in entities if entity in requested]
+
+    try:
+        raw = _analyze_with_presidio(runtime, text, language, entities, score_threshold)
+    except Exception as exc:
+        logger.warning("Presidio analyze failed; using local recognizer fallback: %s", exc)
+        raw = _analyze_with_local_recognizers(runtime, text, entities)
+    if not raw:
+        raw = _analyze_with_local_recognizers(runtime, text, entities)
+
+    spans = apply_context_rules(text, raw, score_threshold)
+    duration_ms = (time.perf_counter() - started) * 1000
+    return _to_envelope(text, spans, duration_ms, runtime)
+
+
+def detect(text: str, context: dict | None = None) -> list[dict[str, Any]]:
+    """Legacy drill shim returning span dictionaries only."""
+    return detect_v3(text, context)["spans"]
 
 
 def _serve_stdio() -> int:
@@ -240,7 +381,17 @@ def _serve_stdio() -> int:
             result = detect_v3(params.get("text", ""), params.get("context"))
             resp = {"id": req.get("id"), "result": result}
         elif method == "health":
-            resp = {"id": req.get("id"), "result": {"status": "ok-v3"}}
+            runtime = _runtime()
+            resp = {
+                "id": req.get("id"),
+                "result": {
+                    "status": "ok-v3",
+                    "backend": "presidio",
+                    "regex_only": runtime.regex_only,
+                    "skipped_entities": list(runtime.skipped_entities),
+                    "warning": runtime.init_warning,
+                },
+            }
         else:
             resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
         sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
@@ -253,7 +404,19 @@ def main() -> int:
         return _serve_stdio()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "detect"
     if cmd == "health":
-        print(json.dumps({"status": "ok-v3"}))
+        runtime = _runtime()
+        print(
+            json.dumps(
+                {
+                    "status": "ok-v3",
+                    "backend": "presidio",
+                    "regex_only": runtime.regex_only,
+                    "skipped_entities": list(runtime.skipped_entities),
+                    "warning": runtime.init_warning,
+                },
+                ensure_ascii=False,
+            )
+        )
         return 0
     if cmd == "detect":
         try:
@@ -261,7 +424,14 @@ def main() -> int:
         except Exception:
             req = {}
         text = req.get("text", "") or ""
-        print(json.dumps(detect_v3(text, req.get("context")), ensure_ascii=False))
+        context = req.get("context") or {}
+        if "language" in req and "language" not in context:
+            context["language"] = req["language"]
+        if "score_threshold" in req and "score_threshold" not in context:
+            context["score_threshold"] = req["score_threshold"]
+        if "entities" in req and "entities" not in context:
+            context["entities"] = req["entities"]
+        print(json.dumps(detect_v3(text, context), ensure_ascii=False))
         return 0
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)
     return 1
