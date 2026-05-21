@@ -1,0 +1,110 @@
+{"id":"neg-log-timestamp-001","text":"INFO 2026-05-01 14:00:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-002","text":"INFO 2026-05-02 14:01:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-003","text":"INFO 2026-05-03 14:02:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-004","text":"INFO 2026-05-04 14:03:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-005","text":"INFO 2026-05-05 14:04:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-006","text":"INFO 2026-05-06 14:05:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-007","text":"INFO 2026-05-07 14:06:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-008","text":"INFO 2026-05-08 14:07:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-009","text":"INFO 2026-05-09 14:08:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-log-timestamp-010","text":"INFO 2026-05-10 14:09:00 request completed code=OK","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/log-timestamp"}
+{"id":"neg-commit-hash-001","text":"commit abc123def4567890abc123def4567800 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-002","text":"commit abc123def4567890abc123def4567801 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-003","text":"commit abc123def4567890abc123def4567802 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-004","text":"commit abc123def4567890abc123def4567803 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-005","text":"commit abc123def4567890abc123def4567804 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-006","text":"commit abc123def4567890abc123def4567805 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-007","text":"commit abc123def4567890abc123def4567806 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-008","text":"commit abc123def4567890abc123def4567807 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-009","text":"commit abc123def4567890abc123def4567808 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-commit-hash-010","text":"commit abc123def4567890abc123def4567809 updated parser branch","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/commit-hash"}
+{"id":"neg-uuid-001","text":"trace id 550e8400-e29b-41d4-a716-446655440000 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-002","text":"trace id 550e8400-e29b-41d4-a716-446655440001 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-003","text":"trace id 550e8400-e29b-41d4-a716-446655440002 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-004","text":"trace id 550e8400-e29b-41d4-a716-446655440003 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-005","text":"trace id 550e8400-e29b-41d4-a716-446655440004 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-006","text":"trace id 550e8400-e29b-41d4-a716-446655440005 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-007","text":"trace id 550e8400-e29b-41d4-a716-446655440006 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-008","text":"trace id 550e8400-e29b-41d4-a716-446655440007 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-009","text":"trace id 550e8400-e29b-41d4-a716-446655440008 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-uuid-010","text":"trace id 550e8400-e29b-41d4-a716-446655440009 finished without user data","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/uuid"}
+{"id":"neg-placeholder-001","text":"脱敏占位 {PT_ab00} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-002","text":"脱敏占位 {PT_ab01} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-003","text":"脱敏占位 {PT_ab02} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-004","text":"脱敏占位 {PT_ab03} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-005","text":"脱敏占位 {PT_ab04} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-006","text":"脱敏占位 {PT_ab05} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-007","text":"脱敏占位 {PT_ab06} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-008","text":"脱敏占位 {PT_ab07} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-009","text":"脱敏占位 {PT_ab08} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-placeholder-010","text":"脱敏占位 {PT_ab09} <phi> ${phi} 110101199001011234 13800138000","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/placeholder"}
+{"id":"neg-code-snippet-001","text":"if build_code == 'E11.0': return 'synthetic-0'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-002","text":"if build_code == 'E11.1': return 'synthetic-1'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-003","text":"if build_code == 'E11.2': return 'synthetic-2'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-004","text":"if build_code == 'E11.3': return 'synthetic-3'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-005","text":"if build_code == 'E11.4': return 'synthetic-4'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-006","text":"if build_code == 'E11.5': return 'synthetic-5'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-007","text":"if build_code == 'E11.6': return 'synthetic-6'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-008","text":"if build_code == 'E11.7': return 'synthetic-7'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-009","text":"if build_code == 'E11.8': return 'synthetic-8'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-code-snippet-010","text":"if build_code == 'E11.9': return 'synthetic-9'  # no clinical context","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/code-snippet"}
+{"id":"neg-docs-001","text":"文档变更 fix E11.0 in changelog section 0，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-002","text":"文档变更 fix E11.1 in changelog section 1，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-003","text":"文档变更 fix E11.2 in changelog section 2，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-004","text":"文档变更 fix E11.3 in changelog section 3，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-005","text":"文档变更 fix E11.4 in changelog section 4，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-006","text":"文档变更 fix E11.5 in changelog section 5，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-007","text":"文档变更 fix E11.6 in changelog section 6，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-008","text":"文档变更 fix E11.7 in changelog section 7，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-009","text":"文档变更 fix E11.8 in changelog section 8，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-docs-010","text":"文档变更 fix E11.9 in changelog section 9，不代表诊断记录","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/docs"}
+{"id":"neg-plain-text-001","text":"普通流程说明第0条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-002","text":"普通流程说明第1条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-003","text":"普通流程说明第2条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-004","text":"普通流程说明第3条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-005","text":"普通流程说明第4条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-006","text":"普通流程说明第5条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-007","text":"普通流程说明第6条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-008","text":"普通流程说明第7条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-009","text":"普通流程说明第8条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-plain-text-010","text":"普通流程说明第9条：今天讨论队列、缓存、表单、权限和页面状态。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/plain-text"}
+{"id":"neg-medical-non-phi-001","text":"医学术语样例第0条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-002","text":"医学术语样例第1条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-003","text":"医学术语样例第2条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-004","text":"医学术语样例第3条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-005","text":"医学术语样例第4条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-006","text":"医学术语样例第5条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-007","text":"医学术语样例第6条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-008","text":"医学术语样例第7条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-009","text":"医学术语样例第8条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-medical-non-phi-010","text":"医学术语样例第9条：糖尿病、高血压、心电图、血常规、影像检查。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/medical-non-phi"}
+{"id":"neg-tcm-acupoint-001","text":"中医穴位教学：足三里 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-002","text":"中医穴位教学：百会 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-003","text":"中医穴位教学：合谷 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-004","text":"中医穴位教学：内关 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-005","text":"中医穴位教学：三阴交 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-006","text":"中医穴位教学：太冲 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-007","text":"中医穴位教学：涌泉 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-008","text":"中医穴位教学：神门 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-009","text":"中医穴位教学：关元 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-tcm-acupoint-010","text":"中医穴位教学：气海 是合成课程词条，不是人员姓名。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/tcm-acupoint"}
+{"id":"neg-invalid-id-bank-001","text":"测试无效证件 990101201409256000，测试无效卡号 6222020000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-002","text":"测试无效证件 990101201510266010，测试无效卡号 6217000000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-003","text":"测试无效证件 990101201611276020，测试无效卡号 6201230000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-004","text":"测试无效证件 990101201712286030，测试无效卡号 9558800000000001。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-005","text":"测试无效证件 990101199001016040，测试无效卡号 6013820000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-006","text":"测试无效证件 990101199102026050，测试无效卡号 6228480000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-007","text":"测试无效证件 990101199203036060，测试无效卡号 6227000000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-008","text":"测试无效证件 990101199304046070，测试无效卡号 6230520000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-009","text":"测试无效证件 990101199405056081，测试无效卡号 6259070000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-invalid-id-bank-010","text":"测试无效证件 990101199506066090，测试无效卡号 6282880000000000。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/invalid-id-bank"}
+{"id":"neg-build-artifact-mrn-like-001","text":"构建产物 AH23000700.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-002","text":"构建产物 BI23000701.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-003","text":"构建产物 CJ23000702.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-004","text":"构建产物 DK23000703.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-005","text":"构建产物 EL23000704.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-006","text":"构建产物 FM23000705.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-007","text":"构建产物 GN23000706.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-008","text":"构建产物 HO23000707.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-009","text":"构建产物 IP23000708.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
+{"id":"neg-build-artifact-mrn-like-010","text":"构建产物 JQ23000709.zip 来自 CI 缓存，不是医院病案号。","expected":[],"source":"synthetic","generator":"t1.7.synthetic-corpus.v1.deterministic-template/build-artifact-mrn-like"}
