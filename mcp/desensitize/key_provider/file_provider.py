@@ -1,7 +1,8 @@
-"""File-backed KeyProvider for T2.3.
+"""File-backed KeyProvider for T2.4.
 
-This is the naive single-generation provider. T2.4 will add active generations
-and old-key retention; this leaf only guarantees secure local file custody.
+This provider stores generation-based keys on disk. T2.3's single-file layout
+is still supported as a migration source and will be promoted to generation 0
+on first access.
 """
 
 from __future__ import annotations
@@ -18,7 +19,9 @@ from key_provider import KeyId, KeyNotFoundError, KeyPermissionError, KeyProvide
 
 KEY_BYTES = 32
 KEY_FILE_SUFFIX = ".key"
+DEFAULT_MAX_GENERATIONS = 6
 SAFE_KEY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+GEN_FILE_RE = re.compile(r"^(?P<key_id>[A-Za-z0-9][A-Za-z0-9._-]*)\.(?P<gen>\d+)\.key$")
 
 
 def _default_keystore_root() -> Path:
@@ -39,20 +42,31 @@ def _sanitize_key_id(key_id: KeyId | str) -> str:
     return value
 
 
+def _is_legacy_key_file_name(name: str) -> bool:
+    if not name.endswith(KEY_FILE_SUFFIX):
+        return False
+    if GEN_FILE_RE.match(name):
+        return False
+    base = name[: -len(KEY_FILE_SUFFIX)]
+    return bool(base) and bool(SAFE_KEY_ID_RE.match(base))
+
+
 class FileKeyProvider(KeyProvider):
-    """Local file-backed key provider.
+    """Local file-backed key provider with generation retention."""
 
-    The provider stores raw 32-byte keys in ``<key_id>.key`` files under a
-    configurable keystore root. ``rotate`` overwrites the active key file in
-    place for T2.3; T2.4 adds multi-generation retention.
-    """
-
-    def __init__(self, keystore_root: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        keystore_root: str | Path | None = None,
+        max_generations: int = DEFAULT_MAX_GENERATIONS,
+    ) -> None:
+        if max_generations < 1:
+            raise ValueError("max_generations must be >= 1")
         self._root = (
             Path(keystore_root).expanduser()
             if keystore_root is not None
             else _default_keystore_root()
         )
+        self._max_generations = max_generations
         self._ensure_root()
 
     def _ensure_root(self) -> None:
@@ -64,11 +78,15 @@ class FileKeyProvider(KeyProvider):
         except OSError as exc:  # pragma: no cover - platform-specific
             raise KeyPermissionError("unable to secure keystore root") from exc
 
-    def _key_path(self, key_id: KeyId | str) -> Path:
-        safe_key_id = _sanitize_key_id(key_id)
+    def _legacy_path(self, safe_key_id: str) -> Path:
         return self._root / f"{safe_key_id}{KEY_FILE_SUFFIX}"
 
+    def _generation_path(self, safe_key_id: str, generation: int) -> Path:
+        return self._root / f"{safe_key_id}.{generation}.key"
+
     def _ensure_secure_key_file(self, path: Path) -> None:
+        if path.is_symlink():
+            raise KeyPermissionError("key file is not a regular file")
         try:
             stat_result = path.stat()
         except FileNotFoundError as exc:
@@ -76,7 +94,7 @@ class FileKeyProvider(KeyProvider):
         except OSError as exc:
             raise KeyPermissionError("unable to stat key file") from exc
 
-        if not path.is_file() or path.is_symlink():
+        if not path.is_file():
             raise KeyPermissionError("key file is not a regular file")
 
         mode = stat.S_IMODE(stat_result.st_mode)
@@ -113,27 +131,108 @@ class FileKeyProvider(KeyProvider):
                 tmp_path.unlink(missing_ok=True)
             raise
 
-    def get_key(self, key_id: KeyId | str) -> bytes:
+    def _migrate_legacy_key_file(self, safe_key_id: str) -> None:
+        legacy_path = self._legacy_path(safe_key_id)
+        if not legacy_path.exists():
+            return
+        generation_zero_path = self._generation_path(safe_key_id, 0)
+        if generation_zero_path.exists():
+            return
+        self._ensure_secure_key_file(legacy_path)
+        try:
+            os.replace(legacy_path, generation_zero_path)
+            os.chmod(generation_zero_path, 0o400)
+        except OSError as exc:
+            raise KeyPermissionError("unable to migrate legacy key file") from exc
+        if stat.S_IMODE(generation_zero_path.stat().st_mode) != 0o400:
+            raise KeyPermissionError("key file permissions are not 0400")
+
+    def _generation_map(self, key_id: KeyId | str) -> dict[int, Path]:
+        safe_key_id = _sanitize_key_id(key_id)
+        self._migrate_legacy_key_file(safe_key_id)
+        generations: dict[int, Path] = {}
+        for path in sorted(self._root.iterdir(), key=lambda item: item.name):
+            if not path.is_file() and not path.is_symlink():
+                continue
+            match = GEN_FILE_RE.match(path.name)
+            if not match or match.group("key_id") != safe_key_id:
+                continue
+            generation = int(match.group("gen"))
+            self._ensure_secure_key_file(path)
+            generations[generation] = path
+        return generations
+
+    def _candidate_key_ids(self) -> set[str]:
+        key_ids: set[str] = set()
+        for path in sorted(self._root.iterdir(), key=lambda item: item.name):
+            if not path.is_file() and not path.is_symlink():
+                continue
+            match = GEN_FILE_RE.match(path.name)
+            if match:
+                self._ensure_secure_key_file(path)
+                key_ids.add(match.group("key_id"))
+                continue
+            if _is_legacy_key_file_name(path.name):
+                self._ensure_secure_key_file(path)
+                key_ids.add(path.name[: -len(KEY_FILE_SUFFIX)])
+        return key_ids
+
+    def _prune_old_generations(self, generations: dict[int, Path]) -> None:
+        while len(generations) > self._max_generations:
+            oldest_generation = min(generations)
+            path = generations.pop(oldest_generation)
+            self._ensure_secure_key_file(path)
+            try:
+                path.unlink()
+            except FileNotFoundError as exc:
+                raise KeyNotFoundError("key not found") from exc
+            except OSError as exc:
+                raise KeyPermissionError("unable to remove key file") from exc
+
+    def get_key_by_generation(self, key_id: KeyId | str, generation: int) -> bytes:
         self._ensure_root()
-        path = self._key_path(key_id)
-        if not path.exists():
+        if not isinstance(generation, int) or generation < 0:
+            raise KeyPermissionError("invalid generation")
+        generations = self._generation_map(key_id)
+        path = generations.get(generation)
+        if path is None:
             raise KeyNotFoundError("key not found")
         return self._read_key(path)
 
+    def list_generations(self, key_id: KeyId | str) -> list[int]:
+        self._ensure_root()
+        generations = self._generation_map(key_id)
+        if not generations:
+            raise KeyNotFoundError("key not found")
+        return sorted(generations)
+
+    def get_key(self, key_id: KeyId | str) -> bytes:
+        generations = self._generation_map(key_id)
+        if not generations:
+            raise KeyNotFoundError("key not found")
+        active_generation = max(generations)
+        return self._read_key(generations[active_generation])
+
     def rotate(self, key_id: KeyId | str) -> bytes:
         self._ensure_root()
-        path = self._key_path(key_id)
+        safe_key_id = _sanitize_key_id(key_id)
+        generations = self._generation_map(safe_key_id)
+        next_generation = max(generations) + 1 if generations else 0
         key_bytes = secrets.token_bytes(KEY_BYTES)
-        self._write_key(path, key_bytes)
+        new_path = self._generation_path(safe_key_id, next_generation)
+        self._write_key(new_path, key_bytes)
+        generations[next_generation] = new_path
+        self._prune_old_generations(generations)
         return key_bytes
 
     def list_keys(self) -> list[KeyId]:
         self._ensure_root()
-        keys: list[KeyId] = []
-        for path in sorted(self._root.glob(f"*{KEY_FILE_SUFFIX}"), key=lambda item: item.name):
-            if not path.is_file() or path.is_symlink():
+        key_ids = self._candidate_key_ids()
+        active_key_ids: list[KeyId] = []
+        for key_id in sorted(key_ids):
+            try:
+                if self._generation_map(key_id):
+                    active_key_ids.append(KeyId(key_id))
+            except KeyNotFoundError:
                 continue
-            key_id = path.stem
-            if SAFE_KEY_ID_RE.match(key_id):
-                keys.append(KeyId(key_id))
-        return keys
+        return active_key_ids
