@@ -1,237 +1,276 @@
 #!/usr/bin/env python3
-"""
-mcp-desensitize v2 · M2 升级版
-================================
-新增能力：
-1. KMS 集成（M2 用 Fernet 占位，M3 起切真实 KMS）
-2. reverse 端点（受控环境 + token 校验）
-3. 日期保留间隔（per-change 随机 offset）
-4. MCP stdio 骨架
-"""
+"""mcp-desensitize v2 · AES-GCM envelope integration."""
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
-import re
 import sys
 import uuid
-from datetime import datetime, timedelta
+from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
-from server import SUBSTITUTIONS, _stable_short_id  # noqa: E402
 
-# ====== KMS 占位 ======
-# M3 起替换为真实 KMS（阿里云 KMS / AWS KMS / Vault）
+from crypto_envelope import decrypt_mapping, encrypt_mapping  # noqa: E402
+from key_provider import (  # noqa: E402
+    ChangeId,
+    EncryptedEnvelopeMetadata,
+    EncryptionContext,
+    KeyId,
+    KeyNotFoundError,
+    KeyProviderError,
+    MapId,
+)
+from key_provider.file_provider import FileKeyProvider  # noqa: E402
+from server import SUBSTITUTIONS  # noqa: E402
 
-_FERNET_AVAILABLE = False
-try:
-    from cryptography.fernet import Fernet
-
-    _FERNET_AVAILABLE = True
-except ImportError:
-    pass
-
-
-def _kms_get_key(change_id: str) -> bytes:
-    """获取/创建 per-change key。M2 占位用本地派生；M3 起强制 KMS。"""
-    salt = os.environ.get("KMS_SALT", "M2-DEV-ONLY-NOT-FOR-PROD")
-    digest = hashlib.sha256(f"{salt}::{change_id}".encode()).digest()
-    return base64.urlsafe_b64encode(digest)
+DEFAULT_KEY_ID = "active"
+DEFAULT_REVERSE_TOKEN_ENV = "COMPLIANCE_REVERSE_TOKEN"
+PLACEHOLDER_PREFIX = "PHI"
 
 
-def _encrypt_map(mapping: dict, change_id: str) -> str:
-    if not _FERNET_AVAILABLE:
-        # 退化：仅 base64（M1/M2-early 占位；M2 完整版要求 cryptography 已安装）
-        raw = json.dumps(mapping, ensure_ascii=False).encode()
-        return "PLACEHOLDER:" + base64.b64encode(raw).decode()
-    key = _kms_get_key(change_id)
-    f = Fernet(key)
-    raw = json.dumps(mapping, ensure_ascii=False).encode()
-    return "FERNET:" + f.encrypt(raw).decode()
+def _provider() -> FileKeyProvider:
+    return FileKeyProvider()
 
 
-def _decrypt_map(blob: str, change_id: str) -> dict:
-    if blob.startswith("PLACEHOLDER:"):
-        raw = base64.b64decode(blob[len("PLACEHOLDER:") :])
-        return json.loads(raw.decode())
-    if blob.startswith("FERNET:"):
-        if not _FERNET_AVAILABLE:
-            raise RuntimeError("cryptography not installed")
-        key = _kms_get_key(change_id)
-        f = Fernet(key)
-        raw = f.decrypt(blob[len("FERNET:") :].encode())
-        return json.loads(raw.decode())
-    raise ValueError("unknown map blob format")
+def _safe_error(exc: Exception) -> dict[str, str]:
+    return {"type": exc.__class__.__name__, "message": str(exc)}
 
 
-# ====== 替换逻辑（含日期保留间隔） ======
+def _metadata_from_dict(payload: dict[str, Any]) -> EncryptedEnvelopeMetadata:
+    try:
+        return EncryptedEnvelopeMetadata(
+            key_id=KeyId(str(payload["key_id"])),
+            algorithm=payload["algorithm"],
+            schema_version=str(payload["schema_version"]),
+            nonce_b64=str(payload["nonce_b64"]),
+            aad_sha256=str(payload["aad_sha256"]),
+        )
+    except KeyError as exc:
+        raise KeyProviderError("missing envelope metadata field") from exc
 
 
-def _date_offset_days(change_id: str) -> int:
-    digest = hashlib.sha256(f"date-offset::{change_id}".encode()).digest()
-    # 偏移 ±90 天
-    return int.from_bytes(digest[:2], "big") % 180 - 90
+def _context_from_payload(
+    payload: dict[str, Any], metadata: dict[str, Any] | None = None
+) -> EncryptionContext:
+    key_id = str(payload.get("key_id") or (metadata or {}).get("key_id") or DEFAULT_KEY_ID)
+    return EncryptionContext(
+        change_id=ChangeId(str(payload.get("change_id", "unknown"))),
+        map_id=MapId(str(payload.get("map_id") or uuid.uuid4())),
+        key_id=KeyId(key_id),
+    )
 
 
-def _shift_date(match: re.Match, offset_days: int) -> str:
-    raw = match.group()
-    for fmt_in, fmt_out in [
-        ("%Y-%m-%d", "%Y-%m-%d"),
-        ("%Y/%m/%d", "%Y/%m/%d"),
-        ("%Y年%m月%d日", "%Y年%m月%d日"),
-    ]:
-        try:
-            dt = datetime.strptime(raw, fmt_in)
-            return (dt + timedelta(days=offset_days)).strftime(fmt_out)
-        except ValueError:
-            continue
-    return raw  # 无法解析则原样返回
+def _span_text_sha256(text: str, start: int, end: int, provided: str | None) -> str:
+    if provided:
+        return provided
+    return hashlib.sha256(text[start:end].encode("utf-8")).hexdigest()
 
 
-DATE_PAT = re.compile(r"\b\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?\b")
+def _length_preserving_placeholder(entity_type: str, text_sha256: str, length: int) -> str:
+    sha8 = text_sha256[:8]
+    preferred = f"{{{{ {PLACEHOLDER_PREFIX}_{entity_type}_{sha8} }}}}"
+    if len(preferred) == length:
+        return preferred
+    if len(preferred) < length:
+        return preferred + (" " * (length - len(preferred)))
+    compact = f"{PLACEHOLDER_PREFIX}_{entity_type}_{sha8}"
+    if len(compact) >= length:
+        return compact[:length]
+    return (compact + ("_" * length))[:length]
 
 
-def desensitize_v2(text: str, change_id: str = "unknown", preserve_intervals: bool = True) -> dict:
-    salt = f"desensitize::{change_id}::session"
+def _normalize_spans(request: dict[str, Any], text: str) -> list[dict[str, Any]]:
+    spans = request.get("phi_spans")
+    if isinstance(spans, list):
+        return spans
+
+    detected: list[dict[str, Any]] = []
+    for entity_type, pattern, _token_code in SUBSTITUTIONS:
+        for match in pattern.finditer(text):
+            detected.append(
+                {
+                    "start": match.start(),
+                    "end": match.end(),
+                    "entity_type": entity_type.replace("-", "_").upper(),
+                    "score": 0.8,
+                    "text_sha256": hashlib.sha256(match.group().encode("utf-8")).hexdigest(),
+                }
+            )
+    return detected
+
+
+def _build_desensitized_text_and_mapping(
+    text: str, spans: list[dict[str, Any]]
+) -> tuple[str, dict[str, str]]:
+    chars = list(text)
     mapping: dict[str, str] = {}
-    new_text = text
+    consumed_until = 0
 
-    # Pass A: 占位符替换
-    for _, pat, tcode in SUBSTITUTIONS:
+    for span in sorted(spans, key=lambda item: (int(item["start"]), int(item["end"]))):
+        start = int(span["start"])
+        end = int(span["end"])
+        if start < consumed_until or start < 0 or end > len(text) or start >= end:
+            raise KeyProviderError("invalid or overlapping phi span")
 
-        def _replace(m, tcode=tcode):
-            original = m.group()
-            short = _stable_short_id(original, salt)
-            placeholder = f"{{{{ {tcode}_{short} }}}}"
-            mapping[placeholder] = original
-            return placeholder
+        original = text[start:end]
+        entity_type = str(span.get("entity_type", "UNKNOWN")).replace("-", "_").upper()
+        text_sha256 = _span_text_sha256(text, start, end, span.get("text_sha256"))
+        placeholder = _length_preserving_placeholder(entity_type, text_sha256, end - start)
+        chars[start:end] = list(placeholder)
+        mapping[placeholder] = original
+        consumed_until = end
 
-        new_text = pat.sub(_replace, new_text)
+    desensitized_text = "".join(chars)
+    if len(desensitized_text) != len(text):
+        raise KeyProviderError("desensitized text length mismatch")
+    return desensitized_text, mapping
 
-    # Pass B: 日期偏移（保留间隔）
-    if preserve_intervals:
-        offset = _date_offset_days(change_id)
 
-        def _date_replace(m):
-            shifted = _shift_date(m, offset)
-            mapping[shifted] = m.group()  # 反向映射记录原始日期
-            return shifted
+def _active_key(provider: FileKeyProvider, key_id: str) -> tuple[bytes, int]:
+    try:
+        key = provider.get_key(key_id)
+    except KeyNotFoundError:
+        provider.rotate(key_id)
+        key = provider.get_key(key_id)
+    active_generation = provider.list_generations(key_id)[-1]
+    return key, active_generation
 
-        new_text = DATE_PAT.sub(_date_replace, new_text)
 
-    map_id = str(uuid.uuid4())
-    encrypted = _encrypt_map(mapping, change_id)
+def desensitize(request: dict[str, Any], provider: FileKeyProvider | None = None) -> dict[str, Any]:
+    provider = provider or _provider()
+    text = request.get("text", request.get("payload", ""))
+    if not isinstance(text, str):
+        text = json.dumps(text, ensure_ascii=False)
+    context_payload = request.get("context") if isinstance(request.get("context"), dict) else {}
+    if "change_id" not in context_payload and "change_id" in request:
+        context_payload["change_id"] = request["change_id"]
+    if "map_id" not in context_payload:
+        context_payload["map_id"] = str(uuid.uuid4())
+    if "key_id" not in context_payload:
+        context_payload["key_id"] = DEFAULT_KEY_ID
 
-    # M2: map 内容编码后短暂返回；M3 起仅返回 reference（不返回内容）
-    return {
-        "desensitized": new_text,
-        "map_id": map_id,
-        "map_ref": f"kms-placeholder://{change_id}/{map_id}",
-        "map_blob": encrypted,  # M3 起移除本字段，强制走 mcp-audit-log
-        "stats": {
-            "placeholders_count": len([k for k in mapping if "{{" in k]),
-            "dates_shifted": preserve_intervals,
-        },
-        "_meta": {
-            "version": "0.2-v2",
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "fernet_available": _FERNET_AVAILABLE,
-        },
+    context = _context_from_payload(context_payload)
+    spans = _normalize_spans(request, text)
+    desensitized_text, mapping = _build_desensitized_text_and_mapping(text, spans)
+    key, key_generation = _active_key(provider, str(context.key_id))
+    map_ref, metadata = encrypt_mapping(mapping, key, context)
+    metadata_dict = asdict(metadata)
+    metadata_dict["key_generation"] = key_generation
+
+    result: dict[str, Any] = {
+        "desensitized_text": desensitized_text,
+        "map_ref": map_ref,
+        "metadata": metadata_dict,
     }
+    try:
+        if (
+            key_generation - provider.list_generations(str(context.key_id))[0] + 1
+            >= provider._max_generations
+        ):
+            result["warning"] = "old key generations must be migrated before prune"
+    except Exception:
+        pass
+    return result
 
 
-def reverse(desensitized: str, map_blob: str, change_id: str, kms_token: str | None) -> dict:
-    """需要 token，否则拒绝。M2 占位 token = env COMPLIANCE_REVERSE_TOKEN。"""
-    expected = os.environ.get("COMPLIANCE_REVERSE_TOKEN")
-    if not expected or kms_token != expected:
-        return {"error": "token invalid or missing; reverse denied", "audit": "denied"}
-    mapping = _decrypt_map(map_blob, change_id)
-    restored = desensitized
-    for placeholder, original in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
-        restored = restored.replace(placeholder, original)
-    return {
-        "original": restored,
-        "_audit": {
-            "ts": datetime.utcnow().isoformat() + "Z",
-            "change_id": change_id,
-            "reversed_count": len(mapping),
-        },
-    }
+def _reverse_allowed(request: dict[str, Any]) -> bool:
+    expected = os.environ.get(DEFAULT_REVERSE_TOKEN_ENV)
+    token = request.get("kms_token")
+    context = request.get("context")
+    if token is None and isinstance(context, dict):
+        token = context.get("kms_token")
+    return bool(expected) and token == expected
+
+
+def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) -> dict[str, Any]:
+    if not _reverse_allowed(request):
+        return {
+            "error": {
+                "type": "PermissionError",
+                "message": "token invalid or missing; reverse denied",
+            }
+        }
+
+    provider = provider or _provider()
+    try:
+        metadata_payload = request.get("metadata")
+        if not isinstance(metadata_payload, dict):
+            raise KeyProviderError("missing envelope metadata")
+        metadata = _metadata_from_dict(metadata_payload)
+        context_payload = request.get("context")
+        if not isinstance(context_payload, dict):
+            raise KeyProviderError("missing reverse context")
+        context = _context_from_payload(context_payload, metadata_payload)
+        generation = metadata_payload.get("key_generation")
+        if generation is None:
+            key = provider.get_key(str(context.key_id))
+        else:
+            key = provider.get_key_by_generation(str(context.key_id), int(generation))
+        mapping = decrypt_mapping(str(request.get("map_ref", "")), metadata, key, context)
+    except Exception as exc:
+        return {"error": _safe_error(exc)}
+    return {"mapping": mapping}
+
+
+def health() -> dict[str, str]:
+    return {"status": "ok-v2", "crypto": "AES-256-GCM", "key_provider": "FileKeyProvider"}
+
+
+def _response_for_request(
+    req: dict[str, Any], provider: FileKeyProvider | None = None
+) -> dict[str, Any]:
+    method = req.get("method")
+    params = req.get("params", {})
+    if not isinstance(params, dict):
+        params = {}
+    if method == "desensitize":
+        return {"id": req.get("id"), "result": desensitize(params, provider)}
+    if method == "reverse":
+        return {"id": req.get("id"), "result": reverse(params, provider)}
+    if method == "health":
+        return {"id": req.get("id"), "result": health()}
+    return {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
 
 
 def main() -> int:
     if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
-        # MCP stdio 模式（简化版）
         for line in sys.stdin:
             line = line.strip()
             if not line:
                 continue
             try:
                 req = json.loads(line)
-            except Exception:
-                continue
-            method = req.get("method")
-            params = req.get("params", {})
-            if method == "desensitize":
-                result = desensitize_v2(
-                    params.get("payload", ""), params.get("change_id", "unknown")
-                )
-                resp = {"id": req.get("id"), "result": result}
-            elif method == "reverse":
-                result = reverse(
-                    params.get("desensitized", ""),
-                    params.get("map_blob", ""),
-                    params.get("change_id", ""),
-                    params.get("kms_token"),
-                )
-                resp = {"id": req.get("id"), "result": result}
-            elif method == "health":
-                resp = {
-                    "id": req.get("id"),
-                    "result": {"status": "ok-v2", "fernet_available": _FERNET_AVAILABLE},
-                }
-            else:
-                resp = {
-                    "id": req.get("id"),
-                    "error": {"code": -32601, "message": "Method not found"},
-                }
-            sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
+                response = _response_for_request(req)
+            except Exception as exc:
+                response = {"id": None, "error": _safe_error(exc)}
+            sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()
         return 0
 
     cmd = sys.argv[1] if len(sys.argv) > 1 else "desensitize"
     if cmd == "health":
-        print(json.dumps({"status": "ok-v2", "fernet_available": _FERNET_AVAILABLE}))
+        print(json.dumps(health(), ensure_ascii=False))
         return 0
+    try:
+        req = json.load(sys.stdin)
+    except Exception:
+        req = {}
     if cmd == "desensitize":
-        try:
-            req = json.load(sys.stdin)
-        except Exception:
-            req = {}
-        text = req.get("payload", "")
-        if not isinstance(text, str):
-            text = json.dumps(text, ensure_ascii=False)
-        print(json.dumps(desensitize_v2(text, req.get("change_id", "unknown")), ensure_ascii=False))
+        print(json.dumps(desensitize(req), ensure_ascii=False))
         return 0
     if cmd == "reverse":
-        try:
-            req = json.load(sys.stdin)
-        except Exception:
-            req = {}
-        result = reverse(
-            req.get("desensitized", ""),
-            req.get("map_blob", ""),
-            req.get("change_id", ""),
-            req.get("kms_token"),
-        )
+        result = reverse(req)
         print(json.dumps(result, ensure_ascii=False))
-        return 0
+        return 2 if "error" in result else 0
     print(json.dumps({"error": f"unknown cmd: {cmd}"}), file=sys.stderr)
     return 1
+
+
+desensitize_v2 = desensitize
 
 
 if __name__ == "__main__":
