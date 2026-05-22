@@ -50,12 +50,18 @@ drill_injection() {
   "$PY" "${ROOT}/tests/red-team-drills/drill_injection.py" --out "${OUT}/injection.json"
 }
 
+recall_gate() {
+  echo "→ drill 1 gate · recall ≥ 0.92 + FP ≤ 0.15"
+  "$PY" "${ROOT}/tests/red-team-drills/check_recall.py" --min 0.92 --max-fp 0.15
+}
+
 main() {
   cd "$ROOT"
   drill_phi_recall
   drill_router_bypass
   drill_audit_replay
   drill_injection
+  recall_gate
   echo
   c_pass "All red-team drills completed → ${OUT}/"
 }
