@@ -69,6 +69,10 @@ class FileKeyProvider(KeyProvider):
         self._max_generations = max_generations
         self._ensure_root()
 
+    @property
+    def max_generations(self) -> int:
+        return self._max_generations
+
     def _ensure_root(self) -> None:
         if self._root.exists() and not self._root.is_dir():
             raise KeyPermissionError("keystore root is not a directory")
