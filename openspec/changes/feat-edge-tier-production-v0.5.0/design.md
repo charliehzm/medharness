@@ -97,8 +97,17 @@ A/B/C 都依赖人，runtime gate 在 router 层是单点强制。
 ### 实施约束
 - 失败模式：`drop`（直接拒绝，不 fallback）+ 落 audit
 - 容错：连续 N 次拒绝同一 agent_role → 升级到 SEV-2
-- 性能：< 5ms overhead per call
+- 性能：< 5ms overhead per call（含 PHI desensitized marker 检查，**不**做 inline subprocess scan）
 - 配置：`MODEL_ALLOWLIST.json` 热加载（不重启 router）
+
+### T3 codex Q&A 落档（2026-05-22）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | allowlist schema list-based vs task_type map-based | **list-based** · 每个 model entry 含 vendor_family / allowed_agent_roles / allowed_data_levels / rate_limit_qps · 异构性放 heterogeneity.py，allowlist 不重复表达 |
+| Q2 | circuit breaker reject threshold（3 / 5 / configurable） | **configurable · default 5** · 5 是业界 transient 容错平衡点 |
+| Q3 | T3.6 是否保留 PHI subprocess scan | **不在 router 内联** · request 必含 `metadata.desensitized: true` 标记 · 缺失 → fail-closed reject "must route through mcp-desensitize first" · subprocess scan 留 hook 层兜底（纵深防御） |
+| Q4 | routing log 写 .audit/routing_log.jsonl 还是加 T4 adapter 接口 | **加 AuditAdapter 接口 + FileAuditAdapter v0.5 实装** · 类似 T2 KeyProvider 范式 · `ClickHouseAuditAdapter.skel` 留 T4 实施 · 防 T3→T4 集成时 server_v2 二次大改 |
 
 ### vendor_family 映射表（初版）
 
