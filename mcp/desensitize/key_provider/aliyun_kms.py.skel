@@ -1,0 +1,83 @@
+"""Aliyun KMS adapter skeleton for v1.0+ commercial China deployments.
+
+DO NOT IMPLEMENT IN v0.5.0 EDGE TIER.
+
+This file is intentionally named ``.py.skel`` so it is not imported by
+production code, ruff, or pytest. It documents the future provider contract for
+medical SaaS PoC clients in China that require Aliyun KMS custody.
+
+Intended Aliyun KMS design:
+- Use ``aliyun-python-sdk-kms`` only in v1.0+ commercial integrations.
+- Target customer-approved regions such as ``cn-hangzhou`` or ``cn-beijing``.
+- Use KMS Encrypt / Decrypt APIs with KeyVersion metadata.
+- Let KMS manage key rotation policy and version history.
+- Route all network egress through the customer's approved medical intranet
+  proxy or private endpoint controls.
+- Never commit credentials or runnable endpoint examples in this repository.
+
+Design tension for v1.0:
+The current ``KeyProvider.get_key`` contract returns raw AES-256-GCM key bytes
+for local envelope encryption. Aliyun KMS does not export raw bytes for normal
+KMS keys, so a production provider cannot safely implement this interface as
+written. v1.0 must introduce an encrypt/decrypt proxy contract or an envelope
+adapter that delegates cryptographic operations to KMS without exposing key
+material to MedHarness runtime memory.
+"""
+
+from __future__ import annotations
+
+try:  # pragma: no cover - exec(open(...).read()) syntax smoke path
+    from key_provider import KeyId, KeyProvider
+except Exception:  # pragma: no cover - skeleton fallback only
+    KeyId = str
+
+    class KeyProvider:  # type: ignore[too-many-ancestors]
+        """Fallback stub so this skeleton can be executed as standalone text."""
+
+        pass
+
+
+class AliyunKMSProvider(KeyProvider):
+    """Aliyun KMS adapter for medical SaaS PoC clients in China (v1.0+).
+
+    DO NOT IMPLEMENT IN v0.5.0 EDGE TIER.
+
+    TODO(v1.0): Replace the raw-byte ``KeyProvider`` contract with a KMS
+    encrypt/decrypt proxy mode before making this executable.
+    """
+
+    def __init__(
+        self,
+        region: str,
+        access_key_id: str,
+        access_key_secret: str,
+        kms_endpoint: str,
+        key_spec: str = "AES_256",
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        raise NotImplementedError("AliyunKMSProvider not implemented in v0.5.0 edge tier")
+
+    def get_key(self, key_id: KeyId | str) -> bytes:
+        """Return raw key bytes.
+
+        Aliyun KMS does not export raw bytes for normal KMS keys; this method is
+        intentionally unsupported until v1.0 introduces proxy-mode
+        encryption/decryption.
+        """
+
+        raise NotImplementedError("AliyunKMSProvider get_key requires v1.0 proxy-mode redesign")
+
+    def rotate(self, key_id: KeyId | str) -> bytes:
+        """Rotate KMS-managed key material for ``key_id``.
+
+        Future implementation should delegate to Aliyun KMS rotation/versioning
+        and return metadata instead of raw key bytes after the provider contract
+        is redesigned.
+        """
+
+        raise NotImplementedError("AliyunKMSProvider rotate not implemented in v0.5.0 edge tier")
+
+    def list_keys(self) -> list[KeyId]:
+        """List safe key aliases from the configured Aliyun KMS account scope."""
+
+        raise NotImplementedError("AliyunKMSProvider list_keys not implemented in v0.5.0 edge tier")

@@ -1,0 +1,83 @@
+"""HashiCorp Vault Transit Engine adapter skeleton for v1.0+ commercial use.
+
+DO NOT IMPLEMENT IN v0.5.0 EDGE TIER.
+
+This file is intentionally named ``.py.skel`` so it is not imported by
+production code, ruff, or pytest. It documents the future provider contract for
+customers that need HashiCorp Vault-backed key custody.
+
+Intended Vault design:
+- Use the Transit secrets engine, mounted at ``transit/medharness`` by default.
+- Rotate keys through ``/transit/keys/<key_id>/rotate``.
+- Authenticate with AppRole, Kubernetes ServiceAccount, or token auth.
+- Route every network egress path through the customer's approved private
+  network controls.
+- Keep key material inside Vault. Transit does not export raw key bytes.
+
+Design tension for v1.0:
+The current ``KeyProvider.get_key`` contract returns raw AES-256-GCM key bytes
+for local envelope encryption. Vault Transit intentionally does not export raw
+bytes, so a production Vault provider cannot safely implement this interface as
+written. v1.0 must introduce an encrypt/decrypt proxy contract or an envelope
+adapter that delegates cryptographic operations to Vault without exposing key
+material to MedHarness runtime memory.
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+try:  # pragma: no cover - exec(open(...).read()) syntax smoke path
+    from key_provider import KeyId, KeyProvider
+except Exception:  # pragma: no cover - skeleton fallback only
+    KeyId = str
+
+    class KeyProvider:  # type: ignore[too-many-ancestors]
+        """Fallback stub so this skeleton can be executed as standalone text."""
+
+        pass
+
+
+class VaultProvider(KeyProvider):
+    """HashiCorp Vault Transit Engine adapter (v1.0+).
+
+    DO NOT IMPLEMENT IN v0.5.0 EDGE TIER.
+    This skeleton documents the contract for future commercial integration.
+
+    TODO(v1.0): Replace the raw-byte ``KeyProvider`` contract with a Vault
+    encrypt/decrypt proxy mode before making this executable.
+    """
+
+    def __init__(
+        self,
+        vault_addr: str,
+        mount_path: str = "transit/medharness",
+        auth_method: Literal["token", "approle", "kubernetes"] = "approle",
+        namespace: str | None = None,
+        timeout_seconds: float = 5.0,
+    ) -> None:
+        raise NotImplementedError("VaultProvider not implemented in v0.5.0 edge tier")
+
+    def get_key(self, key_id: KeyId | str) -> bytes:
+        """Return raw key bytes.
+
+        Vault Transit does not export raw bytes; this method is intentionally
+        unsupported until v1.0 introduces proxy-mode encryption/decryption.
+        """
+
+        raise NotImplementedError("VaultProvider get_key requires v1.0 proxy-mode redesign")
+
+    def rotate(self, key_id: KeyId | str) -> bytes:
+        """Rotate Vault Transit key material for ``key_id``.
+
+        Future implementation should call ``/transit/keys/<key_id>/rotate`` and
+        return metadata instead of raw key bytes after the provider contract is
+        redesigned.
+        """
+
+        raise NotImplementedError("VaultProvider rotate not implemented in v0.5.0 edge tier")
+
+    def list_keys(self) -> list[KeyId]:
+        """List safe key aliases from the configured Vault Transit mount."""
+
+        raise NotImplementedError("VaultProvider list_keys not implemented in v0.5.0 edge tier")
