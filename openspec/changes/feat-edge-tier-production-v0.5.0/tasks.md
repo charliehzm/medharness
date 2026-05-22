@@ -51,9 +51,11 @@
 ---
 
 ### T2 · desensitize → cryptography + FileKeyProvider
-**Spec**：[specs/T2-desensitize-kms.spec.md](specs/T2-desensitize-kms.spec.md)
+**Spec**：见 [T2-desensitize-kms/proposal.md](T2-desensitize-kms/proposal.md)（task-group 自带 spec · 不再单独建 specs/T2-*.spec.md）
 **改动**：
-- `mcp/desensitize/server_v2.py` 真用 `cryptography.fernet`
+- `mcp/desensitize/server_v2.py` 真用 `cryptography.hazmat.primitives.ciphers.aead.AESGCM`
+  - **加密算法**：AES-256-GCM（**非** Fernet · 见 design.md ADR-02）
+  - Fernet 内部是 AES-128-CBC + HMAC-SHA256 · 与 AES-256-GCM 不兼容；选后者：256 位密钥 + 认证加密 + 无 padding oracle
 - 新增 `mcp/desensitize/key_provider/`
   - `interface.py`（KeyProvider abstract）
   - `file_provider.py`（v0.5.0 实现）
