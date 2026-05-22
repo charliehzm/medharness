@@ -162,17 +162,16 @@ M10-M12 (Q4) 商业完整 + 团队扩张 + v2.0
 |---|---|---|
 | [GitHub Discussions](https://github.com/charliehzm/medharness/discussions) | 提问 / 想法 / 案例分享（已开 5 主题 thread） | 24h 内首次回复 |
 | [GitHub Issues](https://github.com/charliehzm/medharness/issues/new/choose) | bug / feature / case study | 同上 |
-| 微信：`supernera`（maintainer 直联） | 个人沟通 / 早期客户接洽 | 工作日 24h |
-| `hello@medharness.io` *(D-1 启用)* | 一般咨询 | 48h |
-| `security@medharness.io` *(D-1 启用)* | PHI 泄漏 / 合规漏洞披露（**勿在 public issue 提**） | 2h（高敏） |
-| `conduct@medharness.io` *(D-1 启用)* | 行为准则相关 | 24h |
+| [GitHub Security Advisory](https://github.com/charliehzm/medharness/security/advisories/new) | **PHI 泄漏 / 合规漏洞**私密披露（**勿在 public issue 提**） | 2h（高敏） |
+| 微信：`supernera`（maintainer 直联） | 个人沟通 / 早期客户接洽 / 行为准则上报 | 工作日 24h |
 
 > 推荐**先开 [Discussion](https://github.com/charliehzm/medharness/discussions)**：可被搜索 + 后来者受益。私聊适合早期客户 / 合规深聊。
+> 自定义 medharness.io 邮箱预计 **M6 v1.0.0 起**启用。
 
 ### 后续
 
 - **M3**（约 2 个月内）：上线**微信用户群**（实名 + 邀请制 + 上限 200）
-- **M6**：上线**微信公众号**「医疗 AI Coding 工程实践」
+- **M6**：上线**微信公众号**「医疗 AI Coding 工程实践」 + **medharness.io 邮箱别名**
 - **M7+**：上线 **Discord 国际频道** + **LinkedIn 公司主页**
 
 <!-- M3 群 QR 占位（建好后替换）
