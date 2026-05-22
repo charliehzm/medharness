@@ -44,12 +44,15 @@ def _effective_recall(data: dict[str, Any]) -> float:
     return recall
 
 
-def _failure_reasons(data: dict[str, Any], min_recall: float) -> list[str]:
+def _failure_reasons(data: dict[str, Any], min_recall: float, max_fp: float) -> list[str]:
     reasons: list[str] = []
     recall = _number(data, "recall")
     effective_recall = _effective_recall(data)
     if effective_recall < min_recall:
         reasons.append(f"effective recall {effective_recall:.4f} below required {min_recall:.4f}")
+    fp_rate = data.get("false_positive_rate")
+    if isinstance(fp_rate, int | float) and float(fp_rate) > max_fp:
+        reasons.append(f"false_positive_rate {float(fp_rate):.4f} above allowed {max_fp:.4f}")
     failed_case_ids = data.get("failed_case_ids", [])
     if failed_case_ids:
         reasons.append(f"failed cases present: {failed_case_ids}")
@@ -94,11 +97,14 @@ def _append_history(data: dict[str, Any], min_recall: float, passed: bool) -> li
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--min", type=float, default=0.92)
+    parser.add_argument("--min", type=float, default=0.92, help="min effective recall")
+    parser.add_argument(
+        "--max-fp", type=float, default=0.15, help="max false positive rate (default 0.15)"
+    )
     args = parser.parse_args()
     try:
         data = _load_recall_report()
-        reasons = _failure_reasons(data, args.min)
+        reasons = _failure_reasons(data, args.min, args.max_fp)
     except (FileNotFoundError, ValueError) as exc:
         print(f"recall gate error: {exc}", file=sys.stderr)
         return 2
@@ -111,6 +117,7 @@ def main() -> int:
         "detector_recall_estimate": data.get("detector_recall_estimate"),
         "false_positive_rate": data.get("false_positive_rate"),
         "min": args.min,
+        "max_fp": args.max_fp,
         "passed": passed,
         "failed_case_ids": data.get("failed_case_ids", []),
         "reasons": reasons,
