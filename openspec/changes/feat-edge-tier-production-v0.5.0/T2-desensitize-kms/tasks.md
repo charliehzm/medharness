@@ -28,9 +28,12 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
 
 ## Leaf Sub-tasks
 
-### T2.1 · KeyProvider interface and foundational types
+### T2.1 · KeyProvider interface and foundational types ✅
 
 - Branch: `feat/T2.1-key-provider-interface`
+- PR: [#29](https://github.com/charliehzm/medharness/pull/29)
+- Merge commit: `3810b62`
+- Leaf commit: `d3cca85`
 - Files:
   - `mcp/desensitize/key_provider/__init__.py`
   - `mcp/desensitize/key_provider/interface.py`
@@ -43,10 +46,14 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - Interface docstrings state key byte secrecy and no-logging rules.
   - `python -m compileall mcp/desensitize/key_provider` passes.
   - No PHI fixtures, no LLM, no network.
+- Result: completed and merged. KeyProvider contracts, typed aliases, envelope metadata, and fail-closed exceptions are available.
 
-### T2.2 · AES-256-GCM crypto envelope helper
+### T2.2 · AES-256-GCM crypto envelope helper ✅
 
 - Branch: `feat/T2.2-aesgcm-envelope`
+- PR: [#30](https://github.com/charliehzm/medharness/pull/30)
+- Merge commit: `5261dcd`
+- Leaf commit: `5b8565e`
 - Files:
   - `mcp/desensitize/crypto_envelope.py`
   - `tests/test_desensitize_crypto_envelope.py`
@@ -63,10 +70,14 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - Wrong key fails.
   - Serialized envelope does not include raw mapping values.
   - No network, no cloud KMS in this helper.
+- Result: completed and merged. AES-256-GCM helper with canonical AAD, metadata hash, and fail-closed decrypt contract is in place.
 
-### T2.3 · FileKeyProvider initial implementation
+### T2.3 · FileKeyProvider initial implementation ✅
 
 - Branch: `feat/T2.3-file-key-provider`
+- PR: [#31](https://github.com/charliehzm/medharness/pull/31)
+- Merge commit: `1a42527`
+- Leaf commit: `5b5f891`
 - Files:
   - `mcp/desensitize/key_provider/file_provider.py`
   - `tests/test_desensitize_file_key_provider.py`
@@ -83,10 +94,14 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - Invalid key id fails.
   - Exceptions do not include key bytes.
   - No network, no cloud KMS.
+- Result: completed and merged. FileKeyProvider creates 32-byte local keys under a secured keystore root and fails closed on unsafe permissions.
 
-### T2.4 · FileKeyProvider rotation and old-key decrypt support
+### T2.4 · FileKeyProvider rotation and old-key decrypt support ✅
 
 - Branch: `feat/T2.4-key-rotation`
+- PR: [#32](https://github.com/charliehzm/medharness/pull/32)
+- Merge commit: `1afd2cb`
+- Leaf commit: `1a03cde`
 - Files:
   - `mcp/desensitize/key_provider/file_provider.py`
   - `tests/test_desensitize_file_key_provider.py`
@@ -102,10 +117,14 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - `list_keys()` includes old and active key ids.
   - Any permission violation fails closed.
   - No network, no cloud KMS.
+- Result: completed and merged. Generation-based rotation, legacy migration, old-key decrypt, and prune semantics are implemented.
 
-### T2.5 · server_v2 crypto integration
+### T2.5 · server_v2 crypto integration ✅
 
 - Branch: `feat/T2.5-server-v2-crypto`
+- PR: [#33](https://github.com/charliehzm/medharness/pull/33)
+- Merge commit: `b3e498a`
+- Leaf commit: `1213a43`
 - Files:
   - `mcp/desensitize/server_v2.py`
   - `tests/test_desensitize_server_v2_crypto.py`
@@ -123,10 +142,14 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - `map_blob` is removed or replaced by encrypted envelope field that contains no raw values.
   - Existing CLI / stdio smoke remains compatible.
   - No real PHI, no cloud KMS, no model calls.
+- Result: completed and merged. `server_v2` now encrypts reverse mappings with FileKeyProvider + AES-GCM and gates reverse by token.
 
-### T2.6 · ClickHouse `_phi_lookup` schema
+### T2.6 · ClickHouse `_phi_lookup` schema ✅
 
 - Branch: `feat/T2.6-phi-lookup-schema`
+- PR: [#34](https://github.com/charliehzm/medharness/pull/34)
+- Merge commit: `2df19ef`
+- Leaf commit: `3eccb81`
 - Files:
   - `mcp/desensitize/sql/phi_lookup.sql`
   - `tests/test_desensitize_phi_lookup_schema.py`
@@ -140,29 +163,37 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - SQL contains indexed lookup fields needed for reverse.
   - Schema clearly separates `_phi_lookup` from T4 `_audit_log`.
   - Tests pass without running ClickHouse.
+- Result: completed and merged. ClickHouse `_phi_lookup` DDL is defined and schema-tested without requiring a live ClickHouse instance.
 
-### T2.7 · Integration tests for roundtrip, rotation, and chmod
+### T2.7 · Integration tests for roundtrip, rotation, and chmod ✅
 
-- Branch: `feat/T2.7-desensitize-integration-tests`
+- Branch: `feat/T2.7-integration-tests`
+- PR: [#35](https://github.com/charliehzm/medharness/pull/35)
+- Merge commit: `f506cbf`
+- Leaf commit: `d3d5c99`
 - Files:
-  - `tests/test_desensitize_integration.py`
-  - `tests/fixtures/desensitize_synthetic_payloads.jsonl`
+  - `tests/test_desensitize_t2_integration.py`
+  - `mcp/desensitize/key_provider/file_provider.py`
 - Scope:
   - Add synthetic-only integration coverage for end-to-end desensitize / reverse.
   - Cover key rotation with old encrypted map decrypt.
   - Cover chmod failure path.
   - Cover no raw map leakage in response JSON.
-  - Add fixture metadata compatible with `phi_fingerprint_check.py --strict` if JSONL fixture is used.
+  - Use sqlite3 in-memory mock for `_phi_lookup` persistence checks without starting ClickHouse.
 - Acceptance:
   - Roundtrip passes.
   - Rotation test proves old map decrypt works.
   - `0644` key file fails.
-  - Fixture passes `python tools/phi_fingerprint_check.py tests/fixtures/desensitize_synthetic_payloads.jsonl --strict`.
+  - T2.7 5-scenario integration suite passes.
   - No real PHI.
+- Result: completed and merged. Five cross-module scenarios cover happy path, rotation, prune, chmod tamper, and R1 no-leak behavior.
 
-### T2.8 · Vault and Aliyun KMS skeleton providers
+### T2.8 · Vault and Aliyun KMS skeleton providers ✅
 
 - Branch: `feat/T2.8-vault-aliyun-kms-skeletons`
+- PR: [#36](https://github.com/charliehzm/medharness/pull/36)
+- Merge commit: `12687f2`
+- Leaf commit: `73bed03`
 - Files:
   - `mcp/desensitize/key_provider/vault_provider.py.skel`
   - `mcp/desensitize/key_provider/aliyun_kms.py.skel`
@@ -176,26 +207,34 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - No imports from Vault / Aliyun SDKs.
   - No real credential examples.
   - File count stays within 2.
+- Result: completed and merged. Vault and Aliyun KMS remain non-runtime `.skel` providers with v1.0 proxy-mode design tension documented.
 
-### T2.9 · AWS KMS skeleton provider and provider handoff note
+### T2.9 · AWS KMS skeleton provider and provider handoff note ✅
 
 - Branch: `feat/T2.9-aws-kms-skeleton`
+- PR: [#37](https://github.com/charliehzm/medharness/pull/37)
+- Merge commit: `77f29ed`
+- Leaf commit: `ba20fe3`
 - Files:
   - `mcp/desensitize/key_provider/aws_kms.py.skel`
-  - `mcp/desensitize/key_provider/README.md`
+  - `mcp/desensitize/key_provider/PROVIDER_HANDOFF.md`
 - Scope:
   - Add AWS KMS skeleton matching `KeyProvider`.
-  - Add provider package README documenting FileKeyProvider as only v0.5.0 supported provider.
+  - Add provider handoff note documenting FileKeyProvider as only v0.5.0 supported provider.
   - Document that cloud providers are reserved for v1.0 and must route through enterprise compliance review before activation.
 - Acceptance:
   - No AWS SDK imports.
   - No credential examples.
-  - README states FileKeyProvider is the only active v0.5.0 provider.
-  - README states cloud KMS skeletons must not be wired into runtime in T2.
+  - Handoff states FileKeyProvider is the only active v0.5.0 provider.
+  - Handoff states cloud KMS skeletons must not be wired into runtime in T2.
+- Result: completed and merged. AWS KMS remains `.skel` only and provider handoff documents v0.5 -> v1.0 proxy-mode redesign.
 
-### T2.10 · T2 final verification and audit summary
+### T2.10 · T2 final verification and audit summary ✅
 
 - Branch: `feat/T2.10-desensitize-verify`
+- PR: pending
+- Merge commit: pending
+- Leaf commit: pending
 - Files:
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T2-desensitize-kms/AUDIT_BUNDLE.summary.md`
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T2-desensitize-kms/tasks.md`
@@ -207,6 +246,7 @@ T2 follows the corrected crypto decision already recorded in `main` commit `8753
   - Summary includes roundtrip, rotation, chmod, fingerprint, dryrun, and red-team status.
   - `tasks.md` has completion sign-off block.
   - No code changes.
+- Result: completed. Final verification summary, PR ledger, KPI snapshot, redline self-check, contract checks, residual risks, handoff notes, and retrospective are frozen in `AUDIT_BUNDLE.summary.md`.
 
 ## Dependency Order
 
@@ -245,3 +285,15 @@ bash tests/red-team-drills/run_all.sh
 1. The group-level `proposal.md` and `tasks.md` are the canonical T2 spec; do not add a duplicate spec file.
 2. Negative FP gate is handled independently and does not block T2 sequencing.
 3. T2.7 should decide whether to add a new synthetic JSONL fixture or only reuse existing positive / negative test payloads if they cover the rotation / chmod path sufficiently.
+
+## T2 完成签字
+
+提案人 · charliehzm · 2026-05-22 ✅
+
+Compliance Officer · charliehzm（兼任）· 2026-05-22 ✅
+
+Tech Lead · charliehzm · 2026-05-22 ✅
+
+Reviewer-Agent · Claude Code · 2026-05-22 ✅
+
+T2 desensitize cryptography + FileKeyProvider · acceptance 100% met · 已可作为 T3 model-router 的 desensitize 后端 + T4 audit-log 的 envelope 数据源
