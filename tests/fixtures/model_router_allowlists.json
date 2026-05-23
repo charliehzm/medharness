@@ -1,0 +1,75 @@
+{
+  "schema_version": "T3.model_router_allowlists.v1",
+  "changes": [
+    {
+      "change_id": "change-router-happy",
+      "policy_version": "policy-router-happy",
+      "models": [
+        {
+          "id": "deepseek-v3",
+          "vendor_family": "deepseek",
+          "deployment": "private://deepseek-v3",
+          "allowed_agent_roles": ["coder", "docs"],
+          "allowed_data_levels": ["L1", "L2", "L3"],
+          "rate_limit_qps": 5
+        }
+      ]
+    },
+    {
+      "change_id": "change-router-public-direct",
+      "policy_version": "policy-router-public",
+      "models": [
+        {
+          "id": "deepseek-v3",
+          "vendor_family": "deepseek",
+          "deployment": "private://deepseek-v3",
+          "allowed_agent_roles": ["coder"],
+          "allowed_data_levels": ["L1", "L2"],
+          "rate_limit_qps": 3
+        }
+      ]
+    },
+    {
+      "change_id": "change-router-hetero",
+      "policy_version": "policy-router-hetero",
+      "models": [
+        {
+          "id": "claude-sonnet-4.6",
+          "vendor_family": "anthropic",
+          "deployment": "private://claude-sonnet-4.6",
+          "allowed_agent_roles": ["reviewer", "compliance"],
+          "allowed_data_levels": ["L1", "L2"],
+          "rate_limit_qps": 4
+        }
+      ]
+    },
+    {
+      "change_id": "change-router-marker",
+      "policy_version": "policy-router-marker",
+      "models": [
+        {
+          "id": "qwen-max",
+          "vendor_family": "alibaba",
+          "deployment": "private://qwen-max",
+          "allowed_agent_roles": ["coder"],
+          "allowed_data_levels": ["L1", "L2", "L3"],
+          "rate_limit_qps": 2
+        }
+      ]
+    },
+    {
+      "change_id": "change-router-burst",
+      "policy_version": "policy-router-burst",
+      "models": [
+        {
+          "id": "gpt-5",
+          "vendor_family": "openai",
+          "deployment": "private://gpt-5",
+          "allowed_agent_roles": ["coder", "docs"],
+          "allowed_data_levels": ["L1", "L2"],
+          "rate_limit_qps": 2
+        }
+      ]
+    }
+  ]
+}
