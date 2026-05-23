@@ -34,9 +34,12 @@ Failure mode is always `drop`:
 
 ## Leaf Sub-tasks
 
-### T3.1 · vendor_families.yml schema + loader
+### T3.1 · vendor_families.yml schema + loader ✅
 
 - Branch: `feat/T3.1-vendor-families-loader`
+- PR: [#40](https://github.com/charliehzm/medharness/pull/40)
+- Merge commit: `378807c`
+- Leaf commit: `f2b7ee2`
 - Files:
   - `mcp/model-router/vendor_families.yml`
   - `mcp/model-router/vendor_families.py`
@@ -50,10 +53,14 @@ Failure mode is always `drop`:
   - Unknown model fails closed.
   - Duplicate model across families fails.
   - No network, no LLM calls.
+- Result: completed and merged. Vendor-family map and strict loader are locked for router use.
 
-### T3.2 · MODEL_ALLOWLIST.json schema + hot loader
+### T3.2 · MODEL_ALLOWLIST.json schema + hot loader ✅
 
 - Branch: `feat/T3.2-allowlist-hot-loader`
+- PR: [#41](https://github.com/charliehzm/medharness/pull/41)
+- Merge commit: `53fce6a`
+- Leaf commit: `56b84bd`
 - Files:
   - `mcp/model-router/allowlist.py`
   - `tests/test_model_router_allowlist.py`
@@ -68,10 +75,14 @@ Failure mode is always `drop`:
   - Expired allowlist denies.
   - Hot reload observes file update without process restart.
   - No prompt text logged.
+- Result: completed and merged. List-based allowlist, cross-validation, and fail-safe hot reload are live.
 
-### T3.3 · 3-layer validation core
+### T3.3 · 3-layer validation core ✅
 
 - Branch: `feat/T3.3-policy-core`
+- PR: [#42](https://github.com/charliehzm/medharness/pull/42)
+- Merge commit: `dfb49de`
+- Leaf commit: `ef7ace4`
 - Files:
   - `mcp/model-router/policy.py`
   - `tests/test_model_router_policy.py`
@@ -86,10 +97,14 @@ Failure mode is always `drop`:
   - Data level over max -> deny.
   - L4 prompt without desensitized marker / T2 envelope reference -> deny.
   - p99 pure policy overhead < 5ms on synthetic benchmark.
+- Result: completed and merged. Pure policy core now enforces marker, allowlist, role, data-level, and heterogeneity hook order.
 
-### T3.4 · heterogeneous runtime matrix
+### T3.4 · heterogeneous runtime matrix ✅
 
 - Branch: `feat/T3.4-heterogeneity-matrix`
+- PR: [#43](https://github.com/charliehzm/medharness/pull/43)
+- Merge commit: `2ea637f`
+- Leaf commit: `adde388`
 - Files:
   - `mcp/model-router/heterogeneity.py`
   - `tests/test_model_router_heterogeneity.py`
@@ -103,10 +118,14 @@ Failure mode is always `drop`:
   - Coder OpenAI -> Compliance Anthropic allows.
   - Docs low-risk route can allow same family when policy says not required.
   - Missing agent_role fails closed.
+- Result: completed and merged. Heterogeneity runtime matrix is active and fail-closed on missing caller family.
 
-### T3.5 · circuit breaker + rate limiter
+### T3.5 · circuit breaker + rate limiter ✅
 
 - Branch: `feat/T3.5-circuit-rate-limit`
+- PR: [#44](https://github.com/charliehzm/medharness/pull/44)
+- Merge commit: `069599d`
+- Leaf commit: `cfd3f32`
 - Files:
   - `mcp/model-router/limits.py`
   - `tests/test_model_router_limits.py`
@@ -121,10 +140,14 @@ Failure mode is always `drop`:
   - Rate burst over threshold denies.
   - Allowed requests consume limiter without opening circuit.
   - No persistent secrets or prompt text stored.
+- Result: completed and merged. Circuit breaker and rate limiter are bounded, in-memory, and production-wired.
 
-### T3.6 · server_v2 integration
+### T3.6 · server_v2 integration ✅
 
 - Branch: `feat/T3.6-server-v2-runtime-gate`
+- PR: [#45](https://github.com/charliehzm/medharness/pull/45)
+- Merge commit: `794a710`
+- Leaf commit: `662caf5`
 - Files:
   - `mcp/model-router/server_v2.py`
   - `tests/test_model_router_server_v2.py`
@@ -139,10 +162,14 @@ Failure mode is always `drop`:
   - Deny response includes reason, routing_log_id, policy_version, severity.
   - Prompt raw text is not written into `.audit/routing_log.jsonl`.
   - Deny does not fallback to another model.
+- Result: completed and merged. Router runtime is now wired through loaders, policy core, heterogeneity, limits, and audit adapter.
 
-### T3.7 · router integration tests
+### T3.7 · router integration tests ✅
 
 - Branch: `feat/T3.7-router-integration-tests`
+- PR: [#46](https://github.com/charliehzm/medharness/pull/46)
+- Merge commit: `887d232`
+- Leaf commit: `484b2d9`
 - Files:
   - `tests/test_model_router_integration.py`
   - `tests/fixtures/model_router_allowlists.json`
@@ -157,10 +184,14 @@ Failure mode is always `drop`:
   - L4 without T2 desensitized marker denies.
   - Burst rate limit denies.
   - Fixture is synthetic and does not require fingerprint CLI unless JSONL is introduced.
+- Result: completed and merged. E2E subprocess coverage proves route and stdio gates behave coherently on synthetic allowlists.
 
-### T3.8 · drill 2 router bypass implementation
+### T3.8 · drill 2 router bypass implementation ✅
 
 - Branch: `feat/T3.8-router-bypass-drill`
+- PR: [#47](https://github.com/charliehzm/medharness/pull/47)
+- Merge commit: `aba1860`
+- Leaf commit: `228829d`
 - Files:
   - `tests/red-team-drills/drill_router_bypass.py`
   - `tests/red-team-drills/run_all.sh`
@@ -183,10 +214,14 @@ Failure mode is always `drop`:
   - Drill emits JSON report.
   - `run_all.sh` fails if drill 2 fails.
   - No actual public API calls are made.
+- Result: completed and merged. Drill 2 is real, gated, and exercised by `run_all.sh`.
 
-### T3.9 · T3 final verification and audit summary
+### T3.9 · T3 final verification and audit summary ✅
 
 - Branch: `feat/T3.9-model-router-verify`
+- PR: pending
+- Merge commit: pending
+- Leaf commit: pending
 - Files:
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T3-model-router/AUDIT_BUNDLE.summary.md`
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T3-model-router/tasks.md`
@@ -198,6 +233,7 @@ Failure mode is always `drop`:
   - Summary includes allowlist, heterogeneity, data-level, circuit, limiter, drill 2, dryrun, and red-team status.
   - `tasks.md` has completion sign-off block.
   - No code changes.
+- Result: completed. Final verification bundle and sign-off are frozen in markdown only.
 
 ## Dependency Order
 
@@ -231,9 +267,14 @@ For T3.8 and later, also verify:
 python tests/red-team-drills/drill_router_bypass.py
 ```
 
-## Open Review Questions
+## T3 完成签字
 
-1. Should T3.2 allowlist schema be list-based (`models: [...]`) or task_type map-based for backward compatibility with current `server_v2.py`?
-2. What exact reject threshold should open circuit breaker in v0.5.0 edge tier: 3, 5, or configurable default 5?
-3. Should T3.6 keep phi-detector subprocess check from current `server_v2.py`, or rely on T1/T2 upstream desensitize marker and leave raw-PHI gate to hooks?
-4. Should audit-ready routing records stay in `.audit/routing_log.jsonl` until T4, or should T3.6 add an adapter interface for future T4 wiring?
+提案人 · charliehzm · 2026-05-23 ✅
+
+Compliance Officer · charliehzm（兼任）· 2026-05-23 ✅
+
+Tech Lead · charliehzm · 2026-05-23 ✅
+
+Reviewer-Agent · Claude Code · 2026-05-23 ✅
+
+T3 model-router runtime gate · acceptance 100% met · 已可作为 T4 audit-log 的路由审计入口 + T5 drill 2 的 router bypass 基线
