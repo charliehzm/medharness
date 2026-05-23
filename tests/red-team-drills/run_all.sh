@@ -40,6 +40,20 @@ drill_router_bypass() {
   "$PY" "${ROOT}/tests/red-team-drills/drill_router_bypass.py" --out "${OUT}/router.json"
 }
 
+drill_router_bypass_gate() {
+  echo "→ drill 2 gate · expected-deny cases must not pass"
+  ROOT_DIR="$ROOT" "$PY" - <<'PY'
+import json
+import os
+from pathlib import Path
+root = Path(os.environ["ROOT_DIR"])
+report = json.loads((root / "tests/red-team-drills/output/router.json").read_text(encoding="utf-8"))
+failed = report.get("failed_case_ids", [])
+if failed or report.get("passed") is False:
+    raise SystemExit(f"drill 2 failed: {failed}")
+PY
+}
+
 drill_audit_replay() {
   echo "→ drill 3: AUDIT_BUNDLE replay"
   "$PY" "${ROOT}/tests/red-team-drills/drill_audit_replay.py" --out "${OUT}/replay.json"
@@ -59,6 +73,7 @@ main() {
   cd "$ROOT"
   drill_phi_recall
   drill_router_bypass
+  drill_router_bypass_gate
   drill_audit_replay
   drill_injection
   recall_gate
