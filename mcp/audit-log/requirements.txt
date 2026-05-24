@@ -1,0 +1,4 @@
+# audit-log dependencies · ADR-08 per-MCP slice
+# v0.5.0 mock-only: clickhouse-connect intentionally NOT installed.
+# v0.6+ follow-up: add clickhouse-connect>=0.8,<1.0 when real ClickHouse integration ships.
+# Runtime code uses only Python stdlib for hashchain and fallback paths.
