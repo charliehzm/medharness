@@ -164,16 +164,22 @@ T6 范围被 T4.9 部分 absorbed —— hash chain integrity + tamper detection
 
 ---
 
-### T8 · CI · 红队月度 cron + recall gate
-**改动**：
-- `.github/workflows/compliance.yml` 已存在 → 强化 gate
-- 月度 schedule（每周一已有，确认 OK）
-- recall 退化到 < 92% → CI fail + 通知 maintainer
+### T8 · CI · 红队月度 cron + recall gate ✅
 
-**DoD**：
-- [ ] 月度自动跑通
-- [ ] 退化告警通过 Issue 自动开
-- [ ] 历史 recall 趋势图（GitHub Actions artifact）
+**实际实施**：本 PR
+
+T8 在 `.github/workflows/compliance.yml` 已强化：
+- Weekly Monday 09:00 CST schedule (cron: `0 1 * * 1`)
+- Enforce 5 gates: drill 1 (PHI recall ≥ 92%) + drill 2 (router bypass) + drill 3 (audit chain) + drill 4 (prompt injection block_rate ≥ 95%) + recall_gate (≤ 15% FP)
+- Failure on scheduled runs → automatic GitHub Issue with sev-2 + compliance + red-team-regression labels
+- Artifacts: red-team-report retention 30 days + recall_history.json retention 90 days
+
+**DoD 实证**：
+- [x] 月度自动跑通（weekly cron 实际比 monthly 更频繁，超出 spec）
+- [x] 退化告警通过 Issue 自动开（actions/github-script + issues: write permission）
+- [x] 历史 recall 趋势图数据（recall_history.json artifact 90 天保留 · 真图形化推迟 v0.6+）
+
+详见 `.github/workflows/compliance.yml`。
 
 ---
 
