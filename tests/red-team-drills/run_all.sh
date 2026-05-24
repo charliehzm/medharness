@@ -59,6 +59,23 @@ drill_audit_replay() {
   "$PY" "${ROOT}/tests/red-team-drills/drill_audit_replay.py" --out "${OUT}/replay.json"
 }
 
+drill_audit_replay_gate() {
+  echo "→ drill 3 gate · audit chain integrity + tamper detection"
+  ROOT_DIR="$ROOT" "$PY" - <<'PY'
+import json
+import os
+from pathlib import Path
+root = Path(os.environ["ROOT_DIR"])
+report = json.loads((root / "tests/red-team-drills/output/replay.json").read_text(encoding="utf-8"))
+if report.get("failed_case_ids") or report.get("passed") is False:
+    raise SystemExit(f"drill 3 failed: {report.get('failed_case_ids', [])}")
+if not report.get("chain_intact"):
+    raise SystemExit("drill 3 failed: intact chain verification failed")
+if not report.get("tampered_detected"):
+    raise SystemExit("drill 3 failed: tampered case not detected")
+PY
+}
+
 drill_injection() {
   echo "→ drill 4: prompt-injection in RAG corpus"
   "$PY" "${ROOT}/tests/red-team-drills/drill_injection.py" --out "${OUT}/injection.json"
@@ -75,6 +92,7 @@ main() {
   drill_router_bypass
   drill_router_bypass_gate
   drill_audit_replay
+  drill_audit_replay_gate
   drill_injection
   recall_gate
   echo
