@@ -75,6 +75,25 @@ A 客户场景受限；B 杀鸡用牛刀；C 防线太薄。
 - 每天凌晨自动 verify 链完整性（cron + script）
 - 链断 → 立即 SEV-1 报警
 
+### T4 codex Q&A 落档（2026-05-24）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | clickhouse-driver vs clickhouse-connect 作为 canonical client | **clickhouse-connect** · ClickHouse 官方维护跟 24.x 同步 · HTTP 协议比 TCP native 9000 端口部署更友好（容器/反代/SaaS）· 5000 rows/sec 单连接远高于 1000 rows/sec SLO |
+| Q2 | 哈希链公式 + row_id / timestamp 是否进 hash | **`sha256(canonical_json(event_with_row_id) + "\|" + prev_hash)`** · `\|` 分隔符防 length-extension 边界歧义 · row_id 作为 event 字段进 canonical（防行重排攻击）· timestamp 已在 canonical 不重复 |
+| Q3 | ClickHouse 恢复后 fallback 回灌时链头怎么续 | **原链续 + PID lock + 恢复期顺序 backfill** · fallback 期 writer 内存里 `_last_hash` 继续 advance，每条 JSONL 写完整 prev/current hash → fallback 文件本身是有效链段 · 恢复时 daemon 进入 BACKFILL state 暂停新写入 → 按 ts 顺序 backfill → 完成后恢复 · bridge record 留 v0.5.1 plan B |
+| Q4 | drill 3 audit replay 只验 hash 链，还是还要语义重放对比确定性输出 | **T4.9 只做 hash 链验证 + 篡改检测** · 6 个月 synthetic fixture · 故意篡改 1 行 → 检测 · 语义重放（重跑 prompt + temperature 容差对比）工程量翻倍，推迟 T6/v0.6+ 单独 RFC |
+| Q5 | `_audit_log` 的 row_id 谁生成（writer 还是 ClickHouse） | **writer 端生成** · hash chain 要求写入前知道 row_id（ClickHouse 端生成则 chain 算不了）· v0.5.0 单实例 SELECT MAX + 内存 counter 够用 · 多 writer 升级路径用 `(writer_id, local_counter)` 元组（v1.0） |
+| Q6 | setup-worm.sh chattr +a 只管 `_audit_log` 还是连 export/backup 一起管 | **三目录全管** · `_audit_log/` + `audit-export/` + `audit-backup/` · WORM 是全链路防篡改：攻击者可能改导出副本或备份骗审计员 → 全部 chattr +a · macOS skip + lsattr 验证存在性 + warning · Linux 实跑 chattr +a |
+
+### T4 实施约束（codex Q&A 后补充）
+- ClickHouse client：`clickhouse-connect`（HTTP 协议）
+- 哈希公式：`sha256(canonical_json(event_with_row_id) + "|" + prev_hash)`
+- Fallback 路径：`/data/medharness/audit/audit-fallback-<ts>.jsonl` + 单进程 PID lock
+- Row ID：writer 端单调 counter（启动时 `SELECT MAX(row_id)` 初始化）
+- WORM 目录：`_audit_log/` + `audit-export/` + `audit-backup/` 三目录独立 chattr +a
+- CI 策略：unit tests（hashchain 纯函数 + writer mock）默认进 pytest · integration tests 标 `@pytest.mark.clickhouse` 默认 skip · `--full` 或本地手动跑
+
 ---
 
 ## ADR-04 · model-router 异构性 runtime check
