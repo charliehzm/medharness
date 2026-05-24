@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -253,3 +254,147 @@ def test_routing_log_ids_are_unique_and_audit_records_are_structured(tmp_path: P
         assert "duration_ms" in record
         assert "prompt" not in record
         assert "RAW-PHI-CLAIM" not in json.dumps(record, ensure_ascii=False)
+
+
+class FakeAuditServer:
+    def __init__(self) -> None:
+        self.appended_events: list[dict[str, object]] = []
+
+    def append(self, event: dict[str, object]) -> dict[str, object]:
+        self.appended_events.append(event)
+        return {
+            "event_id": event["event_id"],
+            "row_id": len(self.appended_events) - 1,
+            "prev_hash": "GENESIS" if len(self.appended_events) == 1 else "prev-hash",
+            "current_hash": f"current-{len(self.appended_events)}",
+            "state": "normal",
+        }
+
+
+def _routing_record(**overrides: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "routing_log_id": "route-0001",
+        "decision": "allow",
+        "reason": "allowed by policy",
+        "policy_version": "policy-t4.8",
+        "duration_ms": 12.345,
+        "layer_failed": None,
+        "severity": None,
+        "error_type": None,
+        "model_id": "qwen-max",
+        "agent_role": "coder",
+        "data_level": "L2",
+        "change_id": "feat/T4.8-router-audit-adapter",
+        "target_model_id": "qwen-max",
+        "vendor_family": "alibaba",
+        "deployment": "private://qwen-max",
+        "caller_vendor_family": "openai",
+        "desensitized": True,
+    }
+    record.update(overrides)
+    return record
+
+
+def test_clickhouse_audit_adapter_rejects_default_init() -> None:
+    with pytest.raises(NotImplementedError, match="requires audit_server"):
+        server_v2.ClickHouseAuditAdapter()
+
+
+def test_clickhouse_audit_adapter_accepts_injected_server() -> None:
+    audit_server = FakeAuditServer()
+    adapter = server_v2.ClickHouseAuditAdapter(audit_server=audit_server)
+
+    event_id = adapter.write_routing_decision(_routing_record())
+
+    assert event_id == "route-0001"
+    assert len(audit_server.appended_events) == 1
+
+
+def test_clickhouse_audit_adapter_accepts_factory() -> None:
+    audit_server = FakeAuditServer()
+    factory_calls = 0
+
+    def factory() -> FakeAuditServer:
+        nonlocal factory_calls
+        factory_calls += 1
+        return audit_server
+
+    adapter = server_v2.ClickHouseAuditAdapter(audit_server_factory=factory)
+
+    assert factory_calls == 0
+    assert adapter.write_routing_decision(_routing_record()) == "route-0001"
+    assert factory_calls == 1
+    assert adapter.write_routing_decision(_routing_record(routing_log_id="route-0002")) == "route-0002"
+    assert factory_calls == 1
+
+
+def test_write_routing_decision_delegates_to_audit_server_append() -> None:
+    audit_server = FakeAuditServer()
+    adapter = server_v2.ClickHouseAuditAdapter(audit_server=audit_server)
+    record = _routing_record(decision="deny", reason="rate limit exceeded", duration_ms=3.21)
+
+    event_id = adapter.write_routing_decision(record)
+
+    assert event_id == "route-0001"
+    assert len(audit_server.appended_events) == 1
+    event = audit_server.appended_events[0]
+    assert event["event_id"] == "route-0001"
+    assert event["result"] == {
+        "status": "deny",
+        "reason": "rate limit exceeded",
+        "duration_ms": 3.21,
+    }
+
+
+def test_record_to_event_maps_all_fields_correctly() -> None:
+    record = _routing_record()
+
+    event = server_v2.ClickHouseAuditAdapter._record_to_event(record)
+
+    assert event["event_id"] == "route-0001"
+    assert isinstance(event["timestamp"], str)
+    assert event["actor"] == {
+        "agent_role": "coder",
+        "model_id": "qwen-max",
+        "vendor_family": "alibaba",
+        "session_id": "",
+    }
+    assert event["action"] == {
+        "tool": "model-router",
+        "skill": None,
+        "operation": "route",
+    }
+    assert event["context"] == {
+        "change_id": "feat/T4.8-router-audit-adapter",
+        "step": None,
+        "data_levels": ["L2"],
+    }
+    assert event["result"] == {
+        "status": "allow",
+        "reason": "allowed by policy",
+        "duration_ms": 12.345,
+    }
+    assert event["input_hash"] == hashlib.sha256(
+        b"qwen-max|feat/T4.8-router-audit-adapter|L2"
+    ).hexdigest()
+    assert event["output_hash"] == hashlib.sha256(
+        b"route-0001|allow|allowed by policy"
+    ).hexdigest()
+
+
+def test_record_to_event_does_not_leak_raw_payload() -> None:
+    record = _routing_record(
+        prompt="RAW-PHI-CLAIM",
+        raw_text="RAW-PHI-CLAIM",
+        reason="deny synthetic routing request",
+    )
+
+    event = server_v2.ClickHouseAuditAdapter._record_to_event(record)
+    event_text = json.dumps(event, ensure_ascii=False)
+
+    assert "RAW-PHI-CLAIM" not in event_text
+    assert "prompt" not in event
+    assert "raw_text" not in event
+    assert event["input_hash"] == hashlib.sha256(
+        b"qwen-max|feat/T4.8-router-audit-adapter|L2"
+    ).hexdigest()
