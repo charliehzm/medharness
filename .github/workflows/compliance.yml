@@ -8,16 +8,23 @@ on:
       - 'mcp/phi-detector/**'
       - 'mcp/desensitize/**'
       - 'mcp/model-router/**'
+      - 'mcp/audit-log/**'
+      - 'mcp/prompt-injection-scan/**'
       - 'scripts/hooks/**'
+      - 'scripts/setup-worm.sh'
+      - 'scripts/verify-hashchain.sh'
+      - 'scripts/verify_hashchain_logic.py'
       - '.claude/skills/compliance-*'
       - '.claude/skills/phi-desensitize/**'
       - '.claude/skills/audit-snapshot/**'
+      - '.claude/skills/prompt-injection-scan/**'
       - 'tests/red-team-drills/**'
   schedule:
     - cron: '0 1 * * 1'  # every Monday 09:00 CST
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   red-team:
@@ -28,13 +35,76 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - name: Run PHI red-team drills
+      - name: Run red-team drills (drill 1-4 + 5 gates enforce)
+        id: drills
         run: bash tests/red-team-drills/run_all.sh
-      - name: Verify recall >= 92%
-        run: python tests/red-team-drills/check_recall.py --min 0.92
-      - name: Upload drill report
+      - name: Verify recall gate
+        if: success()
+        run: python tests/red-team-drills/check_recall.py --min 0.92 --max-fp 0.15
+      - name: Upload full drill report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: red-team-report-${{ github.run_id }}
           path: tests/red-team-drills/output/
+          retention-days: 30
+      - name: Upload recall history (trend data)
+        if: always() && hashFiles('tests/red-team-drills/output/recall_history.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: recall-history-${{ github.run_id }}
+          path: tests/red-team-drills/output/recall_history.json
+          retention-days: 90
+      - name: Open issue on failure (scheduled runs only)
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const date = new Date().toISOString().slice(0, 10);
+            const requiredLabels = [
+              { name: 'compliance', color: '5319e7', description: 'Compliance-related work' },
+              { name: 'red-team-regression', color: 'd73a4a', description: 'Red-team drill regression' },
+              { name: 'sev-2', color: 'fbca04', description: 'SEV-2 operational follow-up' },
+            ];
+            for (const label of requiredLabels) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ...label,
+                });
+              }
+            }
+            const body = [
+              `## Red-team drill regression detected`,
+              ``,
+              `**Date**: ${date}`,
+              `**Workflow run**: ${runUrl}`,
+              `**Trigger**: scheduled weekly run`,
+              ``,
+              `One or more red-team drills failed:`,
+              `- drill 1 (PHI recall >= 92%)`,
+              `- drill 2 (router bypass 11/11)`,
+              `- drill 3 (audit chain integrity)`,
+              `- drill 4 (prompt injection block_rate >= 95%)`,
+              `- recall_gate`,
+              ``,
+              `See the workflow logs and red-team-report artifact for details.`,
+              ``,
+              `cc @${context.repo.owner}`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[SEV-2] Red-team drill regression · ${date}`,
+              body,
+              labels: requiredLabels.map((label) => label.name),
+            });
