@@ -2,21 +2,46 @@ from __future__ import annotations
 
 import json
 import sys
+from importlib import util
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "mcp" / "audit-log"))
+AUDIT_LOG_DIR = ROOT / "mcp" / "audit-log"
+SERVER = AUDIT_LOG_DIR / "server_v2.py"
 
-from clickhouse_writer import (  # noqa: E402
-    ClickHouseAuditWriter,
-    ClickHouseUnavailable,
-    WriterContract,
+
+def _load_module(module_name: str, path: Path, alias: str | None = None):
+    spec = util.spec_from_file_location(module_name, path)
+    assert spec is not None
+    module = util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    if alias is not None:
+        sys.modules[alias] = module
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+hashchain_mod = _load_module("audit_log_hashchain", AUDIT_LOG_DIR / "hashchain.py", alias="hashchain")
+clickhouse_writer_mod = _load_module(
+    "audit_log_clickhouse_writer", AUDIT_LOG_DIR / "clickhouse_writer.py", alias="clickhouse_writer"
 )
-from hashchain import GENESIS_PREV_HASH, compute_hash  # noqa: E402
-from server_v2 import AuditLogServerV2, AuditServerError, ServerState  # noqa: E402
+fallback_writer_mod = _load_module(
+    "audit_log_fallback_writer", AUDIT_LOG_DIR / "fallback_writer.py", alias="fallback_writer"
+)
+audit_server_v2 = _load_module("audit_log_server_v2", SERVER)
+
+ClickHouseAuditWriter = clickhouse_writer_mod.ClickHouseAuditWriter
+ClickHouseUnavailable = clickhouse_writer_mod.ClickHouseUnavailable
+WriterContract = clickhouse_writer_mod.WriterContract
+GENESIS_PREV_HASH = hashchain_mod.GENESIS_PREV_HASH
+compute_hash = hashchain_mod.compute_hash
+AuditLogServerV2 = audit_server_v2.AuditLogServerV2
+AuditServerError = audit_server_v2.AuditServerError
+ServerState = audit_server_v2.ServerState
 
 
 class FakeClickHouseWriter:
