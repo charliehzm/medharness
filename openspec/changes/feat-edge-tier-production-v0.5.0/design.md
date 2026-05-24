@@ -262,6 +262,65 @@ A 不离线；B 职责混淆；C 合规风险；D 太低不防 regression。
 
 ---
 
+## ADR-08 · 8 MCP Docker 镜像化：multi-stage + 非 root + per-MCP 依赖切片 + Trivy 扫
+
+### 决策
+v0.5.0 给 8 个 MCP server 各产一个 Dockerfile（**不含 prompt-injection-scan**，那是 detector library）：
+
+1. **统一 base image**：`python:3.11-slim`（各 Dockerfile 各自 FROM，不抽 medharness-base · Docker engine base layer 自动复用）
+2. **Multi-stage**：builder 装 build deps + pip wheel · runtime 复制必要 artifact + 非 root
+3. **非 root user**：`medharness:medharness` UID/GID 9000 统一
+4. **HEALTHCHECK 分级**：production MCP 优先调真 health endpoint · stub MCP 用 import smoke
+5. **LABEL**：version (from 根 VERSION 文件) + SPDX (Apache-2.0) + maintainer
+6. **依赖切片**：每个 MCP 自己 requirements.txt · 根 requirements.txt 保留为 union
+7. **Vulnerability scan**：Trivy (`--severity HIGH,CRITICAL`) · 0 high vuln 为 gate
+
+### 替代
+- A) 共享 prebuilt medharness-base image → 引入 build 依赖顺序 + T13 offline 需额外 export base
+- B) 全局 requirements.txt → image bloat（phi-detector 的 presidio 不该装到 model-router）
+- C) Anchore / Snyk / Docker Scout → 需要 cloud account（医疗内网部署不友好）
+- D) GitHub CodeQL → 是源码分析不是 image scan，不适用
+- E) Build-time download spaCy zh model → 模型 85MB + 网络依赖 + image 超 500MB
+- F) 全部用 import smoke 跳过真 endpoint health → production MCP blast radius 大
+
+### 否决理由
+A 复杂；B image 超限；C/D 离线不友好；E 模型超限 + 联网依赖；F production 不可接受。
+multi-stage + 非 root + per-MCP slice + Trivy + 分级 HEALTHCHECK 是 v0.5.0-edge 最匹配的组合。
+
+### 实施约束
+- 8 MCP Dockerfile：phi-detector / desensitize / model-router / audit-log（4 生产）+ ci-trigger / internal-kb / pm-bridge / vector-db（4 stub）
+- 根 VERSION 文件由 T9.1 创建（T13 tarball 也用同一份）
+- Build/size 测试用 `scripts/docker-build.sh` + `scripts/docker-build-all.sh` shell 范式（跟 T4.6 setup-worm.sh / T4.7 verify-hashchain.sh 一致）
+- CI 集成：`.github/workflows/docker-build.yml`（paths trigger + Trivy scan + image size assertion）
+- 生产 MCP < 500MB · stub < 200MB
+- spaCy zh model **不进 image**（T1 已用 RegexOnlyNlpEngine workaround）· T13 offline tarball 含 model 作为 optional bundle
+- .dockerignore 必须排除 `.env` / `*.key` / `tests/red-team-drills/output/` / `AUDIT_BUNDLE_*.tar.gz` / `__pycache__/`
+
+### T9 codex Q&A 落档（2026-05-24）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | 共享 prebuilt base vs 各自 FROM | **各自 `FROM python:3.11-slim`** · Docker engine base layer 自动复用 · 不引入"先 build base 再 build MCP"依赖顺序 · T13 offline 友好（不需 export 中间 base image） |
+| Q2 | Version label 来源 | **根 VERSION 文件**（T9.1 创建）· Dockerfile `COPY VERSION /VERSION` + `LABEL version=$(cat /VERSION)` · 跟 T13 tarball VERSION 同一份 · 不依赖 CI build-arg · 本地/CI build 一致 |
+| Q3 | requirements 全局 vs per-MCP | **per-MCP requirements.txt + 根全局 union** · phi-detector 装 presidio · model-router stdlib only（image 应 < 100MB）· desensitize 仅 cryptography · audit-log v0.5.0 mock-only（v0.6+ 加 clickhouse-connect）· stub 几乎无依赖 |
+| Q4 | Stub HEALTHCHECK 设计 | **stub 用 import smoke** (`python -c "import server"`) · **production 优先真 health endpoint**（如 server_v2.py CLI `health` 子命令）· 不支持的 production fallback import smoke 并标 v0.6+ 升级到真 endpoint |
+| Q5 | Vulnerability scanner 选 | **Trivy** (aquasec/trivy-action) · OSS · 离线友好（医疗内网部署可本地跑）· 覆盖 OS 包 + Python 依赖 + Dockerfile misconfig · 输出 SARIF + JSON · `--severity HIGH,CRITICAL` 当 "0 high vuln" gate |
+| Q6 | Docker build tests 在哪跑 | **`scripts/docker-build.sh <mcp_name>` + `scripts/docker-build-all.sh` + `.github/workflows/docker-build.yml`** · 跟 setup-worm.sh / verify-hashchain.sh 范式一致 · 本地 dev + CI 共享同一 script · pytest subprocess docker build 太慢不适合 |
+| Q7 | spaCy/Presidio 模型打包 | **build-time 装 presidio 包 + RegexOnlyNlpEngine workaround**（T1 commit 8753d41 已决策）· **spaCy zh_core_web_sm 不进 image** · T13 offline tarball 含 model 作为 optional bundle（客户内网部署时可选启用） |
+
+### T9 实施约束（codex Q&A 后补充）
+- 根 `VERSION` 文件格式：单行 semver（如 `0.5.0-edge`）· T9.1 创建
+- `.dockerignore` 统一一份在根目录（被 8 Dockerfile 共享 build context）
+- per-MCP requirements 命名：`mcp/<name>/requirements.txt`
+- builder stage `pip install --no-cache-dir -r requirements.txt --target /wheels`
+- runtime stage `COPY --from=builder /wheels /app/wheels` + `pip install --no-deps /app/wheels/*`
+- runtime stage `USER medharness:medharness` 必须在 `WORKDIR /app` 之后
+- HEALTHCHECK production 模式：`CMD python server_v2.py health || exit 1` · stub 模式：`CMD python -c "import server" || exit 1`
+- LABEL 至少 3 字段：`org.opencontainers.image.version` / `org.opencontainers.image.licenses=Apache-2.0` / `org.opencontainers.image.source=https://github.com/charliehzm/medharness`
+- T9.7 scripts/docker-build-all.sh 输出 JSON 报告含 image name / size / trivy summary
+
+---
+
 ## 附录：决策映射到任务
 
 | ADR | 影响任务 |
@@ -273,5 +332,6 @@ A 不离线；B 职责混淆；C 合规风险；D 太低不防 regression。
 | ADR-05 | T13-T15（offline build） |
 | ADR-06 | T11（TLS） |
 | ADR-07 | T7（prompt-injection drill 4） |
+| ADR-08 | T9（8 MCP Dockerfile）+ T10（docker-compose）+ T13-T15（offline 含 image） |
 
 详 [tasks.md](tasks.md)。
