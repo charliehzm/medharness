@@ -213,15 +213,65 @@ A 不可行；B 演示门槛；C 监管。
 
 ---
 
+## ADR-07 · prompt-injection 防御：纯规则 detector + 5 类攻击家族 + 95% 阻断率
+
+### 决策
+v0.5.0 用**纯规则 + 关键字 + 上下文规则** detector 模块（`mcp/prompt-injection-scan/`）做 prompt-injection 防御：
+
+1. **独立 MCP 模块**：跟 phi-detector 职责分离（PHI 是数据敏感，injection 是行为对抗）
+2. **5 类攻击家族**：indirect injection / tool abuse / role escalation / jailbreak phrasing / encoding-obfuscation
+3. **20+ 合成 corpus**：100% synthetic JSONL · 不抄真实越狱 prompt 库
+4. **drill 4 gate**：阻断率 ≥ 95% · run_all.sh enforce
+
+### 替代
+- A) LLM-based 分类器（zero-shot prompt classifier） → 离线包不可，需要外部模型推理
+- B) 集成进 mcp/phi-detector → 威胁模型混淆（PHI 检测 vs 行为对抗）
+- C) 引入真实 jailbreak prompt library（如 jailbreakchat.com 数据） → R4 合规风险 + 攻击向量 PR 泄漏
+- D) 阻断率阈值 80%（业界 baseline） → v0.5.0 corpus 100% synthetic，detector 见过同类模式，95% 可达且防 regression
+
+### 否决理由
+A 不离线；B 职责混淆；C 合规风险；D 太低不防 regression。
+纯规则 + 5 类 + 95% 是 v0.5.0-edge 最匹配的组合。
+
+### 实施约束
+- detector 接口：`detect_injection(text: str, context: dict | None = None) → DetectionResult`
+- DetectionResult schema：`{blocked, category, score, matched_rules, reason}`
+- 8-12 条上下文规则（phi-detector 是 6 条 · injection 攻击模式更多样故略多）
+- corpus 20+ cases · 5 类各 4+ cases · 含中英多语言 + obfuscation
+- JSONL fixture 格式（跟 drill 3 一致：`tests/red-team-drills/fixtures/prompt_injection_corpus.jsonl`）
+- drill 4 gate 在 `run_all.sh` enforce block_rate ≥ 0.95 · failed_case_ids 必须空
+- 模块 stdlib-only · 不引入新 Python 依赖
+- v0.6+ follow-up：引入真实 jailbreak corpus 时阈值降到 85% 并校准 ROC
+
+### T7 codex Q&A 落档（2026-05-24）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | detector API 单一入口还是多 detector classes | **单一 `detect_injection(text, context=None)` → DetectionResult** · 内部 modular 多 detector category · 跟 phi-detector 单 detect() + 多 recognizer 范式一致 · DetectionResult 含 category 字段标明命中哪类 |
+| Q2 | 3 baseline 之外还需哪些攻击家族 | **5 类**：indirect injection / tool abuse / role escalation + **jailbreak phrasing**（"DAN" / "ignore all previous" / "developer mode"）+ **encoding/obfuscation**（base64 / Unicode homoglyphs / ZWJ chars）· markdown/HTML/JSON-escape/multilingual 推迟 v0.6+（每类下加 1-2 中英混合 case 即可） |
+| Q3 | 上下文规则数量 | **8-12 条** · 平衡 interpretability vs brittle · phi-detector 是 6 条 · injection 攻击模式更多样 · 太少漏报，太多维护难 |
+| Q4 | 95% 阻断率阈值确认 | **95% 保持** · 20 cases × 95% = 最多漏 1 个 · v0.5.0 corpus 100% synthetic detector 可达 · 高门槛防 regression（每次改 detector 必须保持高准确）· v0.6+ 引入真实 jailbreak corpus 时阈值降到 85% 重新校准 ROC |
+| Q5 | fixture 格式 JSONL vs YAML | **JSONL** · 跟 drill 3 (T4.9) 一致 · 复用 `_load_fixture` / `_write_jsonl` 模式 · 易 grep / wc -l / diff · attack case schema 简单（不需 YAML 表达力） |
+
+### T7 实施约束（codex Q&A 后补充）
+- corpus case schema：`{case_id, attack_family, text, expected_block, rationale}`
+- 5 类 × 4+ cases = 20+ 起步（可按 RFC 加 expected-allow benign controls 测 FP，但 v0.5.0 优先级低）
+- v0.5.0 只测 block rate；FP rate 留 T7 v0.6+ follow-up
+- detector 内部规则按 attack_family 分组组织（防 7+ rule 互相干扰）
+- LOGGER 不打印 detector 输入 text 内容（防 injection payload 泄漏到 audit）
+
+---
+
 ## 附录：决策映射到任务
 
 | ADR | 影响任务 |
 |---|---|
 | ADR-01 | T1（phi-detector v3） |
 | ADR-02 | T2（desensitize KMS） |
-| ADR-03 | T4（audit-log WORM） |
-| ADR-04 | T3（model-router）+ T5（drill 2） |
+| ADR-03 | T4（audit-log WORM）+ T6（drill 3 audit replay · 部分 absorbed by T4.9） |
+| ADR-04 | T3（model-router）+ T5（drill 2 · absorbed by T3.8） |
 | ADR-05 | T13-T15（offline build） |
 | ADR-06 | T11（TLS） |
+| ADR-07 | T7（prompt-injection drill 4） |
 
 详 [tasks.md](tasks.md)。
