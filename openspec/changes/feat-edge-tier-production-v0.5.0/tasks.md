@@ -110,27 +110,45 @@
 
 ## Phase 2 · 红队 + 评估（week 2-3）
 
-### T5 · drill 2 router bypass 实现
-**改动**：
-- `tests/red-team-drills/drill_router_bypass.py` 从 stub → 真实现
-- 用例：直连境外 API 绕开 router / 同家族 model 通过 / 越权数据分级
+### T5 · drill 2 router bypass 实现 ✅ ABSORBED by T3.8
 
-**DoD**：
-- [ ] 10+ 攻击用例
-- [ ] 所有用例预期 → 阻断
-- [ ] CI gate enforce
+**实际实施**：T3.8（PR [#47](https://github.com/charliehzm/medharness/pull/47) · merge commit `aba1860`）
+
+T5 范围在 T3 task group 实施时被 T3.8 完整 absorbed —— `tests/red-team-drills/drill_router_bypass.py` 从 stub 替换为 11 个真实攻击案例（覆盖 direct-openai-endpoint / direct-anthropic-endpoint / openrouter-bypass / same-family-reviewer / same-family-compliance / l4-over-policy / missing-marker / missing-allowlist-file / malformed-allowlist / expired-allowlist / rate-limit-burst），`run_all.sh` 加 `drill_router_bypass_gate` enforce。
+
+**DoD 实证**：
+- [x] 10+ 攻击用例（实际 11 个）
+- [x] 所有用例预期 → 阻断（11/11 deny + reason 对位 router 各 layer_failed）
+- [x] CI gate enforce（`drill_router_bypass_gate` 失败时 `set -euo pipefail` 整体退出）
+
+**Cross-task absorption rationale**：T3.8 实施时 drill 2 是验证 T3 model-router runtime gate 的最自然方式（router 实装 + 立即红队验证），跨 task group 拆开反而割裂上下文。
+
+详见 T3 AUDIT_BUNDLE.summary.md (`T3-model-router/AUDIT_BUNDLE.summary.md` §6 Test Coverage Matrix)。
 
 ---
 
-### T6 · drill 3 audit replay 实现
-**改动**：
-- `tests/red-team-drills/drill_audit_replay.py`
-- 抽样既有 AUDIT_BUNDLE → 重新跑同模型 + 同 prompt → 对比 routing_decisions
+### T6 · drill 3 audit replay 实现 🔄 PARTIALLY ABSORBED by T4.9
 
-**DoD**：
-- [ ] 100% 重放成功率（temperature 容差内）
-- [ ] 故意篡改哈希链 → 检测出
-- [ ] CI gate enforce
+**部分实施**：T4.9（PR [#59](https://github.com/charliehzm/medharness/pull/59) · merge commit `faef279`）
+
+T6 范围被 T4.9 部分 absorbed —— hash chain integrity + tamper detection 完整实施（intact-chain + tampered-mid-row broken_at=18 + tampered-genesis broken_at=0 三个 case · run_all.sh 加 `drill_audit_replay_gate`）。
+
+**DoD 实证**：
+- [x] 故意篡改哈希链 → 检测出（tampered-mid + tampered-genesis 两类）
+- [x] CI gate enforce（`drill_audit_replay_gate` 三重检查 failed_case_ids / chain_intact / tampered_detected）
+- [ ] 100% 重放成功率（temperature 容差内）→ **推迟到 v0.6+**
+
+**未完成部分（语义重放）**：
+原 spec 要求"重新跑同模型 + 同 prompt → 对比 routing_decisions"（语义重放，含 temperature 容差对比）。ADR-03 T4 子节 Q4 已明示**推迟到 T6/v0.6+**，理由：
+- 语义重放需要真调 LLM API（v0.5.0-edge 范围内合规风险高）
+- temperature 容差对比 + "等价输出"定义工程量翻倍
+- T4.9 hash chain verify 已是替换 stub 的最小可行 R3 防篡改证据
+
+**Cross-task absorption rationale**：T4.9 实施时 drill 3 是验证 T4 audit-log WORM hash chain 的最自然方式（hashchain 实装 + 立即红队验证），同 T5/T3.8 模式。
+
+**v0.6+ T6 v2 范围**：语义重放 + 真 LLM 调用 + temperature 容差 + 等价性 metrics（单独 RFC）
+
+详见 T4 AUDIT_BUNDLE.summary.md (`T4-audit-log-worm/AUDIT_BUNDLE.summary.md` §6 Test Coverage + §11 Handoff Notes T4→T6)。
 
 ---
 
