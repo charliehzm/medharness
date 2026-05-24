@@ -1,0 +1,63 @@
+# Local secrets and private config
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+config.local.*
+.private/
+.medharness-private/
+
+# Python caches and local environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Git and CI metadata
+.git/
+.github/
+
+# Audit and generated compliance artifacts
+AUDIT_BUNDLE_*.tar.gz
+.audit/
+.audit_cache/
+audit_logs/
+tests/red-team-drills/output/
+
+# Build and package output
+dist/
+build/
+*.egg
+*.whl
+
+# Documentation excluded from image contexts by default
+*.md
+docs/
+site/
+mkdocs.yml
+
+# Node and frontend caches
+node_modules/
+
+# OS, editor, and transient files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*.log
+*.tmp
+*.bak
