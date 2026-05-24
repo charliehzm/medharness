@@ -114,15 +114,69 @@ class FileAuditAdapter(AuditAdapter):
 
 
 class ClickHouseAuditAdapter(AuditAdapter):
-    """T4 placeholder. v0.5.0 edge tier writes file audit only."""
+    """Map model-router decisions into T4 audit events."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        del args, kwargs
-        raise NotImplementedError("ClickHouseAuditAdapter not implemented in v0.5.0 edge tier")
+    def __init__(self, audit_server: Any = None, audit_server_factory: Any = None) -> None:
+        if audit_server is None and audit_server_factory is None:
+            raise NotImplementedError(
+                "ClickHouseAuditAdapter requires audit_server or audit_server_factory; "
+                "v0.5.0 callers should explicitly inject AuditLogServerV2"
+            )
+        self._audit_server = audit_server
+        self._audit_server_factory = audit_server_factory
 
     def write_routing_decision(self, record: dict[str, Any]) -> str:
-        del record
-        raise NotImplementedError("ClickHouseAuditAdapter not implemented in v0.5.0 edge tier")
+        event = self._record_to_event(record)
+        result = self._audit_server_instance().append(event)
+        return str(result.get("event_id") or event["event_id"])
+
+    def _audit_server_instance(self) -> Any:
+        if self._audit_server is None:
+            self._audit_server = self._audit_server_factory()
+        return self._audit_server
+
+    @staticmethod
+    def _record_to_event(record: dict[str, Any]) -> dict[str, Any]:
+        import hashlib
+        from datetime import datetime, timezone
+
+        routing_log_id = str(record.get("routing_log_id") or uuid.uuid4().hex)
+        input_payload = (
+            f"{record.get('model_id', '')}|"
+            f"{record.get('change_id', '')}|"
+            f"{record.get('data_level', '')}"
+        )
+        output_payload = (
+            f"{routing_log_id}|{record.get('decision', '')}|{record.get('reason', '')}"
+        )
+
+        return {
+            "event_id": routing_log_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "actor": {
+                "agent_role": str(record.get("agent_role", "")),
+                "model_id": str(record.get("model_id", "")),
+                "vendor_family": str(record.get("vendor_family", "")),
+                "session_id": "",
+            },
+            "action": {
+                "tool": "model-router",
+                "skill": None,
+                "operation": "route",
+            },
+            "context": {
+                "change_id": str(record.get("change_id", "")),
+                "step": None,
+                "data_levels": [str(record.get("data_level", ""))],
+            },
+            "result": {
+                "status": str(record.get("decision", "deny")),
+                "reason": str(record.get("reason", "")),
+                "duration_ms": float(record.get("duration_ms", 0.0)),
+            },
+            "input_hash": hashlib.sha256(input_payload.encode()).hexdigest(),
+            "output_hash": hashlib.sha256(output_payload.encode()).hexdigest(),
+        }
 
 
 def _build_request(payload: dict[str, Any]) -> RouteRequest:
