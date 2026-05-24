@@ -1,0 +1,6 @@
+# phi-detector dependencies · ADR-08 per-MCP slice
+# spaCy zh_core_web_sm model is intentionally not included; server_v3 uses RegexOnlyNlpEngine.
+presidio-analyzer>=2.2,<3.0
+presidio-anonymizer>=2.2,<3.0
+spacy>=3.7,<4.0
+jieba>=0.42,<0.43
