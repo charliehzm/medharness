@@ -1,0 +1,3 @@
+# model-router dependencies · ADR-08 per-MCP slice
+# Runtime code is Python stdlib except vendor_families.yml parsing via PyYAML.
+pyyaml>=6.0,<7.0
