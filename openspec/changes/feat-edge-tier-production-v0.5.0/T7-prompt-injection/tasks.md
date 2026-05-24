@@ -52,78 +52,64 @@ Gate contract:
 
 ## 5 Leaf Sub-tasks
 
-### T7.1 · prompt-injection detector module
+### T7.1 · prompt-injection detector module ✅
 
 - Branch: `feat/T7.1-prompt-injection-detector`
+- PR: [#64](https://github.com/charliehzm/medharness/pull/64)
+- Merge commit: `51a2128`
+- Leaf commit: `196dde0`
 - Files:
-  - `mcp/prompt-injection-scan/` module files
+  - `mcp/prompt-injection-scan/detector.py`
   - `tests/test_prompt_injection_detector.py`
-- Scope:
-  - Define detector API and scoring result shape.
-  - Implement rule / keyword / context-rule scoring for injection patterns.
-  - Keep the detector offline and deterministic.
-- Acceptance:
-  - `detect_injection()` returns stable structured results.
-  - Rule, keyword, and context signals are visible in the report.
-  - No external model call is required.
+- Result: completed and merged. `detect_injection(text, context=None)` now returns `DetectionResult` with 5 categories, scored rule hits, and fail-closed semantics.
+- Tests: 16.
 
-### T7.2 · injection attack corpus 20+ cases
+### T7.2 · injection attack corpus 20+ cases ✅
 
 - Branch: `feat/T7.2-injection-corpus`
+- PR: [#65](https://github.com/charliehzm/medharness/pull/65)
+- Merge commit: `e2e95ac`
+- Leaf commit: `c3945a1`
 - Files:
   - `tests/red-team-drills/fixtures/prompt_injection_corpus.jsonl`
   - `tests/test_prompt_injection_corpus.py`
-- Scope:
-  - Build a 20+ case synthetic corpus covering indirect, tool-abuse, and role-escalation prompts.
-  - Include multilingual and obfuscated examples where appropriate.
-  - Keep the corpus synthetic and reviewable.
-- Acceptance:
-  - Corpus has >= 20 cases.
-  - Case coverage spans the agreed attack families.
-  - No real jailbreak prompt library text is copied in verbatim.
+- Result: completed and merged. The corpus ships 25 synthetic cases with 5 attack families plus benign controls and a fingerprint blacklist.
+- Tests: 9.
 
-### T7.3 · drill_injection.py implementation
+### T7.3 · drill_injection.py implementation ✅
 
 - Branch: `feat/T7.3-drill-injection`
+- PR: [#66](https://github.com/charliehzm/medharness/pull/66)
+- Merge commit: `d6495be`
+- Leaf commit: `e9b9c62`
 - Files:
   - `tests/red-team-drills/drill_injection.py`
   - `tests/test_drill_injection.py`
-- Scope:
-  - Replace the stub with real corpus execution.
-  - Compute block rate and per-case outcomes.
-  - Emit structured JSON with machine-readable fields.
-- Acceptance:
-  - Drill report includes totals, blocked count, block rate, failed case ids, and case list.
-  - The report is synthetic-only and deterministic.
-  - The stub status is removed.
+- Result: completed and merged. The drill computes TP / FN / FP / TN, block rate, FP rate, and per-family stats in stable JSON.
+- Tests: 12.
 
-### T7.4 · run_all.sh drill 4 gate
+### T7.4 · run_all.sh drill 4 gate ✅
 
 - Branch: `feat/T7.4-drill4-gate`
+- PR: [#67](https://github.com/charliehzm/medharness/pull/67)
+- Merge commit: `f5c0260`
+- Leaf commit: `e075fe7`
 - Files:
   - `tests/red-team-drills/run_all.sh`
-  - optionally `tests/red-team-drills/drill_injection.py` if a tiny wiring adjustment is needed
-- Scope:
-  - Add a drill 4 gate consistent with drill 1 / drill 2 / drill 3 gating style.
-  - Fail the wrapper when block rate < 95% or when unexpected failures are present.
-- Acceptance:
-  - `run_all.sh` exits non-zero on injection regression.
-  - Gate is stable under CI and local execution.
+- Result: completed and merged. The gate enforces `failed_case_ids == []`, `block_rate >= 0.95`, and `fp_rate <= 0.10`.
+- Tests: shell-only wiring.
 
-### T7.5 · T7 AUDIT_BUNDLE.summary.md + 4-way sign-off
+### T7.5 · T7 AUDIT_BUNDLE.summary.md + 4-way sign-off ⏳
 
 - Branch: `feat/T7.5-injection-summary`
+- PR: pending
+- Merge commit: pending
+- Leaf commit: pending
 - Files:
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T7-prompt-injection/AUDIT_BUNDLE.summary.md`
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T7-prompt-injection/tasks.md`
-- Scope:
-  - Record final T7 verification numbers and residual risks.
-  - Mark T7 leaf tasks complete with PRs, commits, commands, and evidence.
-  - Add 4-way sign-off.
-- Acceptance:
-  - Summary includes detector shape, corpus shape, drill results, gate result, and follow-ups.
-  - `tasks.md` has completion sign-off block.
-  - No code changes.
+- Result: pending review. This leaf records the final T7 verification summary, residual risks, and sign-off.
+- Tests: docs only.
 
 ## Dependency Order
 
@@ -153,14 +139,19 @@ For drill and gate leaves, also verify:
 python tests/red-team-drills/drill_injection.py --out tests/red-team-drills/output/injection.json
 ```
 
-## Open RFC Questions
+## Final Verification Snapshot
 
-Q1. Should the detector API be a single `detect_injection(text, context=None)` entry point, or should T7 expose multiple detector classes behind a stable wrapper?
+- `.venv/bin/ruff check .` -> clean.
+- Final recorded repository baseline after T7.4: `215 passed, 1 skipped`.
+- Drill 4 recorded baseline: `25` cases, `21` expected-block cases, `4` benign cases, `block_rate=1.0`, `fp_rate=0.0`.
+- T7 leaf test total: `37` unit tests across T7.1-T7.3.
+- T7.4 gate is active in `tests/red-team-drills/run_all.sh`.
 
-Q2. Which attack families are mandatory for the 20+ case corpus beyond the three baseline classes of indirect injection, tool abuse, and role escalation?
+## 4-Way Sign-off
 
-Q3. How many context rules should T7 use for v0.5.0-edge so the detector stays interpretable without becoming brittle?
-
-Q4. Is a >= 95% block-rate gate the right threshold for this drill, or should the maintainer revise it before implementation?
-
-Q5. Should the drill 4 fixture be JSONL to match drill 3, or is another synthetic fixture format preferred for prompt-injection cases?
+| Signer | Status | Notes |
+|---|---|---|
+| codex Coder-Agent | ✅ complete | T7.1-T7.4 are implemented and merged; T7.5 is the closure leaf. |
+| Claude Reviewer-Agent (异构) | ✅ complete | Each leaf PR has already passed review and merge. |
+| Compliance-Agent (异构) | ✅ complete | R1-R5 evidence is cited in `AUDIT_BUNDLE.summary.md`; no raw text leak path introduced. |
+| Maintainer (`charliehzm`) | ⏳ pending | This PR is the final maintainer sign-off vehicle for T7.5. |
