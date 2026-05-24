@@ -1,0 +1,72 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mcp/**/Dockerfile'
+      - 'mcp/**/requirements.txt'
+      - 'scripts/docker-build.sh'
+      - 'VERSION'
+      - '.dockerignore'
+      - '.github/workflows/docker-build.yml'
+  pull_request:
+    paths:
+      - 'mcp/**/Dockerfile'
+      - 'mcp/**/requirements.txt'
+      - 'scripts/docker-build.sh'
+      - 'VERSION'
+      - '.dockerignore'
+      - '.github/workflows/docker-build.yml'
+  schedule:
+    - cron: '0 2 * * 1'  # every Monday 10:00 CST
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mcp:
+          - phi-detector
+          - desensitize
+          - model-router
+          - audit-log
+          - ci-trigger
+          - internal-kb
+          - pm-bridge
+          - vector-db
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read image version
+        id: version
+        run: echo "value=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build ${{ matrix.mcp }} image + size + non-root check
+        run: bash scripts/docker-build.sh "${{ matrix.mcp }}"
+
+      - name: Trivy vulnerability scan
+        if: success()
+        uses: aquasec/trivy-action@master
+        with:
+          image-ref: medharness/mcp-${{ matrix.mcp }}:${{ steps.version.outputs.value }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-${{ matrix.mcp }}.sarif
+
+      - name: Upload build report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report-${{ matrix.mcp }}-${{ github.run_id }}
+          path: |
+            /tmp/medharness-build/${{ matrix.mcp }}.json
+            trivy-${{ matrix.mcp }}.sarif
+          if-no-files-found: ignore
+          retention-days: 30
