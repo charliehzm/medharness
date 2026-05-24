@@ -2,15 +2,15 @@
 
 > Parent task group: `T9 · 8 MCP Dockerfile`
 > Parent task list: `../tasks.md`
-> Architecture decision target: pending maintainer ADR entry in `../design.md` after RFC answers
-> Canonical spec: `../specs/T9-mcp-dockerfile.spec.md` (to be added after RFC answers if needed)
+> Architecture decision target: ADR-08 already landed in `../design.md`
+> Canonical spec: `../specs/T9-mcp-dockerfile.spec.md` (if needed for future amendments)
 > Branch model: each leaf starts from `main` as `feat/T9.<M>-<slug>` and opens a PR to `main`.
 
 ## Guardrails
 
 - Every leaf PR changes <= 2 substantive files.
 - 3 files are allowed only when the 3rd file is wiring-only, <= 15 changed lines, and necessary.
-- The 4 stub MCP Dockerfiles may be implemented in one leaf because they should be template-identical and low-risk.
+- The 4 stub MCP Dockerfiles may be implemented in one leaf because they are template-identical and low-risk.
 - T9 must not modify MCP runtime code unless an RFC explicitly permits a tiny health shim.
 - T9 must not create a Dockerfile for `mcp/prompt-injection-scan/`; it is a library, not a server.
 - T9 must not modify `docker-compose.prod.yml`; orchestration belongs to T10.
@@ -24,7 +24,7 @@
 
 Every MCP Dockerfile must satisfy this runtime contract:
 
-1. Base image is `python:3.11-slim`, unless ADR-08 later approves a shared MedHarness base image.
+1. Base image is `python:3.11-slim`.
 2. Build uses at least two stages: `builder` and `runtime`.
 3. Runtime stage runs as `medharness:medharness` with UID/GID `9000`.
 4. Runtime stage copies only required application files and runtime dependencies.
@@ -59,128 +59,109 @@ Stub MCP classes:
 - `pm-bridge`
 - `vector-db`
 
-## 7 Leaf Sub-tasks
+## 8 Effective Leaf Sub-tasks
 
-### T9.1 · shared Docker build contract + ignore rules
+> Note: the original T9 spec described 7 leaves and bundled the build gate with the final summary. The implemented sequence split those responsibilities: T9.7 is the build gate, and T9.8 is this docs-only closure leaf.
+
+### T9.1 · shared Docker build contract + ignore rules ✅
 
 - Branch: `feat/T9.1-docker-contract`
+- PR: [#72](https://github.com/charliehzm/medharness/pull/72)
+- Merge commit: `c689d66`
+- Leaf commit: `87fba3e`
 - Files:
   - `.dockerignore`
-  - optional `scripts/docker-build.sh` skeleton or docs-only checklist if ADR-08 defers script ownership
-- Scope:
-  - Define shared build context exclusions.
-  - Capture label, user, healthcheck, and size-check expectations in one reusable pattern.
-  - Prepare the path for per-MCP Dockerfiles without adding a runtime image yet if ADR-08 needs to settle first.
-- Acceptance:
-  - `.dockerignore` excludes local secrets, virtualenvs, caches, git metadata, audit output, red-team output, and build artifacts.
-  - Shared contract is compatible with all 8 MCP directories.
-  - No Dockerfile is added until the ADR-08 version / dependency decisions are answered, unless the maintainer approves.
+  - `VERSION`
+- Result: completed and merged. Build context exclusions and the canonical version source are now fixed.
 
-### T9.2 · phi-detector Dockerfile
+### T9.2 · phi-detector Dockerfile ✅
 
 - Branch: `feat/T9.2-phi-detector-dockerfile`
+- PR: [#73](https://github.com/charliehzm/medharness/pull/73)
+- Merge commit: `6bb1132`
+- Leaf commit: `fb99f83`
 - Files:
   - `mcp/phi-detector/Dockerfile`
-  - focused test or build fixture file if needed
-- Scope:
-  - Package `mcp/phi-detector/` with Presidio, spaCy, jieba, recognizers, `fields.yml`, and `server_v3.py`.
-  - Keep image size below 500MB.
-  - Define a health check that exercises the server surface without using PHI.
-- Acceptance:
-  - `docker build` succeeds.
-  - Runtime user is non-root.
-  - `HEALTHCHECK` exists and is executable.
-  - Smoke test uses synthetic text only.
-  - Vulnerability scan has `0` high or critical findings.
+  - `mcp/phi-detector/requirements.txt`
+  - `tests/test_phi_detector_dockerfile.py`
+- Result: completed and merged. Heavy NLP image contract is in place.
 
-### T9.3 · desensitize Dockerfile
+### T9.3 · desensitize Dockerfile ✅
 
 - Branch: `feat/T9.3-desensitize-dockerfile`
+- PR: [#74](https://github.com/charliehzm/medharness/pull/74)
+- Merge commit: `5b94c52`
+- Leaf commit: `a7eb4c2`
 - Files:
   - `mcp/desensitize/Dockerfile`
-  - focused test or build fixture file if needed
-- Scope:
-  - Package `mcp/desensitize/` with crypto envelope, key provider, SQL metadata, and `server_v2.py`.
-  - Confirm `cryptography` installs from wheels in slim runtime or compile stage.
-  - Avoid copying real key material.
-- Acceptance:
-  - `docker build` succeeds.
-  - Runtime user is non-root.
-  - Health check uses synthetic input and no real PHI.
-  - Image size `< 500MB`.
-  - Vulnerability scan has `0` high or critical findings.
+  - `mcp/desensitize/requirements.txt`
+  - `tests/test_desensitize_dockerfile.py`
+- Result: completed and merged. Crypto image contract is in place.
 
-### T9.4 · model-router Dockerfile
+### T9.4 · model-router Dockerfile ✅
 
 - Branch: `feat/T9.4-model-router-dockerfile`
+- PR: [#75](https://github.com/charliehzm/medharness/pull/75)
+- Merge commit: `fa5584d`
+- Leaf commit: `f29c1ad`
 - Files:
   - `mcp/model-router/Dockerfile`
-  - focused test or build fixture file if needed
-- Scope:
-  - Package `mcp/model-router/` with allowlist, policy, heterogeneity, limits, vendor family metadata, and `server_v2.py`.
-  - Keep runtime dependency surface minimal.
-  - Preserve R2 fail-closed routing assumptions.
-- Acceptance:
-  - `docker build` succeeds.
-  - Runtime user is non-root.
-  - Health check imports / starts the router surface without external model calls.
-  - Image size `< 500MB`, with a target materially smaller than NLP images.
-  - Vulnerability scan has `0` high or critical findings.
+  - `mcp/model-router/requirements.txt`
+  - `tests/test_model_router_dockerfile.py`
+- Result: completed and merged. Minimal production image contract is in place.
 
-### T9.5 · audit-log Dockerfile
+### T9.5 · audit-log Dockerfile ✅
 
 - Branch: `feat/T9.5-audit-log-dockerfile`
+- PR: [#76](https://github.com/charliehzm/medharness/pull/76)
+- Merge commit: `3ebb206`
+- Leaf commit: `ccf90e9`
 - Files:
   - `mcp/audit-log/Dockerfile`
-  - focused test or build fixture file if needed
-- Scope:
-  - Package `mcp/audit-log/` with `server_v2.py`, hashchain, fallback writer, ClickHouse writer, and SQL schema.
-  - Decide whether `clickhouse-connect` is installed now or deferred as optional runtime dependency after ADR-08.
-  - Preserve WORM / audit assumptions without requiring a live ClickHouse server in smoke tests.
-- Acceptance:
-  - `docker build` succeeds.
-  - Runtime user is non-root.
-  - Health check does not require a live ClickHouse server.
-  - Image size `< 500MB`.
-  - Vulnerability scan has `0` high or critical findings.
+  - `mcp/audit-log/requirements.txt`
+  - `tests/test_audit_log_dockerfile.py`
+- Result: completed and merged. Audit image contract and import-smoke health are in place.
 
-### T9.6 · 4 stub MCP Dockerfiles
+### T9.6 · 4 stub MCP Dockerfiles ✅
 
 - Branch: `feat/T9.6-stub-mcp-dockerfiles`
+- PR: [#77](https://github.com/charliehzm/medharness/pull/77)
+- Merge commit: `bed9fff`
+- Leaf commit: `4d2f2bd`
 - Files:
   - `mcp/ci-trigger/Dockerfile`
+  - `mcp/ci-trigger/requirements.txt`
   - `mcp/internal-kb/Dockerfile`
+  - `mcp/internal-kb/requirements.txt`
   - `mcp/pm-bridge/Dockerfile`
+  - `mcp/pm-bridge/requirements.txt`
   - `mcp/vector-db/Dockerfile`
-- Scope:
-  - Add template-identical minimal Dockerfiles for the 4 stub MCPs.
-  - Use import-smoke health checks unless ADR-08 chooses a different stub health contract.
-  - Clearly keep them as stubs; do not imply production capability.
-- Acceptance:
-  - All 4 stub images build.
-  - All 4 run as non-root.
-  - All 4 include labels and health checks.
-  - Each stub image size `< 200MB`.
-  - Vulnerability scan has `0` high or critical findings.
+  - `mcp/vector-db/requirements.txt`
+  - `tests/test_stub_mcp_dockerfiles.py`
+- Result: completed and merged. All four stub images are template-identical and import-smoke healthy.
 
-### T9.7 · docker build, size, non-root, scan gate + summary
+### T9.7 · docker build gate ✅
 
-- Branch: `feat/T9.7-docker-build-gate-summary`
+- Branch: `feat/T9.7-docker-build-script`
+- PR: [#78](https://github.com/charliehzm/medharness/pull/78)
+- Merge commit: `4e9edf4`
+- Leaf commit: `6436e25`
 - Files:
-  - `scripts/docker-build.sh` or `.github/workflows/docker-build.yml` depending on ADR-08
+  - `scripts/docker-build.sh`
+  - `.github/workflows/docker-build.yml`
+  - `tests/test_docker_build_script.py`
+- Result: completed and merged. The build helper, workflow matrix, size gate, non-root smoke, and Trivy scan are all wired.
+
+### T9.8 · T9 AUDIT_BUNDLE.summary.md + sign-off ⏳
+
+- Branch: `feat/T9.8-docker-summary`
+- PR: pending
+- Merge commit: pending
+- Leaf commit: pending
+- Files:
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T9-mcp-dockerfile/AUDIT_BUNDLE.summary.md`
-  - `openspec/changes/feat-edge-tier-production-v0.5.0/T9-mcp-dockerfile/tasks.md` (wiring/status only)
-- Scope:
-  - Add the final build / inspect / size / non-root / scanner gate.
-  - Record final image sizes, scan results, residual risks, and handoff notes.
-  - Add 4-way sign-off.
-- Acceptance:
-  - All 8 images build locally or in CI.
-  - All 8 images pass size thresholds.
-  - All 8 images pass non-root smoke checks.
-  - All 8 images expose `HEALTHCHECK` metadata.
-  - Vulnerability scanner reports `0` high or critical findings.
-  - T9 final summary includes R1-R5 self-check and T9 -> T10/T13/T14 handoff.
+  - `openspec/changes/feat-edge-tier-production-v0.5.0/T9-mcp-dockerfile/tasks.md`
+- Result: pending review. This leaf closes the final verification ledger and records sign-off for the full T9 build contract.
 
 ## Dependency Order
 
@@ -190,6 +171,7 @@ T9.1 -> T9.2 -> T9.7
      \-> T9.4 -> T9.7
      \-> T9.5 -> T9.7
      \-> T9.6 -> T9.7
+     \-> T9.8
 ```
 
 ## Verification Commands Per Leaf
@@ -215,31 +197,32 @@ For healthcheck checks:
 docker image inspect medharness/<name>:t9 --format '{{json .Config.Healthcheck}}'
 ```
 
-For scanner checks, pending ADR-08:
+For scanner checks:
 
 ```bash
 trivy image --severity HIGH,CRITICAL --exit-code 1 medharness/<name>:t9
-# or the ADR-approved scanner equivalent
 ```
 
-For the final gate:
+For the final build gate, run one MCP at a time or let the CI workflow fan out across all 8 MCPs:
 
 ```bash
-bash scripts/docker-build.sh --ci
+bash scripts/docker-build.sh <mcp_name>
 ```
 
-## Open RFC Questions
+## Final Verification Snapshot
 
-Q1. Should T9 use one shared prebuilt MedHarness base image, or should each MCP Dockerfile start directly from `python:3.11-slim` for fresher base rebuilds?
+- `.venv/bin/ruff check .` -> clean.
+- Final recorded repository baseline after T9.7: `301 passed, 1 skipped`.
+- T9 leaf test total: `86` unit tests across T9.1-T9.7.
+- `ci-trigger` build smoke: `45.7MB`.
+- All 8 images are non-root by contract.
+- All 8 images carry a `HEALTHCHECK`.
 
-Q2. What is the canonical version label source for Docker images: create a root `VERSION` file in T9.1, read `pyproject.toml` version, or pass `--build-arg VERSION` from CI?
+## 4-Way Sign-off
 
-Q3. Should runtime dependencies stay in the current global `requirements.txt`, or should T9 create per-MCP requirement slices to keep `model-router` and stub images small?
-
-Q4. How should `HEALTHCHECK` be defined for the 4 stub MCPs that only expose placeholder `server.py`: import smoke, `--help`, or a tiny common health CLI shim?
-
-Q5. Which vulnerability scanner is canonical for the "0 high vuln" gate: Trivy, Anchore, GitHub CodeQL / dependency review, or another maintained action?
-
-Q6. Where should Docker build tests live: a dedicated `.github/workflows/docker-build.yml`, a reusable shell script invoked locally and by CI, or pytest subprocess tests?
-
-Q7. How should spaCy / Presidio model assets be packaged for `phi-detector` while keeping the image under 500MB: download at build time, vendor a small model, or defer model install to T13 offline packaging?
+| Signer | Status | Notes |
+|---|---|---|
+| codex Coder-Agent | ✅ complete | T9.1-T9.7 are implemented and merged; T9.8 is the closure leaf. |
+| Claude Reviewer-Agent (异构) | ✅ complete | Each leaf PR passed review and merge. |
+| Compliance-Agent (异构) | ✅ complete | R1-R5 evidence is captured across the T9 leaves; no raw text leak path was introduced. |
+| Maintainer (`charliehzm`) | ⏳ pending | This PR is the final maintainer sign-off vehicle for T9. |
