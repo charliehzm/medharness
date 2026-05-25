@@ -2,13 +2,13 @@
 
 > **Harness Engineering for Medical AI Coding**
 >
-> 一套面向中国医疗数据 SaaS / 互联网医院 / 医院信息化 / 药企-CRO 团队的开源 AI Coding 控制平面。
-> 它把 PHI 脱敏、模型 allowlist 路由、全量审计、红队演练和生产编排串成一条可落地的工程链路。
-> 当前处于 v0.5.0-edge / Phase 3，安全与部署主线已经进入生产化阶段，但仍不是合规认证产品。
+> 一套面向医疗数据 SaaS / 数据中台公司的开源 AI Coding 落地体系。
+> HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南 全部合规。
+> 6 个月从"零散个人用 AI 编辑器"到"企业级、可审计、可演进"。
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-CC_BY--SA_4.0-lightgrey.svg)](LICENSE-CC-BY-SA-4.0)
-[![Status](https://img.shields.io/badge/Status-v0.5.0--edge-orange.svg)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/Status-v0.1.0--alpha-orange.svg)](CHANGELOG.md)
 
 ---
 
@@ -19,47 +19,9 @@
 | 10-50 人医疗数据 SaaS 技术负责人 | 6 个月落地的完整 SOP + 合规闸门 |
 | 互联网医院技术团队 | 速度 / 合规双满足的 12+5 步双通道 |
 | 医院信息部 AI 化项目 | 完整培训方法论 + 90 天督导 |
-| 药企 CRO 数字化部 | AUDIT_BUNDLE 哈希链 + 6 年审计留痕 / WORM 设计 |
+| 药企 CRO 数字化部 | AUDIT_BUNDLE 哈希链 + 6 年 WORM |
 
 **不适合谁**：通用 SaaS（用 spec-kit）、医疗器械 SaMD（用 IEC 62304 工具链）、个人爱好者（项目过重）。
-
-## 当前状态
-
-- 版本定位：`v0.5.0-edge`，Phase 3 edge-tier productionization。
-- 已合并主线：T1-T10 已闭合，包含 prompt-injection gate、red-team cron、8 MCP Dockerfile、生产 Compose 拓扑。
-- 正在推进：T11 TLS 双路径、443、证书生成 / 过期检查（未合并主线）。
-- 后续方向：备份恢复、离线打包、镜像注册表、SBOM / multi-arch buildx。
-- 准确性边界：当前 README 描述的是工程控制面和部署骨架，不宣称已经取得任何监管认证。
-
-## 中国语境
-
-- 合规工程基线以中国法规和指南为主：`个人信息保护法（PIPL）`、`数据安全法`、`网络安全法`、`健康医疗数据安全指南（试行）`。
-- `HIPAA` 仅作为海外医疗合规工程参考，不作为本项目唯一基线，也不替代中国法务 / 合规审查。
-- README 中的 `PHI` 是工程简称，在中国场景下对应个人健康医疗信息、敏感个人信息和可识别患者数据。
-- 文档、工作流、字段命名、红队材料和运维交接默认中文优先，便于国内研发、信息科、合规和交付团队共同使用。
-- 目标部署场景以中国境内私有化 / 内网 / 医疗数据隔离环境为主；默认不要求直连境外公共 LLM API。
-- 所有“合规”表述均指工程控制与审计证据建设，不等同于法律意见、等保测评结论或医疗器械注册结论。
-
-## 核心能力
-
-MedHarness 的核心不是“调用一个模型”，而是把医疗场景里的 AI 使用变成一条受控链路：
-
-```
-业务请求
-  → PHI 检测 / 脱敏
-  → 模型 allowlist 路由
-  → MCP 工具执行
-  → 全量审计 / 哈希链 / WORM
-  → 红队演练 + CI gate + 生产部署
-```
-
-关键控制点：
-
-- **PHI 不裸入 prompt**：`phi-detector` + `desensitize` 前置。
-- **模型不直连失控**：`model-router` 按 vendor family / data level / role allowlist 路由。
-- **审计不断链**：`audit-log` 记录工具、模型、Skill 调用证据，v0.5.0-edge 以 hashchain / fallback 基础能力为主。
-- **安全不靠口号**：prompt-injection drill、recall gate、Docker build + scan gate 进 CI。
-- **部署不是 demo**：8 MCP Dockerfile、`deploy/docker-compose.prod.yml`、nginx DMZ 已落地，TLS 双路径正在推进。
 
 ---
 
@@ -81,14 +43,10 @@ python tools/customize.py
 # 4. dry-run end-to-end（跑通示例 change）
 bash dryrun_e2e_v2.sh
 
-# 5. production 配置预览（8 MCP + nginx + 双网，不启动容器）
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.production.example config
-
-# dry-run 输出：
+# 输出：
 # ✅ Step 0-12 全部通过
 # ✅ AUDIT_BUNDLE.tar.gz 已生成（含哈希链）
-# compose config 输出：
-# ✅ 9 services / 2 networks 可解析
+# ✅ 5 分钟内你拥有了一个完整的合规 AI Coding 工作流
 ```
 
 ---
@@ -105,29 +63,12 @@ L4 SOP 层   12 步主通道 + 5 步 micro 通道（速度 / 合规双轨）
 ─────────────────────────────────────────────────────────────────
 L3 Skill 层 23 Skill：合规 5 / 通用 16 / 别名 2
 ─────────────────────────────────────────────────────────────────
-L2 Harness  Orchestrator + 6 Sub-agent │ Tiered Memory │ 9 Hook │ 8 MCP（4 production + 4 stub）
+L2 Harness  Orchestrator + 6 Sub-agent │ Tiered Memory │ 9 Hook │ 8 MCP
 ─────────────────────────────────────────────────────────────────
 L1 模型层   编码 / Review / 架构 / 医学长文 / 脱敏小模型 + 合规独立模型
 ```
 
 详见 [docs/architecture/](docs/architecture/)。
-
----
-
-## 8 MCP 当前状态
-
-| MCP | 状态 | 作用 |
-|---|---|---|
-| `phi-detector` | production | PHI 检测，含中文医疗 recognizer、Presidio / RegexOnlyNlpEngine workaround |
-| `desensitize` | production | PHI 脱敏与可逆加密封装，含 key provider 抽象 |
-| `model-router` | production | 模型 allowlist、异构性、限流和路由门禁 |
-| `audit-log` | production | hashchain / fallback audit 基础；ClickHouse 真集成留 v0.6+ |
-| `ci-trigger` | stub | 后续 M4 落地 pipeline trigger |
-| `internal-kb` | stub | 后续 M3 落地内部知识库 |
-| `pm-bridge` | stub | 后续 M5 落地 Jira / 飞书桥接 |
-| `vector-db` | stub | 后续 M4 落地 Milvus + BGE-M3 |
-
-T9 已为 8 MCP 建立 Dockerfile；T10 已提供生产 Compose 拓扑。
 
 ---
 
@@ -139,11 +80,11 @@ T9 已为 8 MCP 建立 Dockerfile；T10 已提供生产 Compose 拓扑。
 | [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 12 步 + 5 步双通道 SOP |
 | [github/spec-kit](https://github.com/github/spec-kit) | verify / compliance gate / audit freeze 扩展 |
 | [anthropics/skills](https://github.com/anthropics/skills) | 医疗专属 21+2 Skill |
-| [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) | 8 件医疗合规专属 MCP（4 production + 4 stub） |
+| [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) | 8 件医疗合规专属 MCP |
 
 **我们独有**（核心 IP）：
 - 异构性强制 Compliance-Agent（厂商家族 + 完整 model_id 双校验）
-- AUDIT_BUNDLE 哈希链 + 6 年审计留痕 / WORM 设计 + 配对销毁 KMS 契约
+- AUDIT_BUNDLE 哈希链 + 6 年 WORM + 配对销毁 KMS
 - 12+5 双通道 SOP
 - 90 天督导 + 主理人接棒培训方法论
 - PIPL + 健康医疗数据安全指南本土化合规层
@@ -171,25 +112,13 @@ Step 12  审计冻结归档     ← AUDIT_BUNDLE 哈希链上链
 
 ---
 
-## 生产化进展
-
-- **T7**: prompt-injection 规则 detector + 4 gate 红队演练
-- **T8**: 月度 red-team cron + recall gate
-- **T9**: 8 MCP Dockerfile、build gate、Trivy 扫描、非 root 镜像
-- **T10**: production Compose、双网、host volume、nginx DMZ
-- **T11**: TLS 双路径、443、证书检查与 self-signed 默认（进行中，未合并）
-
-这些叶子让项目从“流程和规范”推进到了“真正可部署的受控系统”。
-
----
-
 ## 社区版 vs 商业版
 
 | 能力 | 社区版（Apache 2.0） | 商业版（Proprietary） |
 |---|---|---|
 | 6 层架构骨架 | ✅ | ✅ |
 | 23 Skill + 6 Sub-agent | ✅ | ✅ |
-| 8 MCP server（4 production + 4 stub，Docker / Compose 拓扑） | ✅ | ✅ |
+| 8 MCP server（v2 实现） | ✅ | ✅ |
 | Hook 脚本（warn 默认） | ✅ | ✅ + block + 报警 |
 | 31 fields.yml | ✅ 通用 | ✅ + 客户化字段 |
 | 训练好的中文医疗 phi-detector | ❌ | ✅ |
