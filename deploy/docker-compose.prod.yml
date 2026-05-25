@@ -165,9 +165,10 @@ services:
       - medharness_internal
     ports:
       - "80:80"
-      # - "443:443"  # T11 真启
+      - "443:443"
     volumes:
       - ./nginx/medharness.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${TLS_CERT_DIR:-/etc/medharness/tls}:/etc/medharness/tls:ro
     depends_on:
       model-router:
         condition: service_healthy
