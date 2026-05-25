@@ -1,0 +1,195 @@
+# Production Docker Compose · MedHarness v0.5.0-edge
+# ADR-09 · 双网 + host volumes + nginx DMZ + per-service resource limits
+# 启动: docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.production.example up -d
+
+services:
+  phi-detector:
+    image: medharness/mcp-phi-detector:${VERSION}
+    container_name: medharness-phi-detector
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "python", "server_v3.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  desensitize:
+    image: medharness/mcp-desensitize:${VERSION}
+    container_name: medharness-desensitize
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    volumes:
+      - /data/medharness/keystore:/data/medharness/keystore:rw
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "server_v2.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  model-router:
+    image: medharness/mcp-model-router:${VERSION}
+    container_name: medharness-model-router
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    depends_on:
+      phi-detector:
+        condition: service_healthy
+      desensitize:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "server_v2.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  audit-log:
+    image: medharness/mcp-audit-log:${VERSION}
+    container_name: medharness-audit-log
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    volumes:
+      - /data/medharness/audit:/data/medharness/audit:rw
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from server_v2 import AuditLogServerV2"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  ci-trigger:
+    image: medharness/mcp-ci-trigger:${VERSION}
+    container_name: medharness-ci-trigger
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import server"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  internal-kb:
+    image: medharness/mcp-internal-kb:${VERSION}
+    container_name: medharness-internal-kb
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import server"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  pm-bridge:
+    image: medharness/mcp-pm-bridge:${VERSION}
+    container_name: medharness-pm-bridge
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import server"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  vector-db:
+    image: medharness/mcp-vector-db:${VERSION}
+    container_name: medharness-vector-db
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import server"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: medharness-nginx
+    restart: unless-stopped
+    networks:
+      - medharness_dmz
+      - medharness_internal
+    ports:
+      - "80:80"
+      # - "443:443"  # T11 真启
+    volumes:
+      - ./nginx/medharness.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      model-router:
+        condition: service_healthy
+      audit-log:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+
+networks:
+  medharness_internal:
+    name: medharness_internal
+    driver: bridge
+    internal: true
+  medharness_dmz:
+    name: medharness_dmz
+    driver: bridge
