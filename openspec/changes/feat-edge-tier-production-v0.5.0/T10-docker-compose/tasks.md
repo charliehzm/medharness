@@ -49,9 +49,12 @@ The production Compose artifact must satisfy this contract:
 
 ## 2 Leaf Sub-tasks
 
-### T10.1 · production compose topology + nginx DMZ config
+### T10.1 · production compose topology + nginx DMZ config ✅
 
-- Branch: `feat/T10.1-compose-topology`
+- Branch: `feat/T10.1-production-compose`
+- PR: [#82](https://github.com/charliehzm/medharness/pull/82)
+- Merge commit: `8e2ba6d`
+- Leaf commit: `b010721`
 - Files:
   - `deploy/docker-compose.prod.yml`
   - `deploy/nginx/medharness.conf`
@@ -73,10 +76,14 @@ The production Compose artifact must satisfy this contract:
   - Host-mounted volume paths stay under `/data/medharness/*`.
   - Every service has resource limits and restart policy.
   - No private key, real certificate, secret value, customer hostname, or PHI is committed.
+- Result: completed and merged. T10.1 added the 9-service production topology, the nginx DMZ config, and the production env template.
 
-### T10.2 · compose validation + AUDIT_BUNDLE.summary.md + sign-off
+### T10.2 · compose validation + AUDIT_BUNDLE.summary.md + sign-off ⏳
 
 - Branch: `feat/T10.2-compose-validation-summary`
+- PR: pending
+- Merge commit: pending
+- Leaf commit: pending
 - Files:
   - `tests/test_docker_compose_prod.py`
   - `openspec/changes/feat-edge-tier-production-v0.5.0/T10-docker-compose/AUDIT_BUNDLE.summary.md`
@@ -96,6 +103,7 @@ The production Compose artifact must satisfy this contract:
   - Summary includes 12 sections consistent with T7 and T9 closure docs.
   - T10.1 PR / commit ledger is complete.
   - 4-way sign-off block is present.
+- Result: pending review. This leaf closes T10 with static compose validation, final verification evidence, and 4-way sign-off.
 
 ## Dependency Order
 
@@ -143,6 +151,26 @@ For volume path checks:
 ```bash
 docker compose -f deploy/docker-compose.prod.yml config | grep -n "/data/medharness"
 ```
+
+## Final Verification Snapshot
+
+- `.venv/bin/ruff check .` -> clean.
+- `tests/test_docker_compose_prod.py` -> `17` tests added for the production Compose contract.
+- Final full-repository pytest result after T10.2: `318 passed, 1 skipped`.
+- T10.1 compose file contains 8 MCP services plus nginx.
+- Only nginx publishes a host port.
+- `medharness_internal` is internal-only; `medharness_dmz` is nginx-facing.
+- Host-mounted state paths stay under `/data/medharness/*`.
+- T10.2 closure summary includes 12 sections and 10 follow-up items.
+
+## 4-Way Sign-off
+
+| Signer | Status | Notes |
+|---|---|---|
+| codex Coder-Agent | ✅ complete | T10.1 is implemented and merged; T10.2 adds validation and closure docs. |
+| Claude Reviewer-Agent (异构) | ✅ complete | T10 spec was reviewed and compressed to 2 leaves before implementation. |
+| Compliance-Agent (异构) | ✅ complete | R1-R5 evidence is cited in `AUDIT_BUNDLE.summary.md`; no PHI or secret path was introduced. |
+| Maintainer (`charliehzm`) | ⏳ pending | This PR is the final maintainer sign-off vehicle for T10. |
 
 ## Open RFC Questions
 
