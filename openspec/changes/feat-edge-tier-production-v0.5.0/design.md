@@ -321,6 +321,76 @@ multi-stage + 非 root + per-MCP slice + Trivy + 分级 HEALTHCHECK 是 v0.5.0-e
 
 ---
 
+## ADR-09 · docker-compose.prod 编排：双网 + host volumes + nginx DMZ + per-service resource limits
+
+### 决策
+v0.5.0 用 `deploy/docker-compose.prod.yml` 编排 8 MCP + 1 nginx 反代：
+
+1. **双网络拓扑**：`medharness_internal` (internal: true · 8 MCP 互通) + `medharness_dmz` (默认 · 仅 nginx)
+2. **Host-mounted volumes**：`/data/medharness/audit/` + `/data/medharness/keystore/` 物理可控（医疗内网客户硬要求）
+3. **Nginx DMZ entrypoint**：唯一 publish 端口的 service · upstream 走 internal DNS（service name）
+4. **Per-service resource limits**：`deploy.resources.limits` (compose v3) · 生产 512MB-1GB / stub 256MB · 30 人公司单 host 部署
+5. **Healthcheck 链**：`depends_on` + `condition: service_healthy` · model-router 依 phi-detector + desensitize
+6. **环境变量**：`.env.production.example` commit · 真 `.env.production` gitignore + dockerignore
+
+### 替代
+- A) Kubernetes manifest → 客户内网无 k8s 集群 · 复杂度过高
+- B) docker-compose v2 legacy `mem_limit` → 不推荐 · v3 spec 现代标准
+- C) 单网络 + port publish 全 MCP → 攻击面大 · 不符合 medical compliance
+- D) Named volume (Docker 管理) → 客户审计要求物理路径可见
+- E) ClickHouse 容器现在启用 → 跟 ADR-08 Q3 "v0.5.0 mock-only" 冲突 · 推迟 v0.6+
+
+### 否决理由
+A 过度工程；B legacy；C 攻击面；D 不符合可审计要求；E 跟 audit-log 容器化决策冲突。
+双网 + host volume + nginx DMZ + v3 resource limits 是 v0.5.0-edge 最匹配的组合。
+
+### 实施约束
+- `deploy/` 目录在 repo 根 · 含 docker-compose.prod.yml + nginx/medharness.conf + .env.production.example
+- `medharness_internal` driver: bridge · `internal: true` · 8 MCP 仅在此网
+- `medharness_dmz` driver: bridge · 默认（非 internal）· 仅 nginx 在此网 + internal 双 attach
+- Host volumes: `/data/medharness/audit/` + `/data/medharness/keystore/` (跟 ADR-02 / ADR-03 / ADR-08 一致)
+- 8 MCP 默认不 publish 端口 · 仅 nginx publish 80 (T10) + 443 占位 (T11 真启)
+- Image tag 用 `${VERSION}` 从 .env.production.example 读 (跟 T9.7 build-arg VERSION 一致)
+- HEALTHCHECK 链：model-router depends_on phi-detector + desensitize (condition: service_healthy)
+- nginx depends_on model-router + audit-log + 4 stub (condition: service_healthy)
+- audit-log 独立 (state machine 自管 · NORMAL/FALLBACK/BACKFILL)
+- Resource limits per-service:
+  - phi-detector: 1024MB mem / 1 cpu (presidio + spacy 最重)
+  - desensitize / model-router / audit-log: 512MB mem / 0.5 cpu
+  - 4 stub: 256MB mem / 0.25 cpu
+  - nginx: 128MB mem / 0.25 cpu
+  - 总占用：约 4-5 GB mem / 4 cpu · 单 host 30 人公司部署友好
+- 验证级别：静态 yaml parse + 可选 `docker compose config` · 不跑 `up --wait`（CI 慢 + macOS dev 不一致 · 留 T13 offline install）
+
+### T10 codex Q&A 落档（2026-05-25）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | Compose 文件格式 version | **不写 version** · Docker Engine 20.10+ Compose Spec 已不需要 · 写了反而被 warn |
+| Q2 | T10 现在启用 ClickHouse 容器 vs mock-only | **暂不启用 · T10 mock-only** · 延续 ADR-08 Q3 audit-log v0.5.0 mock-only 决策 · v0.6+ 加 clickhouse service + audit-log requirements 改 |
+| Q3 | nginx upstream 用 internal DNS vs 固定 IP | **internal DNS（service name）** · 跟 docker network 自带 DNS 集成 · 重启不需 reconfig · DNS lookup 走 docker embedded resolver |
+| Q4 | image tag 用 `${VERSION}` / .env / 硬编码 | **`${VERSION}` 从 .env.production.example 读** · 跟 T9.7 build-arg VERSION 一致 · 部署时复制 .env.production.example → .env.production 改值 |
+| Q5 | 最低验证级别 | **静态 yaml parse + 可选 `docker compose config`** · 不跑 `up --wait`（CI 慢 + macOS dev `docker compose` 行为不一致）· `up --wait` 真启动验证留 T13 offline install 测试 |
+| Q6 | Resource limits 语法 | **`deploy.resources.limits` (compose v3 spec)** · 现代标准 · `mem_limit/cpus` 是 v2 legacy 不用 · 客户审计时 deploy.resources 字段一目了然 |
+| Q7 | env / secrets 模板方式 | **`.env.production.example` commit · 真 `.env.production` 进 .dockerignore + .gitignore** · 客户部署时复制 .example 改值 · 不存 secret 到 git · 跟 12-factor app 一致 |
+| Q8 | nginx 443 现在暴露 vs 等 T11 | **T10 暴露 80（HTTP 临时）+ 443 占位（comment-out）** · T11 TLS 完成后切真 443 + redirect 80→443 · T10 不 ship 真 cert (chicken-and-egg 问题) |
+
+### T10 实施约束（codex Q&A 后补充）
+- Compose 文件**无** `version:` 顶层字段（现代 spec 默认）
+- nginx.conf upstream 写法：`upstream model_router { server model-router:8000; }` 用 service name
+- nginx 端口映射：T10 `"80:80"` (HTTP only) + `# "443:443"` 注释占位 + T11 改 active
+- .env.production.example 字段：`VERSION=0.5.0-edge` + 各 service 配置占位
+- .env.production 必须加进 .dockerignore + .gitignore（防 commit）
+- ClickHouse service 不在 T10 compose · 由 audit-log container 内 FileFallbackWriter 兜底
+- 测试断言：
+  - 8 MCP services + 1 nginx = 9 total services
+  - 仅 nginx 有 `ports:` 字段
+  - medharness_internal 含 `internal: true`
+  - 每 service 有 `deploy.resources.limits.{memory,cpus}` + `restart_policy`
+  - host volume paths 全在 `/data/medharness/*` 下
+
+---
+
 ## 附录：决策映射到任务
 
 | ADR | 影响任务 |
@@ -330,8 +400,9 @@ multi-stage + 非 root + per-MCP slice + Trivy + 分级 HEALTHCHECK 是 v0.5.0-e
 | ADR-03 | T4（audit-log WORM）+ T6（drill 3 audit replay · 部分 absorbed by T4.9） |
 | ADR-04 | T3（model-router）+ T5（drill 2 · absorbed by T3.8） |
 | ADR-05 | T13-T15（offline build） |
-| ADR-06 | T11（TLS） |
+| ADR-06 | T11（TLS · 跟 ADR-09 nginx 443 占位接力） |
 | ADR-07 | T7（prompt-injection drill 4） |
 | ADR-08 | T9（8 MCP Dockerfile）+ T10（docker-compose）+ T13-T15（offline 含 image） |
+| ADR-09 | T10（docker-compose.prod 编排）+ T11（TLS 接 nginx 443） |
 
 详 [tasks.md](tasks.md)。
