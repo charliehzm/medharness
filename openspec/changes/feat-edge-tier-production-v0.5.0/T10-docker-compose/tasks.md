@@ -47,123 +47,67 @@ The production Compose artifact must satisfy this contract:
 11. Restart policy is explicit for every service.
 12. Compose validation must fail loud on missing services, wrong networks, host-published MCP ports, missing limits, or missing volumes.
 
-## 6 Leaf Sub-tasks
+## 2 Leaf Sub-tasks
 
-### T10.1 · deploy scaffold + networks + volumes
+### T10.1 · production compose topology + nginx DMZ config
 
-- Branch: `feat/T10.1-compose-scaffold`
+- Branch: `feat/T10.1-compose-topology`
 - Files:
   - `deploy/docker-compose.prod.yml`
-  - focused test file if useful
+  - `deploy/nginx/medharness.conf`
+  - optional wiring file, if ADR-09 chooses it: `deploy/.env.production.example` (<= 15 LOC)
 - Scope:
-  - Create `deploy/`.
-  - Add the production compose shell with networks and named / host-mounted volume declarations.
-  - Define version / environment placeholder strategy after ADR-09.
-- Acceptance:
-  - `medharness_internal` is internal-only.
-  - `medharness_dmz` exists and is separate.
-  - Host-mounted volume paths stay under `/data/medharness/*`.
-  - No service implementation is added beyond harmless scaffold placeholders if needed.
-
-### T10.2 · 4 production MCP services
-
-- Branch: `feat/T10.2-production-mcp-services`
-- Files:
-  - `deploy/docker-compose.prod.yml`
-  - focused test file if useful
-- Scope:
-  - Add `phi-detector`, `desensitize`, `model-router`, and `audit-log`.
-  - Use T9 image names and healthcheck contracts.
-  - Add production resource limits and restart policy.
-  - Add dependency chain approved by ADR-09.
-- Acceptance:
-  - 4 production MCP services exist.
-  - No production MCP service publishes a host port.
-  - All production MCP services attach only to `medharness_internal`.
-  - `model-router` depends on `phi-detector` and `desensitize` if ADR-09 confirms the reviewer decision.
-  - `audit-log` is independently healthy and persistent.
-
-### T10.3 · 4 stub MCP services
-
-- Branch: `feat/T10.3-stub-mcp-services`
-- Files:
-  - `deploy/docker-compose.prod.yml`
-  - focused test file if useful
-- Scope:
-  - Add `ci-trigger`, `internal-kb`, `pm-bridge`, and `vector-db`.
-  - Keep services internal-only.
-  - Apply stub-sized resource limits and restart policy.
-  - Preserve placeholder status in comments / service metadata where Compose supports it.
-- Acceptance:
-  - 4 stub services exist.
-  - No stub publishes a host port.
-  - All stubs attach only to `medharness_internal`.
-  - Stub resource limits are lower than production MCP limits.
-
-### T10.4 · nginx DMZ entrypoint
-
-- Branch: `feat/T10.4-nginx-dmz-entrypoint`
-- Files:
-  - `deploy/docker-compose.prod.yml`
-  - `deploy/nginx/medharness.conf` or equivalent ADR-09-approved nginx config path
-  - focused test file if useful
-- Scope:
+  - Create `deploy/` and `deploy/nginx/`.
+  - Add all 8 MCP services in one coherent production topology.
   - Add nginx as the only DMZ-facing service.
-  - Attach nginx to both `medharness_dmz` and `medharness_internal`.
-  - Add upstreams by service name unless ADR-09 chooses another method.
-  - Leave certificate generation and TLS hardening to T11.
+  - Define `medharness_internal` and `medharness_dmz`.
+  - Define host-mounted data paths under `/data/medharness/*`.
+  - Apply resource limits, restart policy, and healthcheck / `depends_on` chain.
+  - Leave TLS generation and TLS hardening to T11.
 - Acceptance:
+  - `deploy/docker-compose.prod.yml` contains 8 MCP services plus nginx.
+  - `medharness_internal` is internal-only.
+  - `medharness_dmz` exists and only nginx attaches to it.
+  - No MCP service publishes a host port.
   - nginx is the only service with a host port.
-  - nginx depends on the selected internal services via `condition: service_healthy`.
-  - nginx has resource limits and restart policy.
-  - No private key or real certificate is committed.
+  - Host-mounted volume paths stay under `/data/medharness/*`.
+  - Every service has resource limits and restart policy.
+  - No private key, real certificate, secret value, customer hostname, or PHI is committed.
 
-### T10.5 · compose validation tests + smoke plan
+### T10.2 · compose validation + AUDIT_BUNDLE.summary.md + sign-off
 
-- Branch: `feat/T10.5-compose-validation`
+- Branch: `feat/T10.2-compose-validation-summary`
 - Files:
   - `tests/test_docker_compose_prod.py`
-  - optional `deploy/README.md` if ADR-09 wants operator-facing smoke instructions here
+  - `openspec/changes/feat-edge-tier-production-v0.5.0/T10-docker-compose/AUDIT_BUNDLE.summary.md`
+  - optional wiring file: `openspec/changes/feat-edge-tier-production-v0.5.0/T10-docker-compose/tasks.md`
 - Scope:
   - Add static tests for service count, networks, volumes, host ports, healthchecks, resource limits, and dependency edges.
   - Add optional `docker compose config` validation if the local tool is available.
-  - Define whether `docker compose up --wait` is part of CI, local smoke, or future manual verification.
+  - Record final T10 verification summary.
+  - Update the leaf status ledger.
+  - Capture R1-R5 evidence, residual risk, and T10 -> T11/T12/T13 handoff.
 - Acceptance:
   - Tests prove there are 8 MCP services plus nginx.
   - Tests prove only nginx publishes a host port.
   - Tests prove `medharness_internal` is internal-only.
   - Tests prove every service has resource limits and restart policy.
   - Tests prove expected host-mounted paths stay under `/data/medharness/*`.
-
-### T10.6 · T10 AUDIT_BUNDLE.summary.md + 4-way sign-off
-
-- Branch: `feat/T10.6-compose-summary`
-- Files:
-  - `openspec/changes/feat-edge-tier-production-v0.5.0/T10-docker-compose/AUDIT_BUNDLE.summary.md`
-  - `openspec/changes/feat-edge-tier-production-v0.5.0/T10-docker-compose/tasks.md`
-- Scope:
-  - Record final T10 verification summary.
-  - Update the leaf status ledger.
-  - Capture R1-R5 evidence, residual risk, and T10 -> T11/T12/T13 handoff.
-- Acceptance:
   - Summary includes 12 sections consistent with T7 and T9 closure docs.
-  - T10.1-T10.5 PR / commit ledger is complete.
+  - T10.1 PR / commit ledger is complete.
   - 4-way sign-off block is present.
 
 ## Dependency Order
 
 ```text
-T10.1 -> T10.2 -> T10.4 -> T10.5 -> T10.6
-      \-> T10.3 ----^
+T10.1 -> T10.2
 ```
 
 Rationale:
 
-- networks and volumes must exist before services are added.
-- production and stub services can be separate leaves after the scaffold.
-- nginx depends on knowing the internal services it should proxy.
-- validation lands after the topology exists.
-- summary lands last.
+- the compose topology is one coherent graph and should be reviewed as one graph.
+- splitting service additions across repeated edits to `docker-compose.prod.yml` adds review cycles without reducing actual complexity.
+- validation and final sign-off should land after the topology exists.
 
 ## Verification Commands Per Leaf
 

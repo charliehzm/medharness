@@ -78,6 +78,7 @@ I accept all 6 reviewer decisions as T10 guardrails:
 4. Resource limits: per-service memory and CPU limits target one host with about 4GB memory and 4 CPU total budget.
 5. Healthcheck chain: `depends_on` should use `condition: service_healthy` where the Compose implementation supports it.
 6. Service exposure: the 8 MCP services publish no host ports; only nginx publishes to the host.
+7. T10 leaves count is minimized to 2 to avoid serial same-file PR fragmentation; complexity is constrained by the <= 2 substantive files per PR rule, not by PR count.
 
 Qualifications to settle in ADR-09:
 
@@ -87,21 +88,16 @@ Qualifications to settle in ADR-09:
 
 ## 5. Proposed T10 Shape
 
-T10 should be split into 6 leaves:
+T10 should be split into 2 leaves:
 
-1. T10.1 shared scaffold: create `deploy/`, production compose base, networks, and host volume declarations.
-2. T10.2 production MCP services: add `phi-detector`, `desensitize`, `model-router`, and `audit-log`.
-3. T10.3 stub MCP services: add `ci-trigger`, `internal-kb`, `pm-bridge`, and `vector-db` with explicit stub labels / comments.
-4. T10.4 nginx DMZ entrypoint: add nginx service and minimal reverse-proxy wiring that can receive TLS assets from T11.
-5. T10.5 compose validation tests and smoke plan: parse YAML, assert services / networks / volumes / limits, and optionally run `docker compose config`.
-6. T10.6 final summary and sign-off: add T10 audit bundle summary and update the T10 task ledger.
+1. T10.1 compose implementation: create the production Compose topology in `deploy/docker-compose.prod.yml` together with the nginx DMZ config, covering all 8 MCP services, 2 networks, host-mounted volumes, healthcheck ordering, and resource limits in one topology diff.
+2. T10.2 validation + summary: add compose validation tests plus the T10 audit bundle summary and sign-off.
 
-This keeps the high-risk topology pieces separate:
+This keeps the review path compact while still respecting the <= 2 substantive files per PR rule:
 
-- networks and volumes are reviewed before services depend on them,
-- production MCP services are reviewed apart from stubs,
-- nginx exposure is reviewed independently from internal services,
-- validation tests land before final sign-off.
+- the topology leaf owns the entire service graph and nginx edge wiring,
+- the validation leaf owns tests and closure docs,
+- there is no artificial multi-PR fragmentation of the same compose file.
 
 ## 6. Why This Exists
 
