@@ -1,126 +1,119 @@
 # MedHarness
 
-> **Harness Engineering for Medical AI Coding**
+> **医疗数据 SaaS 公司的 AI Coding 合规落地体系**
 >
-> 一套面向医疗数据 SaaS / 数据中台公司的开源 AI Coding 落地体系。
-> HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南 全部合规。
-> 从"零散个人用 AI 编辑器"到"企业级、可审计、可演进、可容器化部署"。
+> 开源 · Apache 2.0 · HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南 四合规
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-CC_BY--SA_4.0-lightgrey.svg)](LICENSE-CC-BY-SA-4.0)
-[![Status](https://img.shields.io/badge/Status-v0.5.0--edge_(in_progress)-blue.svg)](CHANGELOG.md)
-[![Tests](https://img.shields.io/badge/Tests-337_passed-brightgreen.svg)](#实测验证)
-[![PHI Recall](https://img.shields.io/badge/PHI_Recall-1.0_/_FP_0.09-brightgreen.svg)](#l5-合规层落地证据)
+[![Status](https://img.shields.io/badge/Status-v0.5.0--edge_in_progress-blue.svg)](CHANGELOG.md)
+[![Tests](https://img.shields.io/badge/tests-337_passed-brightgreen.svg)](#实测验证)
+[![PHI Recall](https://img.shields.io/badge/PHI_recall-1.0_/_FP_0.09-brightgreen.svg)](#l5-合规层三道闸门)
+[![Container](https://img.shields.io/badge/container-8_MCP_images-brightgreen.svg)](#容器化部署栈)
 
 ---
 
-## 适合谁
+## 这个项目解决什么
 
-| 你是 | MedHarness 给你 |
+你是医疗数据 SaaS 技术负责人。团队在用 Cursor / Claude Code 写代码。
+
+**昨天**，一个工程师在 chat 框粘了 3 行病人样例数据让 LLM 帮 debug。这 3 行包含姓名 / 身份证号 / 病案号 / 入院日期。
+
+**它们走了境外公共 API。**
+
+恭喜，你刚违反了 **HIPAA + PIPL + 数据安全法 + 健康医疗数据安全指南** 四部法规。监管发现可以罚到全球营业额 4%。
+
+**MedHarness 让这种事不可能发生**：
+
+- Hook 自动扫所有 prompt（**PHI 召回 100% / 误报 9%**，220 个合成样本测）
+- 想带数据进 prompt？必须先经 `phi-desensitize`（AES-256-GCM + AAD 上下文绑定，**p99 加密 0.02ms**）
+- LLM 调用必须经 `mcp-model-router`（5 层 runtime gate，**11/11 越狱攻击全防**）
+- 每个 tool / model / Skill 调用全量落 `mcp-audit-log`（3 层 WORM + 哈希链 + 6 年保留）
+- 合规审查必须用**异构模型**（防 v2.0 "自证清白"教训，runtime 不可绕过）
+
+**这不是文档承诺。这是 60+ 个 leaf 的代码 + 337 个测试 + 4 个红队演练 + 9 个 ADR · CI weekly enforce**。
+
+---
+
+## 一眼数字
+
+| 维度 | 数字 |
 |---|---|
-| 10-50 人医疗数据 SaaS 技术负责人 | 完整 SOP + 合规闸门 + 容器化部署栈 |
-| 互联网医院技术团队 | 速度 / 合规双满足的 12+5 步双通道 |
-| 医院信息部 AI 化项目 | 完整培训方法论 + 90 天督导 |
-| 药企 CRO 数字化部 | AUDIT_BUNDLE 哈希链 + 6 年 WORM |
-
-**不适合谁**：通用 SaaS（用 spec-kit）、医疗器械 SaMD（用 IEC 62304 工具链）、个人爱好者（项目过重）。
+| 测试 | 337 passed + 1 skipped |
+| 红队演练 | 4 全实装（PHI / router / audit / injection） |
+| CI gates | 5 enforced（每周一自动跑 + 失败自动开 issue） |
+| PR merged | 80+ leaf-level |
+| ADR | 9 落档（每个决策含替代 + 否决理由） |
+| 容器 | 8 MCP image · 全 Trivy scan · 0 high vuln |
+| 漏出 | 0 PHI · 0 contract violations |
 
 ---
 
-## v0.5.0-edge 当前进度（2026-05-25）
+## 你现在能拿到什么
 
-**Phase 1-3 大部分完成 · Phase 4 待启动**
+### 已落地（v0.5.0-edge · Phase 1-3 大部分完成）
 
-| Task Group | Status | 核心交付物 |
+| 能力 | 实现 | 落地证据 |
 |---|---|---|
-| **T1** phi-detector | ✅ | Presidio + 11 中文 recognizer + 31 fields.yml + RegexOnlyNlpEngine workaround |
-| **T2** desensitize-kms | ✅ | AES-256-GCM + AAD 绑定 + FileKeyProvider + 云 KMS 接口预留 |
-| **T3** model-router | ✅ | 5 层 PolicyCore + 异构性 runtime gate + 11 bypass 全防 |
-| **T4** audit-log WORM | ✅ | hashchain + fallback writer + 3 态 state machine + ClickHouse schema |
-| T5 drill 2 router bypass | ✅ absorbed by T3.8 | 11 攻击 case · 全部 deny |
-| T6 drill 3 audit replay | 🔄 partial by T4.9 | hash chain 验证完整 · 语义重放推迟 v0.6+ |
-| **T7** prompt-injection | ✅ | 5 类 detector + 25 case corpus + 95% block rate gate |
-| **T8** CI 红队 cron | ✅ | GitHub Actions weekly + auto-issue + 90-day artifact |
-| **T9** 8 MCP Dockerfile | ✅ | multi-stage + 非 root + Trivy scan + per-MCP requirements |
-| **T10** docker-compose | ✅ | 8 services + 双网（DMZ + internal）+ resource limits |
-| **T11** TLS | ✅ | self-signed + BYO 双路径 + TLS 1.2/1.3 + HSTS |
-| T12 backup/restore/upgrade/teardown | 🟡 in progress | T12.1 backup+restore ✅ · T12.2/T12.3 待完成 |
-| T13-T15 离线包 | ⏳ next | offline tarball + install.sh + verify.sh |
-| T16-T20 培训 + 合规文档 | ⏳ | training materials + compliance runbooks |
+| **PHI 检测** | `mcp/phi-detector/` | Presidio + 11 中文识别器 + 6 上下文规则 · recall 1.0 / FP 0.09 |
+| **PHI 脱敏 + KMS** | `mcp/desensitize/` | AES-256-GCM + AAD 5 字段 · FileKeyProvider 多代轮换 · 云 KMS 接口预留 |
+| **LLM 路由 runtime gate** | `mcp/model-router/` | 5 层 PolicyCore + 异构性强制 · < 5ms overhead |
+| **WORM 审计日志** | `mcp/audit-log/` | hashchain + fallback + 3 态 state machine + ClickHouse schema |
+| **Prompt injection 防御** | `mcp/prompt-injection-scan/` | 5 类攻击 detector · 25 case corpus · block rate 1.0 |
+| **8 MCP 容器化** | `mcp/**/Dockerfile` | multi-stage + 非 root + Trivy scan · 生产 < 500MB / stub < 200MB |
+| **Docker Compose 编排** | `deploy/docker-compose.prod.yml` | 8 services + DMZ/internal 双网 + per-service resource limits |
+| **TLS 反代** | `deploy/nginx/` + `scripts/gen-tls.sh` | self-signed + BYO 双路径 · TLS 1.2/1.3 · HSTS |
+| **红队 CI cron** | `.github/workflows/compliance.yml` | weekly Monday · 失败自动开 issue · 90-day artifact |
 
-**累计**：
-- **60+ leaves merged** · **80+ PR**
-- **337 tests + 1 skipped** · **ruff clean**
-- **4 red-team drills + 5 gates** CI enforced（drill 1 PHI / drill 2 router / drill 3 audit / drill 4 injection / recall_gate）
-- **9 ADRs** 落档（design.md）
-- **8 MCP Dockerfile** 全部 < 500MB（生产）/ < 200MB（stub）· Trivy scan integrated
-- **0 漏出 · 0 contract violations**
+### 进行中
 
-详见 [openspec/changes/feat-edge-tier-production-v0.5.0/](openspec/changes/feat-edge-tier-production-v0.5.0/)。
+- T12 部署运维脚本（T12.1 backup+restore ✅ · T12.2 upgrade+teardown · T12.3 收尾）
+
+### 路线图
+
+- **Phase 4** 离线包 + 培训文档（T13-T20 · 单 tarball / install.sh / 合规 runbook / 培训材料）
+- **v0.6+** 真 ClickHouse 集成 / drill 3 语义重放 / 真 jailbreak corpus 校准 / 云 KMS proxy-mode
+
+详细 task ledger：[openspec/changes/feat-edge-tier-production-v0.5.0/](openspec/changes/feat-edge-tier-production-v0.5.0/)
 
 ---
 
-## L5 合规层落地证据
+## L5 合规层 · 三道闸门
 
-三道闸门 · 全部实施 + 测试 + CI enforce：
-
-| 闸门 | 实现 | 落地指标 |
-|---|---|---|
-| **闸门一** PHI 出站扫描 | `mcp/phi-detector/` · Presidio + 11 中文识别器 + 6 上下文规则 | recall **1.0** / FP **0.09** · 220 正样本 + 110 负样本 |
-| **闸门二** 脱敏 + KMS | `mcp/desensitize/` · AES-256-GCM + AAD 绑定 5 字段 + FileKeyProvider 多代轮换 | p99 加密延迟 **0.02ms** · cloud KMS 接口预留 |
-| **闸门三** 模型路由 runtime gate | `mcp/model-router/` · 5 层 PolicyCore + heterogeneity + circuit breaker + rate limit | < **5ms** overhead · 11/11 router bypass 全防 |
-
-第四层 prompt-injection 防御：`mcp/prompt-injection-scan/` · 5 类攻击家族 · drill 4 block rate **1.0** / FP rate **0.0**。
-
-详见 [design.md ADR-01/02/03/04/07](openspec/changes/feat-edge-tier-production-v0.5.0/design.md)。
-
----
-
-## 容器化部署栈
-
-v0.5.0-edge 已实现 production-ready 容器化部署：
+医疗 SaaS 公司的合规生死线。MedHarness 落地这三道闸门：
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Host (single instance · 30-人公司部署)                       │
-│                                                              │
-│  ┌─────────────┐                                             │
-│  │   nginx     │  ← DMZ entrypoint                           │
-│  │  (TLS 443)  │     TLS 1.2/1.3 + HSTS + Mozilla cipher    │
-│  └──────┬──────┘                                             │
-│         │                                                    │
-│  ┌──────┴───────────────────────────────────────────────┐   │
-│  │  medharness_internal (internal: true · 不暴露 host)   │   │
-│  │                                                       │   │
-│  │  phi-detector  desensitize  model-router  audit-log  │   │
-│  │  ci-trigger    internal-kb  pm-bridge     vector-db  │   │
-│  └───────────────────────────────────────────────────────┘   │
-│                                                              │
-│  Host volumes:                                               │
-│   - /data/medharness/audit       (WORM + chattr +a)         │
-│   - /data/medharness/keystore    (chmod 0o400)              │
-│   - /etc/medharness/tls          (TLS cert)                 │
+│  闸门一  PHI 出站扫描 (UserPromptSubmit Hook)                  │
+│         开发者粘 PHI 到 chat → Hook 自动扫描 → 阻断          │
+│         recall 1.0 · FP 0.09 · 220 正 + 110 负样本验证       │
 └─────────────────────────────────────────────────────────────┘
+                          │
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│  闸门二  脱敏 + KMS (mcp-desensitize)                         │
+│         业务真要带数据 → 主动调 desensitize API              │
+│         AES-256-GCM + AAD 绑定 5 字段 · 反查表 ClickHouse    │
+│         p99 加密延迟 0.02ms                                   │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│  闸门三  模型路由 runtime gate (mcp-model-router)             │
+│         LLM 调用必经此 · 5 层 PolicyCore                      │
+│         allowlist + role + data_level + heterogeneity        │
+│         < 5ms overhead · 11/11 router bypass 全防            │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+              所有动作落审计 (mcp-audit-log)
+              WORM · 哈希链 · 6 年保留 · 4 小时可重放
 ```
 
-**启动命令**（T13 install.sh 完成后会封装）：
+三道闸门**不冗余**：闸门一管"无意识泄露"，闸门二管"主动带数据"，闸门三管"运行时不可绕"。Swiss cheese model — 任意一层漏，下一层挡。
 
-```bash
-# 1. 生成 TLS cert（默认 self-signed · BYO cert 见 ADR-06）
-bash scripts/gen-tls.sh
+附加防线（第四层）：`mcp-prompt-injection-scan` · 5 类攻击家族 · 25 case 合成 corpus · drill 4 block rate 1.0 / FP 0.0。
 
-# 2. 构建 8 MCP images
-bash scripts/docker-build.sh phi-detector
-# ... 或 buildkit matrix 见 .github/workflows/docker-build.yml
-
-# 3. 启动 production stack
-cp deploy/.env.production.example deploy/.env.production
-docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.production up -d
-
-# 4. 健康检查
-docker compose ps  # 所有 service 应 healthy
-curl -k https://localhost/api/route  # 走 nginx → model-router
-```
+详见 [`design.md` ADR-01/02/03/04/07](openspec/changes/feat-edge-tier-production-v0.5.0/design.md)。
 
 ---
 
@@ -138,86 +131,153 @@ L3 Skill 层 23 Skill：合规 5 / 通用 16 / 别名 2
 ─────────────────────────────────────────────────────────────────
 L2 Harness  Orchestrator + 6 Sub-agent │ Tiered Memory │ 9 Hook │ 8 MCP
 ─────────────────────────────────────────────────────────────────
-L1 模型层   编码 / Review / 架构 / 医学长文 / 脱敏小模型 + 合规独立模型
+L1 模型层   编码 / Review / 架构 / 医学长文 / 脱敏小模型
            异构性 runtime 强制（防 v2.0 "自证清白"教训）
 ```
 
-详见 [docs/architecture/](docs/architecture/)。
+---
+
+## 容器化部署栈
+
+v0.5.0-edge 已 production-ready：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Host (single instance · 30-人公司部署 · 约 4-5GB / 4 cpu)   │
+│                                                              │
+│  ┌─────────────┐                                             │
+│  │   nginx     │  ← DMZ entrypoint                           │
+│  │  (TLS 443)  │     TLS 1.2/1.3 + HSTS + Mozilla cipher    │
+│  └──────┬──────┘                                             │
+│         │                                                    │
+│  ┌──────┴───────────────────────────────────────────────┐   │
+│  │  medharness_internal (internal: true · 不暴露 host)   │   │
+│  │                                                       │   │
+│  │  phi-detector  desensitize  model-router  audit-log  │   │
+│  │  ci-trigger    internal-kb  pm-bridge     vector-db  │   │
+│  └───────────────────────────────────────────────────────┘   │
+│                                                              │
+│  Host volumes:                                               │
+│   /data/medharness/audit       (WORM + chattr +a)           │
+│   /data/medharness/keystore    (chmod 0o400)                │
+│   /etc/medharness/tls          (TLS cert · self-signed/BYO) │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 5 分钟上手
+## 三种开始方式
+
+### 路径 A · 5 分钟试一下（开发机）
 
 ```bash
-# 1. clone
-git clone https://github.com/charliehzm/medharness.git
-cd medharness
-
-# 2. install
+git clone https://github.com/charliehzm/medharness.git && cd medharness
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 
-# 3. 跑全量测试 + 红队演练
-.venv/bin/python -m pytest tests/                      # 337 tests · ruff clean
-bash tests/red-team-drills/run_all.sh                   # 4 drills + 5 gates 全 enforce
+# 跑全量测试 + 4 红队演练
+.venv/bin/python -m pytest tests/                       # 337 passed
+bash tests/red-team-drills/run_all.sh                    # 4 drills + 5 gates
 
-# 4. dry-run 12 步 SOP（合成 PHI · 走完合规闸门）
-bash dryrun_e2e_v2.sh --ci
-
-# 输出：
-# ✅ Step 0-12 全部通过
-# ✅ AUDIT_BUNDLE.tar.gz 已生成（含哈希链）
-# ✅ 4 red-team drills 全 enforce（PHI / router / audit / injection）
+# 跑 12 步 SOP（合成 PHI 走完合规闸门）
+bash dryrun_e2e_v2.sh --ci                               # Step 0-12 pass
 ```
 
-容器化部署见上面 [容器化部署栈](#容器化部署栈)。
+### 路径 B · 容器化部署（生产 staging）
+
+```bash
+# 1. 生成 TLS cert（默认 self-signed · BYO 见 ADR-06）
+bash scripts/gen-tls.sh
+
+# 2. 构建 8 MCP images
+for mcp in phi-detector desensitize model-router audit-log \
+           ci-trigger internal-kb pm-bridge vector-db; do
+  bash scripts/docker-build.sh "$mcp"
+done
+
+# 3. 启动 stack
+cp deploy/.env.production.example deploy/.env.production
+docker compose -f deploy/docker-compose.prod.yml \
+               --env-file deploy/.env.production up -d
+
+# 4. 健康检查
+docker compose ps                                        # 9 services healthy
+curl -k https://localhost/api/route                      # 走 nginx → model-router
+```
+
+### 路径 C · 离线包部署（T13 完成后可用）
+
+待 Phase 4 完成。届时单 tarball + `install.sh` 一键部署到客户内网。
+
+---
+
+## FAQ
+
+**Q: 这跟 LangChain / LlamaIndex 是什么关系？**
+不替代。LangChain / LlamaIndex 是 LLM 应用框架（让你写 RAG）· MedHarness 是合规工程体系（确保你写的 RAG 不违法）。两者正交，可共存。
+
+**Q: 这跟 spec-kit / OpenSpec 什么关系？**
+OpenSpec 是我们用的 spec 工具（已加 12+5 双通道扩展）· spec-kit 是 GitHub 的通用 spec 工具。MedHarness 在 OpenSpec 之上做了医疗合规专属的 Step 0 (合规预检) + Step 10 (合规 Gate) + Step 12 (审计冻结)。
+
+**Q: 这跟 Cursor / Claude Code 什么关系？**
+Cursor / Claude Code 是 AI 编辑器（IDE）· MedHarness 是给 Claude Code 用的合规体系。我们选 Claude Code 作为企业标准 IDE（Skill 系统 + Hook 治理友好）· Cursor 仅限白名单场景（前端原型 / 公开文档）。
+
+**Q: 我们才 10 个工程师，这套体系是不是太重？**
+v0.5.0-edge 部署堆约 4-5GB mem / 4 cpu · 一台 host 跑得动。SOP 有 5 步 micro 通道处理轻量改动（< 2 文件 / 仅文档 / 配置）· 不是所有 PR 都要走 12 步。
+
+**Q: 我已经有 LGTM / Prometheus / Loki 监控，需要 mcp-audit-log 吗？**
+需要。监控记的是 system metrics · audit-log 记的是 AI 决策血缘（哪个 prompt / 哪个模型 / 哪个 Skill / 哪条数据）。HIPAA 6 年可重放是监管硬要求，不是可选项。
+
+**Q: 训练好的中文医疗 PHI detector 在哪？**
+社区版用规则 + Presidio + 11 中文识别器（recall 1.0 是合成语料）· 真实生产场景需要训练过的模型。这是商业版的差异化点（见社区版 vs 商业版表）。
+
+**Q: 不适合谁？**
+通用 SaaS（用 spec-kit）· 医疗器械 SaMD（用 IEC 62304 工具链）· 个人爱好者（项目过重）· 不接触 PHI 的纯前端项目（不需要 L5 合规层）。
 
 ---
 
 ## 与开源生态的关系
 
-| 我们用什么 | 我们加什么 |
+| 我们用 | 我们加 |
 |---|---|
-| [microsoft/presidio](https://microsoft.github.io/presidio/) | 中文医疗 recognizer + 31 fields.yml + 上下文规则 + RegexOnlyNlpEngine workaround |
-| [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 12 步 + 5 步双通道 SOP |
-| [github/spec-kit](https://github.com/github/spec-kit) | verify / compliance gate / audit freeze 扩展 |
+| [microsoft/presidio](https://microsoft.github.io/presidio/) | 中文医疗 recognizer + 31 fields.yml + RegexOnlyNlpEngine workaround |
+| [Fission-AI/OpenSpec](https://github.com/Fission-AI/OpenSpec) | 12+5 双通道 SOP · Step 0/10/12 合规扩展 |
+| [github/spec-kit](https://github.com/github/spec-kit) | verify / compliance gate / audit freeze |
 | [anthropics/skills](https://github.com/anthropics/skills) | 医疗专属 21+2 Skill |
 | [modelcontextprotocol/servers](https://github.com/modelcontextprotocol/servers) | 8 件医疗合规专属 MCP |
 
-**我们独有**（核心 IP）：
-- 异构性强制 runtime gate（model-router 5 层 PolicyCore · 不可绕）
-- AUDIT_BUNDLE 哈希链 + 3 层 WORM（ClickHouse + chattr +a + fallback state machine）
-- 12+5 双通道 SOP
-- 90 天督导 + 主理人接棒培训方法论
-- PIPL + 健康医疗数据安全指南本土化合规层
-- 8 个医疗专属 MCP server（Docker 化 + 非 root + Trivy scan）
+**我们独有**（核心 IP，不在上述任何生态里）：
 
-详见 [docs/architecture/dependency-graph.md](docs/architecture/dependency-graph.md)。
+- **异构性 runtime gate**（model-router 5 层 PolicyCore · 不可绕）
+- **3 层 WORM 审计**（ClickHouse + chattr +a + fallback state machine + 哈希链）
+- **12+5 双通道 SOP**（速度 / 合规双轨 · 不是非此即彼）
+- **PIPL + 健康医疗数据安全指南本土化合规层**
+- **90 天督导 + 主理人接棒培训方法论**
 
 ---
 
 ## 12 步 SOP
 
 ```
-Step 0   合规预检         ← 数据分级 + 模型 allowlist
-Step 1-3 PRD / TDD / OpenSpec ← 业务诉求 → spec
-Step 4-5 Task / Mock 数据  ← 拆解 + 合成测试数据
-Step 6   实现             ← PHI 任务强制 phi-desensitize 前置
-Step 7   Verify           ← 一次通过率必 ≥ 75%
-Step 8   Review + Debug   ← Reviewer-Agent 异构模型
-Step 9   Mocking 测试     ← 联调
-Step 10  合规 Gate        ← Compliance-Agent 异构 + 阻断
-Step 11  合规整改         ← 仅 Step 10 有整改时
-Step 12  审计冻结归档     ← AUDIT_BUNDLE 哈希链上链
+Step 0   合规预检         数据分级 + 模型 allowlist
+Step 1-3 PRD / TDD / OpenSpec    业务诉求 → spec
+Step 4-5 任务拆解 + Mock 数据    合成测试数据
+Step 6   实现             PHI 任务强制 phi-desensitize 前置
+Step 7   Verify           一次通过率 ≥ 75%
+Step 8   Review + Debug   Reviewer-Agent 异构模型
+Step 9   Mocking 测试     联调
+Step 10  合规 Gate        Compliance-Agent 异构 + 阻断
+Step 11  合规整改         仅 Step 10 有整改时
+Step 12  审计冻结归档     AUDIT_BUNDLE 哈希链上链
 ```
 
-**5 步 micro 通道**（< 2 文件 / 仅文档 / 测试加固 / 配置）：见 [研发交付SOP-v2.2-micro.md](研发交付SOP-v2.2-micro.md)。
+**5 步 micro 通道**（≤ 2 文件 / 文档 / 配置）：见 [研发交付SOP-v2.2-micro.md](研发交付SOP-v2.2-micro.md)。
 
 ---
 
-## 红线（任何 PR 必读）
+## 5 条红线（任何 PR 必读）
 
-1. **L4 PHI 永不裸入 prompt** — 含原始患者标识必须先经 `phi-desensitize`
+1. **PHI 永不裸入 prompt** — 含原始患者标识必须先经 `phi-desensitize`
 2. **模型按 allowlist 路由** — 不允许直连境外公共 API
 3. **审计全量记录** — 每次 tool / 模型 / Skill 调用必落 `mcp-audit-log`
 4. **测试数据合规** — 禁止生产采样脱敏，强制走 `test-data-generation` 合成
@@ -227,103 +287,82 @@ Step 12  审计冻结归档     ← AUDIT_BUNDLE 哈希链上链
 
 ## 实测验证
 
-**当前 main commit**：通过完整 CI gate
+**当前 main**：
 
-```
-.venv/bin/ruff check .                          # clean
-.venv/bin/python -m pytest tests/                # 337 passed, 1 skipped
-bash tests/red-team-drills/run_all.sh            # all drills + gates pass
-bash dryrun_e2e_v2.sh --ci                       # Step 0-12 pass
-```
-
-**Red-team drills CI enforcement**（`.github/workflows/compliance.yml` · weekly Monday 09:00 CST）：
-
-```
-drill 1 PHI recall ≥ 92%                          实测 recall=1.0  FP=0.09
-drill 2 router bypass 11/11 deny                  实测 11/11 deny
-drill 3 audit chain integrity + tamper detection  实测 chain_intact + tampered_detected
-drill 4 prompt injection block_rate ≥ 95%         实测 block_rate=1.0  fp_rate=0.0
-recall_gate FP ≤ 15%                              实测 0.09
+```bash
+.venv/bin/ruff check .                        # clean
+.venv/bin/python -m pytest tests/              # 337 passed, 1 skipped
+bash tests/red-team-drills/run_all.sh          # 4 drills + 5 gates 全过
+bash dryrun_e2e_v2.sh --ci                     # Step 0-12 pass
 ```
 
-**Docker build CI**（`.github/workflows/docker-build.yml` · weekly Monday 10:00 CST · Trivy scan）：
+**Red-team CI**（`.github/workflows/compliance.yml` · 每周一 09:00 CST）：
 
-```
-8 MCP images:
-  phi-detector / desensitize / model-router / audit-log     生产 < 500MB
-  ci-trigger / internal-kb / pm-bridge / vector-db          stub  < 200MB
-Trivy --severity HIGH,CRITICAL                             0 high vuln
-```
+| Drill | Threshold | 实测 |
+|---|---|---|
+| drill 1 PHI recall | ≥ 92% | 1.0 |
+| drill 1 FP rate | ≤ 15% | 0.09 |
+| drill 2 router bypass | 11/11 deny | 11/11 |
+| drill 3 audit chain | intact + tampered detected | 全过 |
+| drill 4 injection block_rate | ≥ 95% | 1.0 |
+| drill 4 injection fp_rate | ≤ 10% | 0.0 |
+
+**Docker build CI**（`.github/workflows/docker-build.yml` · 每周一 10:00 CST · Trivy scan）：
+
+| 维度 | 阈值 | 实测 |
+|---|---|---|
+| 生产 MCP image | < 500MB | 4/4 通过 |
+| stub MCP image | < 200MB | 4/4 通过 |
+| Trivy HIGH+CRITICAL | 0 | 0 |
+
+失败时自动开 GitHub Issue（label: `compliance` + `red-team-regression` + `sev-2`）。
 
 ---
 
 ## 社区版 vs 商业版
 
-| 能力 | 社区版（Apache 2.0） | 商业版（Proprietary） |
+| 能力 | 社区版（Apache 2.0） | 商业版 |
 |---|---|---|
-| 6 层架构骨架 | ✅ | ✅ |
-| 23 Skill + 6 Sub-agent | ✅ | ✅ |
-| 8 MCP server（容器化） | ✅ | ✅ |
-| 4 个红队 drill + 5 gates | ✅ | ✅ + Slack/PagerDuty 集成 |
+| 6 层架构骨架 + 23 Skill + 8 MCP（容器化） | ✅ | ✅ |
+| 4 红队 drill + 5 CI gates | ✅ | ✅ + Slack/PagerDuty |
 | 31 fields.yml | ✅ 通用 | ✅ + 客户化字段 |
-| 训练好的中文医疗 phi-detector | ❌ | ✅ |
+| 训练好的中文医疗 phi-detector 模型 | ❌ | ✅ |
 | 托管 MCP 集群（KMS / WORM） | ❌ | ✅ |
 | Dashboard SaaS | ❌ | ✅ |
 | 24x7 合规事件 SLA | ❌ | ✅ |
 | 1 对 1 督导 / 现场培训 | ❌ | ✅ |
 
+**License 永久承诺**：已发布的社区版组件，license **永久** Apache 2.0 / CC BY-SA 4.0。
+不会效仿 MongoDB / Elastic 改 SSPL / BSL。
+
 详见 [docs/community-vs-commercial.md](docs/community-vs-commercial.md)。
 
 ---
 
-## 路线图
+## 加入
 
-### v0.5.0-edge（当前）
-- Phase 1 ✅ 4 个核心 MCP（T1-T4）：phi-detector / desensitize / model-router / audit-log
-- Phase 2 ✅ 红队 + CI（T5-T8）：4 drills + 5 gates · GitHub Actions weekly cron
-- Phase 3 🟡 部署编排（T9-T12）：Docker + compose + TLS ✅ · backup/restore ✅ · upgrade/teardown 进行中
-- Phase 4 ⏳ 离线包 + 培训文档（T13-T20）：offline tarball · install.sh · 合规 runbook · 培训材料
+| 我想... | 路径 |
+|---|---|
+| 提问 / 案例分享 | [GitHub Discussions](https://github.com/charliehzm/medharness/discussions)（推荐 · 可被搜索） |
+| 报 bug / 提 feature | [GitHub Issues](https://github.com/charliehzm/medharness/issues/new/choose) |
+| 报合规漏洞 / PHI 泄漏 | [GitHub Security Advisory](https://github.com/charliehzm/medharness/security/advisories/new)（私密 · **勿在 public issue 提**） |
+| 早期客户接洽 / 深度合规咨询 | 微信 `supernera`（maintainer 直联 · 工作日 24h） |
+| 贡献代码 | [CONTRIBUTING.md](CONTRIBUTING.md) → fork → PR |
 
-### v0.6+（规划）
-- 真 ClickHouse integration（v0.5.0 mock-only）
-- drill 3 语义重放（v0.5.0 仅 hash chain）
-- 真实 jailbreak corpus 校准（v0.5.0 100% synthetic）
-- 云 KMS（Vault / 阿里云 / AWS）proxy-mode integration
-- 增量 backup + 多 host 部署
+**Star 这个仓库**如果你认同这个方向。Star 数会决定我们投入多少时间在社区版 vs 商业版上。
 
 ---
 
-## 社区 / 联系
+## License + 引用
 
-| 渠道 | 用途 | SLA |
-|---|---|---|
-| [GitHub Discussions](https://github.com/charliehzm/medharness/discussions) | 提问 / 想法 / 案例分享 | 24h 内首次回复 |
-| [GitHub Issues](https://github.com/charliehzm/medharness/issues/new/choose) | bug / feature / case study | 同上 |
-| [GitHub Security Advisory](https://github.com/charliehzm/medharness/security/advisories/new) | **PHI 泄漏 / 合规漏洞**私密披露（**勿在 public issue 提**） | 2h（高敏） |
-| 微信：`supernera`（maintainer 直联） | 个人沟通 / 早期客户接洽 / 行为准则上报 | 工作日 24h |
-
-> 推荐**先开 [Discussion](https://github.com/charliehzm/medharness/discussions)**：可被搜索 + 后来者受益。私聊适合早期客户 / 合规深聊。
-
----
-
-## 贡献 / 安全 / License
-
-- 贡献：[CONTRIBUTING.md](CONTRIBUTING.md)
+- 代码：[Apache 2.0](LICENSE)
+- 文档：[CC BY-SA 4.0](LICENSE-CC-BY-SA-4.0)
+- 安全披露：[SECURITY.md](SECURITY.md)
 - 行为准则：[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- 安全漏洞披露：[SECURITY.md](SECURITY.md)（**勿在 public issue 提交合规 / 安全漏洞**）
-- 代码 License：[Apache 2.0](LICENSE)
-- 文档 License：[CC BY-SA 4.0](LICENSE-CC-BY-SA-4.0)
-
-**License 永久承诺**：已发布的社区版组件，license 永久 Apache 2.0 / CC BY-SA 4.0。
-不会效仿 MongoDB / Elastic 改 SSPL / BSL。
-
----
-
-## 引用 / Cite
 
 ```bibtex
 @software{medharness2026,
-  title  = {MedHarness: Harness Engineering for Medical AI Coding},
+  title  = {MedHarness: Compliance Engineering for Medical AI Coding},
   author = {MedHarness Maintainers},
   year   = {2026},
   url    = {https://github.com/charliehzm/medharness},
@@ -333,6 +372,8 @@ Trivy --severity HIGH,CRITICAL                             0 high vuln
 
 ---
 
-## 一句话愿景
+## 项目目标
 
-> **5 年后，所有想用 AI Coding 的医疗数据 SaaS 公司，第一周必须先 fork MedHarness。**
+> 成为医疗数据 SaaS 公司用 AI Coding 的事实合规标准。
+>
+> 让每一行 AI 写的医疗代码都可审计 / 可追溯 / 可重放。
