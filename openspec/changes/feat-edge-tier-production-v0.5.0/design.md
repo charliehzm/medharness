@@ -211,6 +211,37 @@ A 不可行；B 演示门槛；C 监管。
 - 文档明示 self-signed 仅 demo，生产**必须** BYO
 - mTLS（service-to-service）暂不强制，v1.0 加
 
+### T11 codex Q&A 落档（2026-05-25）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | TLS 版本支持范围 | **TLS 1.2 + TLS 1.3 only** · TLS 1.0/1.1 deprecated by IETF RFC 8996 |
+| Q2 | Cipher suite tier 选择 | **Mozilla SSL Config "intermediate"** · 兼容老 client (Android 5+ / iOS 9+ / IE 11) · 比 modern 宽 |
+| Q3 | Cert subject CN 默认值 | **medharness.local** · 客户可通过 `MEDHARNESS_TLS_CN` 覆盖 |
+| Q4 | Cert 输出路径 | **/etc/medharness/tls/{cert.pem,key.pem}** · host volume mount 跟 ADR-09 风格一致 · key chmod 600 |
+| Q5 | check-cert-expiry exit code 分级 | **三档健康等级 + invalid**: 0=OK (>30d) · 1=warn (≤30d) · 2=critical (≤7d) · 3=missing/invalid · 跟 cron monitoring 兼容 |
+| Q6 | HSTS 配置 | **max-age=31536000 (1 year) + includeSubDomains** · 跟 OWASP 推荐一致 · 不加 preload (`medharness.local` 不会进浏览器 preload list) |
+| Q7 | install.sh --cert/--key BYO 接口 | **T11 不实施 install.sh** · 仅明示接口契约 · T13 offline build 集成时调 `gen-tls.sh` (默认 self-signed) 或 mount BYO cert path |
+
+### T11 实施约束（codex Q&A 后补充）
+
+- `gen-tls.sh` 用 `openssl req -x509 -newkey rsa:4096 -nodes -days 365` · SAN 含 `DNS:medharness.local` + `DNS:localhost` + `IP:127.0.0.1`
+- `check-cert-expiry.sh` 用 `openssl x509 -noout -enddate` 解析 + BSD/GNU date 双兼容计算 `days_left`
+- `nginx.conf`:
+  - 80 server: `/health` endpoint 保留 HTTP · 其他 path 301 redirect HTTPS
+  - 443 server: `ssl_protocols TLSv1.2 TLSv1.3` + Mozilla intermediate cipher suite
+  - HSTS: `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
+  - Security headers: `X-Content-Type-Options nosniff` / `X-Frame-Options DENY` / `X-XSS-Protection`
+  - OCSP stapling 关闭 (self-signed 没 OCSP responder · BYO CA-signed 时启用)
+- compose mount: `${TLS_CERT_DIR:-/etc/medharness/tls}:/etc/medharness/tls:ro`
+- T13 集成 `install.sh --cert/--key` 接口示例:
+
+  ```bash
+  # T13 install.sh 调用范式 (T11.1 仅明示接口 · T13 实施)
+  install.sh --cert /path/to/ca.crt --key /path/to/ca.key
+  # → 跳过 gen-tls.sh · 用 BYO cert 启动 compose
+  ```
+
 ---
 
 ## ADR-07 · prompt-injection 防御：纯规则 detector + 5 类攻击家族 + 95% 阻断率
