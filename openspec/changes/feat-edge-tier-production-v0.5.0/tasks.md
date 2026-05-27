@@ -218,18 +218,24 @@ T8 在 `.github/workflows/compliance.yml` 已强化：
 
 ---
 
-### T11 · TLS 工具 + nginx 反代
-**改动**：
-- `scripts/gen-tls.sh` → self-signed cert
-- `deploy/nginx.conf` → 反代 8 MCP 暴露统一 HTTPS endpoint
-- `install.sh --cert/--key` 支持 BYO cert
-- 过期 30 天前告警
+### T11 · TLS 工具 + nginx 反代 ✅
+**实际实施**：PR #84 (T11.1) + 本 PR (T11.2)
 
-**DoD**：
-- [ ] self-signed 生成可用
-- [ ] BYO cert 路径可用
-- [ ] 过期检测脚本工作
-- [ ] HSTS / TLS 1.2+ only
+T11 已在 v0.5.0-edge 落地：
+- `scripts/gen-tls.sh`: self-signed cert 生成 (default CN=medharness.local · 365 days · RSA 4096 · SAN 含 localhost + 127.0.0.1)
+- `scripts/check-cert-expiry.sh`: 三档健康等级 + invalid exit (0/1/2/3) · ADR-06 30-day threshold + 7-day critical
+- `deploy/nginx/medharness.conf`: 443 server + TLS 1.2/1.3 + Mozilla intermediate cipher + HSTS 1y + Security headers
+- `deploy/docker-compose.prod.yml`: nginx publish 443 + cert volume mount + `TLS_CERT_DIR` env
+- `tests/test_tls_scripts.py`: 19 测试覆盖 gen-tls / check-cert-expiry / nginx.conf
+
+**DoD 实证**：
+- [x] self-signed 生成可用 (`gen-tls.sh` 在 `tmp_path` 实测生成 cert/key)
+- [x] BYO cert 路径接口预留 (T13 集成 `install.sh --cert/--key`)
+- [x] 过期检测脚本工作 (`check-cert-expiry.sh` 三档健康等级 + invalid 退出码 · 1=warn ≤30d / 2=critical ≤7d)
+- [x] HSTS / TLS 1.2+ only (`nginx.conf` 实测 · `ssl_protocols TLSv1.2 TLSv1.3`)
+
+**ADR**: ADR-06 (TLS 双路径 · 含 T11 codex Q&A 子节落档)
+详 `scripts/gen-tls.sh` + `scripts/check-cert-expiry.sh` + `deploy/nginx/medharness.conf` + `design.md ADR-06`。
 
 ---
 
