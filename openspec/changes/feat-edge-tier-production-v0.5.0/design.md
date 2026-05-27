@@ -422,6 +422,55 @@ A 过度工程；B legacy；C 攻击面；D 不符合可审计要求；E 跟 aud
 
 ---
 
+## ADR-10 · T12 运维脚本：tar.gz + GPG 加密 + 数据保留默认 + triple-safety teardown
+
+### 决策
+v0.5.0-edge 用 4 个独立脚本实现部署运维全流程：
+
+1. **`scripts/backup.sh`** · audit + keystore volumes → tar.gz + GPG symmetric AES256 · sha256 checksum
+2. **`scripts/restore.sh`** · 反向恢复 + 自动调 `verify-hashchain.sh`
+3. **`scripts/upgrade.sh`** · v0.5.0 stub (首版本无升级) · v0.6+ 真实施
+4. **`scripts/teardown.sh`** · docker compose down + image rm · 默认保留数据 · `--purge-data` triple-safety
+
+### 替代
+- A) docker volume backup (用 volume export) → 不易传输 · 客户审计要求 host path 可见
+- B) rsync 增量备份 → v0.5.0 范围简化 · 留 v0.6+
+- C) 自动 cron backup → 客户自管 retention · 不强制
+- D) 立即支持升级路径 → v0.5.0 是首版本 · 真升级路径 v0.6+ 设计
+- E) teardown 默认删数据 → 误删 PHI 反查表风险高 · 必须 double opt-in
+
+### 否决理由
+A 客户审计；B 增量留 v0.6+；C 自动化属客户责任；D 首版本无源；E 安全默认。
+4 脚本 + triple-safety teardown 是 v0.5.0-edge 最匹配的组合。
+
+### 实施约束
+- backup: GPG `--symmetric --cipher-algo AES256` · passphrase 双路径 (env `MEDHARNESS_BACKUP_PASSPHRASE` / `--passphrase-file PATH`)
+- backup 内容：仅 `/data/medharness/audit` + `/data/medharness/keystore` · **不含** cert / images / ClickHouse data
+- backup 输出：`/var/medharness/backups/medharness-backup-<ts>.tar.gz.gpg` + `.sha256` 同目录
+- restore: sha256 verify → GPG decrypt → tar extract → `verify-hashchain.sh`
+- restore 退出码：0=OK / 2=missing source / 3=GPG fail / 4=tar fail / 5=verify fail / 6=passphrase missing
+- upgrade: v0.5.0-edge stub · exit 0 + "first release" message · v0.6+ dispatch table 预留
+- teardown: triple-safety
+  - 默认 docker compose down + image rm + **保留** `/data/medharness/*`
+  - `--purge-data` 才删数据 · 需 type `PURGE` 大写第二次确认
+  - `--force` 跳过 confirmation (CI/automation 用)
+  - `--dry-run` 列出计划不执行
+
+### T12 codex Q&A 落档（2026-05-27）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | 备份格式 | **tar.gz + GPG symmetric AES256** · 单文件易传输 + 客户自管 passphrase + 跟 T13 offline tarball 风格一致 |
+| Q2 | 备份内容范围 | **audit + keystore volumes** · 不含 ClickHouse data (v0.5.0 mock-only) · 不含 cert (`/etc/medharness/tls` · 客户独立 backup) · 不含 docker images (T13 offline tarball 含) |
+| Q3 | 全量 vs 增量 | **v0.5.0 仅全量** · 增量留 v0.6+ |
+| Q4 | GPG passphrase 传递 | **双路径**: env var `MEDHARNESS_BACKUP_PASSPHRASE` 或 `--passphrase-file PATH` · 不写 stdin |
+| Q5 | Restore 验证 | **sha256 + hashchain 双验**: `tar.gz.gpg.sha256` verify + `verify-hashchain.sh` (复用 T4.7) |
+| Q6 | upgrade.sh v0.5.0 行为 | **stub + 友好 exit 0** · v0.5.0 是首版本 · `--from 0.5.0-edge --to 0.6.0` 占位 dispatch table |
+| Q7 | Teardown 确认机制 | **triple-safety**: 默认 confirmation → `--purge-data` 第二次 type `PURGE` → `--force` 跳过 confirmation → `--dry-run` 列出不执行 |
+| Q8 | Backup 默认路径 | **`/var/medharness/backups/`** · `--out PATH` 覆盖 · `MEDHARNESS_BACKUP_OUT` env 也支持 |
+
+---
+
 ## 附录：决策映射到任务
 
 | ADR | 影响任务 |
@@ -435,5 +484,6 @@ A 过度工程；B legacy；C 攻击面；D 不符合可审计要求；E 跟 aud
 | ADR-07 | T7（prompt-injection drill 4） |
 | ADR-08 | T9（8 MCP Dockerfile）+ T10（docker-compose）+ T13-T15（offline 含 image） |
 | ADR-09 | T10（docker-compose.prod 编排）+ T11（TLS 接 nginx 443） |
+| ADR-10 | T12（backup/restore/upgrade/teardown） |
 
 详 [tasks.md](tasks.md)。

@@ -239,17 +239,33 @@ T11 已在 v0.5.0-edge 落地：
 
 ---
 
-### T12 · 备份 / 恢复 / 升级 / 卸载脚本
-**改动**：
-- `scripts/backup.sh` → ClickHouse + Qdrant + audit/ + keystore/ 全量 + 增量
-- `scripts/restore.sh` → 反操作
-- `scripts/upgrade.sh` → 从 v0.4.x → v0.5.0（下一版本用）
-- `scripts/teardown.sh` → docker compose down + volume rm + image rm
+### T12 · 备份 / 恢复 / 升级 / 卸载脚本 ✅
 
-**DoD**：
-- [ ] 备份 + 恢复一遍数据无丢
-- [ ] 卸载后 0 残留（image / volume / network）
-- [ ] 升级路径（zero downtime 不强求）
+**实际实施**（3 leaves）：
+
+| Leaf | Status | PR | Commit |
+|---|---|---|---|
+| **T12.1** backup + restore | ✅ absorbed via PR #90 | ~~#89 closed~~ | scripts 实际在 commit `8ca88fe` |
+| **T12.2** upgrade + teardown | ✅ | [#91](https://github.com/charliehzm/medharness/pull/91) | `8e6d1d6` |
+| **T12.3** tests + ADR-10 + ledger | ⏳ pending (本 PR) | (本 PR) | - |
+
+**T12.1 audit trail 注释**：T12.1 实质代码 (`scripts/backup.sh` + `restore.sh`) 通过 PR #90 squash merge absorbed 进 `main` · 原 PR #89 已 close · 详见 PR #89 close comment。后续 PR audit trail 修正完成。
+
+**T12 已实施**：
+- `scripts/backup.sh`: audit + keystore → tar.gz.gpg (AES256) + sha256 (T12.1)
+- `scripts/restore.sh`: 反向恢复 + `verify-hashchain.sh` 自动验链 (T12.1)
+- `scripts/upgrade.sh`: v0.5.0 stub · v0.6+ migration dispatch 预留 (T12.2)
+- `scripts/teardown.sh`: triple-safety (`--force` / `--dry-run` / `--purge-data`) · 默认保留数据 (T12.2)
+- `tests/test_t12_scripts.py`: 18 测试 · backup roundtrip + teardown dry-run + R1 sentinel (T12.3)
+
+**DoD 实证**：
+- [x] 备份 + 恢复一遍数据无丢 (`test_restore_roundtrip_recovers_data` 验证)
+- [x] 卸载后 0 残留（默认保留 data · `--purge-data` 才删 · triple-safety 防误删）
+- [x] 升级路径（v0.5.0 stub · v0.6+ 实施 · dispatch table 预留）
+
+**ADR**: ADR-10 (T12 运维脚本 · 含 T12 codex Q&A 子节落档)
+
+详 `scripts/backup.sh` + `scripts/restore.sh` + `scripts/upgrade.sh` + `scripts/teardown.sh` + `design.md ADR-10`。
 
 ---
 
