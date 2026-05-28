@@ -15,7 +15,7 @@
 
 ## 这个项目解决什么
 
-你是医疗数据 SaaS 技术负责人。团队在用 Cursor / Claude Code 写代码。
+你是医疗数据 SaaS 技术负责人。团队在用 codex / Claude Code 写代码。
 
 **昨天**，一个工程师在 chat 框粘了 3 行病人样例数据让 LLM 帮 debug。这 3 行包含姓名 / 身份证号 / 病案号 / 入院日期。
 
