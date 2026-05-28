@@ -189,6 +189,30 @@ A 客户体验差；B 大多内网无 registry；C 引入新依赖。
 - 支持 `docker load` 或 `push 到客户 harbor` 两路径（install.sh 提供 flag）
 - buildx 同时产 linux/amd64 + linux/arm64（arm64 给开发机 demo）
 
+### T13 codex Q&A 落档（2026-05-27）
+
+| # | 问题 | 答 |
+|---|---|---|
+| Q1 | 多架构默认范围 | **默认仅 linux/amd64** · `--arch all` 才加 arm64 · 生产主目标 amd64 · arm64 QEMU 模拟慢只给开发机 demo · **细化 ADR-05 原"同时产"为"默认 amd64 + 可选 arm64"** |
+| Q2 | image 导出格式 | **per-image tar.gz**（`docker save medharness/mcp-<name> \| gzip > images/<name>.tar.gz`）· 客户 `docker load` 直接吃 · OCI layout 需 skopeo/buildah 客户不熟 · 独立 checksum 防单文件超大 |
+| Q3 | wheels 平台约束 | **固定 `manylinux2014_x86_64`**（amd64）/ `manylinux2014_aarch64`（arm64）· 目标是 Linux 容器内 · macOS build 时 auto-detect 会下 macOS wheel（错） |
+| Q4 | spaCy zh_core_web_sm 是否默认含 | **默认不含 · `--include-spacy-model` flag 才加** · ADR-01 RegexOnlyNlpEngine workaround 不依赖 zh model · 85MB 默认进 tarball 浪费 · 客户需中文 NER 增强时显式启用 |
+| Q5 | macOS tar 兼容 | **优先 `gtar`（brew install gnu-tar）· BSD tar fallback + warning** · 可重复构建需 GNU tar `--sort=name --owner=0 --group=0 --numeric-owner --mtime` · BSD tar 缺则 warn "可重复构建不保证" |
+| Q6 | offline scripts 复制/生成/symlink | **复制 (copy)** · symlink 解压后断链 · 生成增复杂度 · 复制自包含 · install.sh / verify.sh 复制当前 placeholder（T14/T15 实施真版本后覆盖） |
+| Q7 | SOURCE_DATE_EPOCH 来源 | **`git log -1 --format=%ct`**（commit timestamp）· 同 commit 同产物 deterministic · VERSION file timestamp 会变 · 固定发布时刻不可复现 |
+| Q8 | data-seed/ 内容 | **合成语料 + 空 ClickHouse schema**（最小集）· 复用 red-team fixtures synthetic corpus + T4.1 `_audit_log` / T2.6 `_phi_lookup` 空 schema · 客户自填真数据 · 不加更多 seed |
+
+### T13 实施约束（codex Q&A 后补充）
+- `scripts/build-offline.sh` 主 driver · 支持 `--arch amd64|all` / `--include-spacy-model` / `--out dist/`
+- image 导出：`docker save | gzip` per-image → `images/medharness-mcp-<name>.tar.gz`
+- wheels：`pip download --platform manylinux2014_x86_64 --only-binary :all: -r <merged-requirements> -d wheels/`（注意 ADR-08 per-MCP requirements 需先 merge）
+- 可重复构建：`SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)` + `tar --sort=name --owner=0 --group=0 --numeric-owner --mtime=@$SOURCE_DATE_EPOCH`
+- tarball 命名：`medharness-offline-v<VERSION>-linux-<arch>.tar.gz`
+- checksum：`SHA256SUMS`（含所有 image + wheels + 顶层文件）· `SHA256SUMS.asc` GPG 签留 T16
+- install.sh / verify.sh / runbooks/ 是 T14/T15/T17 实施 · T13 复制 placeholder + 留空目录占位
+- macOS build：检测 gtar 优先 · 无则 BSD tar + warning
+- DoD：tarball < 6GB · macOS+Linux 都能跑 · 同 commit 同 sha256
+
 ---
 
 ## ADR-06 · TLS：self-signed + 客户自带 CA 双路径
