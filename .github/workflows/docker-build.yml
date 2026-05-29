@@ -40,7 +40,7 @@ jobs:
           - pm-bridge
           - vector-db
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Read image version
         id: version
