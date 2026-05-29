@@ -49,7 +49,7 @@ jobs:
       - run: bash dryrun_e2e_v2.sh --ci
       - name: Upload AUDIT_BUNDLE
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: audit-bundle-${{ github.run_id }}
           path: AUDIT_BUNDLE_*.tar.gz

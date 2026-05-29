@@ -43,14 +43,14 @@ jobs:
         run: python tests/red-team-drills/check_recall.py --min 0.92 --max-fp 0.15
       - name: Upload full drill report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: red-team-report-${{ github.run_id }}
           path: tests/red-team-drills/output/
           retention-days: 30
       - name: Upload recall history (trend data)
         if: always() && hashFiles('tests/red-team-drills/output/recall_history.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: recall-history-${{ github.run_id }}
           path: tests/red-team-drills/output/recall_history.json
