@@ -8,3 +8,11 @@ export * from "./types";
 export * from "./endpoints";
 export { CONTRACT_VERSION, API_BASE } from "./version";
 export { resolveMock, type MockResult } from "./mock";
+export {
+  assertNoPhi,
+  findPhi,
+  PhiLeakError,
+  type Sanitized,
+  type PhiViolation,
+  type PhiKind,
+} from "./sanitize";
