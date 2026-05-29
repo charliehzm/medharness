@@ -66,9 +66,9 @@
 | 提案人 | charliehzm | 2026-05-29 | ✅ |
 | Compliance Officer | charliehzm（兼任 · M4 拆岗） | 2026-05-29 | ✅ 经 maintainer 授权代签 |
 | 技术 Lead | charliehzm | 2026-05-29 | ✅ 经 maintainer 授权代签 |
-| Compliance-Agent（异构） | 独立模型会话 | 2026-05-29 | ⚠️ WAIVED · 见下注 |
+| Compliance-Agent（异构） | ⟪回填·模型名/会话标识⟫ | ⟪回填·日期⟫ | ⟪回填·复审结论；PASS=✅ 异构复审通过⟫ |
 
-> ⚠️ **异构 Compliance-Agent 审查未实际执行**：本批 spec/契约由 anthropic（Claude）撰写并自检，不满足「异构避免自证清白」原则；当前环境无 deepseek / qwen 通道起独立会话。经 maintainer charliehzm **明示授权 waiver** 放行合并（2026-05-29），风险自担。后续若补做异构复审，结论回填本表。Step 8/10 的 Claude 侧 review 记录见 PR #101 描述。
+> ⏳ **本行为占位**：本 PR 是异构复审签字回填模板。待独立非-anthropic 会话（DeepSeek / Qwen）跑完 Step 10 复审后——**PASS** 则用其返回的签字串替换上表三个 `⟪回填⟫` 占位、删除本注脚、转 Ready 再合并；**FAIL** 则关闭本 PR，main 维持 ⚠️ WAIVED 并按其意见整改。**回填前禁止合并。** 此前 Claude 侧 Step 8/10 review 见 PR #101 描述；WAIVED 始末见 main 上 COMPLIANCE_TAG §6 历史。
 
 ## 7. 验签命令（任意人可跑）
 
