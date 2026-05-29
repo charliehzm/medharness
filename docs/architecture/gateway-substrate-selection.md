@@ -2,9 +2,9 @@
 
 > **状态**：draft RFC · 待技术委员会 + 合规委员会会签裁决（**非已决**）
 > **关联**：[unified-gateway.md](unified-gateway.md)（ADR-11 已定"egress gateway 是唯一强制点"）· CLAUDE.md 5 红线 + COMPLIANCE_TAG
-> **维护**：技委 + 合规委 · **本 RFC 不入 v0.6，是独立定位决策，排期见 §G**
-> **修订**：r2（2026-05-29）已纳 PR #107 Codex 异构独立复审（Go-with-changes）三条阻断项 → 见 §E（license）/§D（hook 强制顺序）/§F（fail-closed + egress 硬约束）；遗留产品定位待 maintainer 裁决项见 §G。
-> **一句话**：ADR-11 已定"网关是强制点"，但留了两个未决——本 RFC 给建议供技委拍。
+> **维护**：技委 + 合规委 · **本 RFC 已由 maintainer 裁决升为"重设计基线"（取消原 v0.6 发布目标），裁决记录见 §G.0；仍待技委+合规委会签 ADR-18/19**
+> **修订**：r2（2026-05-29）纳 PR #107 Codex 异构复审三条阻断项 → §E/§D/§F。r3（2026-05-29）纳 maintainer 5 项裁决（§G.0）：客户本地部署 / 不放第三方聚合器 / 性能预算（§G.2）/ slim 审计合规委单独会签 / **取消 v0.6 按新定位重设计**。
+> **一句话**：ADR-11 已定"网关是强制点"；本 RFC 现为"在 OSS 底座上做客户本地部署合规网关 + 分级条件路由"的重设计基线。
 
 ---
 
@@ -131,7 +131,7 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 > **修正（阻断项 #1）**：上一稿把 `one-api/new-api` 笼统记作 MIT，错。已逐仓 `gh api repos/<r>/license` 复核（2026-05），**逐项拆开**如下。
 
 - **干净兼容（Apache/MIT，可直接组合）**：`one-api`(MIT)、Portkey(MIT)、Higress(Apache)、Presidio(MIT)、LLM Guard(MIT)、garak(Apache)、promptfoo(MIT)、NeMo(Apache)、Guardrails AI(Apache)、RouteLLM(Apache)。
-- **⚠️ 默认不采用（network-copyleft，污染 R5 永久 Apache 2.0）**：**`new-api` = AGPL-3.0**。AGPL 的"network use = distribution"条款会要求**对外提供网络服务者公开其修改源码**——与 R5"永久 Apache 2.0"冲突。是否构成义务**取决于部署形态**（见 §G 待裁决：我们 hosted vs 客户本地自部署，责任主体不同），但**默认按最严判：不纳入**；确需评估须**法务专项 + 部署形态钉死**后另议。
+- **🚫 硬排除（network-copyleft，污染 R5 永久 Apache 2.0）**：**`new-api` = AGPL-3.0**。部署形态已定为**客户本地部署**（§G.0 #1）→ 我们既**分发**软件给客户、客户又把它跑成**对外网络服务**，AGPL §13 + 分发义务**双触发**，与 R5"永久 Apache 2.0"硬冲突。**结论：硬排除 new-api，不再评估**。底座定 `one-api`(MIT)。
 - **需核 EE 边界（OSS 核可用，企业目录另有商业许可）**：
   - **LiteLLM**：GitHub LICENSE 判为 `NOASSERTION`（非单一干净 SPDX）——SDK 为 MIT，但 `enterprise/` 等目录另有商业许可。**采用前须把版本 + "哪些能力在 OSS 核内" 钉死**，只用 OSS 核、避开 EE。
   - **Langfuse**：core MIT + EE 商业。仅用 MIT core、避开 EE。
@@ -149,22 +149,47 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 - **provider 条款门槛**：clean lane 低成本池的每个 provider 须有 **no-training / no-retention / 私有等价**合同条款 + 境内数据驻留；**无条款者不得入池**。
 - PHI lane **永不出境**；clean lane 低成本池**限境内**（去标识≠匿名，跨境仍有 PIPL 残余风险）。
 - **缓存默认无原文**：底座 cache / 日志 / telemetry **默认不留原始 prompt/response**；缓存仅允许**脱敏后**体 + 严格 TTL + 租户隔离 + 境内驻留 + 可审计清除。命中缓存也必须过 post-call gate 再回（§D.1）。
-- **第三方聚合器非默认入口**：含 InferLink 等聚合器**默认不进** clean lane；确需登记为受控上游须满足 DPA + 境内驻留 + 审计可达 + **置于 router decision 之下**（待 §G 裁决，且须与"clean lane 限境内"一致）。
+- **第三方聚合器：不放（§G.0 #2 已锁）**：clean lane **不接**任何第三方聚合器（含 InferLink）。clean lane = 客户自有的**境内 provider 直连合同**（DeepSeek/Qwen/Doubao/Kimi 官方 API），经客户本地网关脱敏后路由——无聚合器中间商，少一层数据流与信任面。
 - **不**做自助注册/充值/发 key（企业受控租户）；**不**为成本跨合规边界选模型；**不**为"保可用"failover 到 allowlist 外。
 
 ---
 
-## 9. §G 待技委/合规委裁决
+## 9. §G 裁决记录
 
-1. 底座：自研 vs 架在 OSS 上？若 OSS → `one-api` vs `LiteLLM`（§E）。`new-api` 默认排除（AGPL）。
-2. **部署形态（产品定位 · 直接影响 AGPL/DPA/审计责任主体）**：我们 hosted、客户本地自部署、还是两者都支持？三者对 license 义务、数据驻留责任、审计落点要求不同——**须先定**才能锁 §E/§F。
-3. clean lane 是否允许把第三方聚合器（含 InferLink）登记为**受控上游**？若允许，须与 §F"clean lane 限境内 + provider no-retention 条款"一致，并明确是否破例。
-4. slim 档审计降级到 `fallback_writer` 哈希链——**合规委单独会签**（不与底座选型捆绑表决）：是否可接受（vs 强制 ClickHouse WORM）。
-5. **v0.7 POC 性能预算**：pre-call 串了 phi-detector + desensitize + model-router + inj-scan 后，留给底座 + provider 的 p95/p99 余量是多少？需 maintainer 给目标数。
-6. 拟新增 **ADR-18（OSS 底座 + 控制面 hook 化）** + **ADR-19（数据分级条件路由 + 双档 SKU）**（编号顺延，待落 design.md 确认）。
-7. 排期：**不入 v0.6**（v0.6 先收 Console + 出站安全 B1）；建议作 v0.7 独立 change，走 12 步 SOP。
+### §G.0 maintainer 已裁决（charliehzm · 2026-05-29）
 
-### §G.1 POC 验收矩阵（采用任一 OSS 底座前必过）
+| # | 问题 | 裁决 | 影响 |
+|---|---|---|---|
+| 1 | 部署形态 | **客户本地部署** | 客户即数据控制者；PHI / 审计 / 数据驻留全在客户侧；AGPL（new-api）因"分发 + 客户网络服务"双触发被**硬排除**（§E），底座定 `one-api`(MIT) |
+| 2 | clean lane 第三方聚合器 | **不放** | 无聚合器中间商；clean lane = 客户自有境内 provider 直连合同，经本地网关脱敏后路由（§F 已锁） |
+| 3 | v0.7 POC 性能预算 | 委架构师评估 → **见 §G.2** | 入 §G.3 POC 验收矩阵 |
+| 4 | slim `fallback_writer` 审计降级 | **合规委单独会签可接受** | 走合规委独立表决，不与底座选型捆绑 |
+| 5 | **取消 v0.6 / 按新定位重设计** | **照办** | 原 v0.6（standalone 双向网关 + Console 作为发布目标）取消；本 RFC 升为重设计基线。**已落地的闸门/契约/Console/两条在飞 PR 全部 salvage**（非推翻），详见对话中的 salvage + 重设计计划 |
+
+### §G.1 仍待技委/合规委会签
+
+- 底座 license 法务复核：`one-api` MIT 核内确认；`LiteLLM` 仅在确需最强 hook 生态时评 OSS 核 + 钉版本避 EE。
+- 拟新增 **ADR-18（OSS 底座 + 控制面 hook 化）** + **ADR-19（数据分级条件路由 + 双档 SKU · 含流式出站扫描取舍）**（编号顺延，落 design.md 确认）。
+- 重设计后的排期与 change 包结构（替代原 v0.6 change，走 12 步 SOP）。
+
+### §G.2 性能预算（架构师评估 · 裁决项 #3）
+
+端到端**网关自身附加开销**目标（**不含 provider 推理 TTFT**——那是上游、300ms–数秒、非我们可控）：
+
+| 路径段 | 组成 | p95 | p99 |
+|---|---|---|---|
+| pre-call gate（inline 阻塞 · rule-first） | phi-detector + desensitize + model-router + inj-scan | ≤ 35ms | ≤ 80ms |
+| 底座（one-api 路由 + cache 查，减 provider） | — | ≤ 15ms | ≤ 30ms |
+| post-call gate（B1 出站 scan · 沿用 B1 spec p99≤50ms） | — | ≤ 30ms | ≤ 50ms |
+| **合计附加开销（非流式）** | — | **≤ 80ms** | **≤ 150ms** |
+| **流式 SSE 附加 TTFT**（仅 pre-call gate 在首 token 前阻塞） | — | **≤ 50ms** | **≤ 100ms** |
+
+**硬约束（拍这组数的前提）**：
+- **inline 路径仅 rule-first**：可选 LLM 分类器（phi-detector / inj-scan / B1）**不进 inline 阻塞路径**——异步 / 抽样，或仅对 PHI-lane 缓冲响应跑；否则吃不住预算。
+- **流式出站扫描的张力（落 ADR-19）**：clean lane（已脱敏）可流式 + 轻量 inline scan；**PHI lane 缓冲后扫完再放**（延迟可接受——PHI 是少数流量，"合规优先，慢认了"）。乐观流式 + 命中即掐断会留"半句 PHI 已吐出"漏点，故 PHI lane 不用乐观流式。
+- 预算是**网关新增**开销，对标"直连 provider"的增量；超标即该底座 / hook 方案不达红线。
+
+### §G.3 POC 验收矩阵（采用 OSS 底座前必过）
 
 | 验收项 | 通过判据 |
 |---|---|
@@ -172,8 +197,8 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 | 缓存门禁 | cache 命中也过 post-call gate；cache 仅含脱敏体 |
 | fallback 不越权 | retry/降级只在 `allowed_model_set` 内，集合外被网络层 + 决策双拦 |
 | 审计可对账 | 外呼**前后**均有 audit 记录，哈希链可重放 |
-| license 边界 | 实际启用的目录/能力全在 OSS 核（避开 LiteLLM EE / 排除 AGPL） |
-| 延迟 | 满足 §G 第 5 项 maintainer 给定的 p95/p99 预算 |
+| license 边界 | 实际启用的目录/能力全在 OSS 核（避开 LiteLLM EE / 已排除 AGPL） |
+| 延迟 | 满足 §G.2 p95/p99 预算 |
 
 ---
 
