@@ -46,7 +46,9 @@ def test_init_acquires_pid_lock(tmp_path: Path) -> None:
     writer.release_lock()
 
 
-def test_init_fails_when_lock_held_by_alive_pid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_init_fails_when_lock_held_by_alive_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     lock_path = tmp_path / "fallback.pid"
     lock_path.write_text("4242", encoding="utf-8")
 
@@ -75,11 +77,14 @@ def test_append_writes_jsonl_with_chain_fields(tmp_path: Path) -> None:
     result = writer.append(_event())
 
     assert result["event_id"] == "evt-0001"
-    lines = (result["fallback_path"])
+    lines = result["fallback_path"]
     assert Path(lines).exists()
     payload = Path(lines).read_text(encoding="utf-8").strip().splitlines()
     assert len(payload) == 1
-    assert '"prev_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' in payload[0]
+    assert (
+        '"prev_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"'
+        in payload[0]
+    )
     writer.release_lock()
 
 

@@ -37,6 +37,7 @@ LIMITS = {
     "nginx": {"memory": "128M", "cpus": "0.25"},
 }
 
+
 def _compose() -> dict:
     return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
 
