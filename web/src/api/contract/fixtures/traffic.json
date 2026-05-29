@@ -1,0 +1,17 @@
+{
+  "inbound": {
+    "upstreams": [
+      { "name": "Dify RAG", "ctx": "prod", "rate": 1200 },
+      { "name": "本地批处理", "ctx": "dev", "rate": 180 }
+    ],
+    "gate": { "hit": 47, "blocked": 3, "passed": 1627 },
+    "downstream": [
+      { "name": "私有 Qwen", "note": "脱敏后" }
+    ]
+  },
+  "outbound": {
+    "built": false,
+    "note": "🚧 v0.6 规划",
+    "gate": { "phi_reflow": 0, "harmful": 0, "hallucination": 0 }
+  }
+}

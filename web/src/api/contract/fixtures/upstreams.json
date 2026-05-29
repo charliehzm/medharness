@@ -1,0 +1,6 @@
+{
+  "upstreams": [
+    { "name": "prod-dify-rag", "ctx": "prod", "protocol": "openai", "status": "green", "traffic_today": 8247, "phi": "命中 312 / 拦 5" },
+    { "name": "dev-local-batch", "ctx": "dev", "protocol": "openai", "status": "green", "traffic_today": 1203, "phi": "命中 0 / 拦 0" }
+  ]
+}

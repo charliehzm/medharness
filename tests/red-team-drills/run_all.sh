@@ -104,8 +104,28 @@ recall_gate() {
   "$PY" "${ROOT}/tests/red-team-drills/check_recall.py" --min 0.92 --max-fp 0.15
 }
 
-main() {
-  cd "$ROOT"
+drill_api_phi_exfil() {
+  echo "→ drill 5: read-API contract fixtures · PHI exfil scan (expect 0)"
+  "$PY" "${ROOT}/tests/red-team-drills/drill_api_phi_exfil.py" --out "${OUT}/api_phi_exfil.json"
+}
+
+drill_api_phi_exfil_gate() {
+  echo "→ drill 5 gate · 0 PHI in API 返回体 fixtures + payload 恒 null"
+  ROOT_DIR="$ROOT" "$PY" - <<'PY'
+import json
+import os
+from pathlib import Path
+root = Path(os.environ["ROOT_DIR"])
+report = json.loads((root / "tests/red-team-drills/output/api_phi_exfil.json").read_text(encoding="utf-8"))
+if report.get("passed") is not True:
+    raise SystemExit(
+        f"drill 5 failed: phi_hits={report.get('phi_hits')} "
+        f"payload_violations={report.get('payload_violations')}"
+    )
+PY
+}
+
+run_all() {
   drill_phi_recall
   drill_router_bypass
   drill_router_bypass_gate
@@ -114,6 +134,35 @@ main() {
   drill_injection
   drill_injection_gate
   recall_gate
+  drill_api_phi_exfil
+  drill_api_phi_exfil_gate
+}
+
+main() {
+  cd "$ROOT"
+  local only=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --only) only="${2:-}"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  if [[ -n "$only" ]]; then
+    case "$only" in
+      phi-recall) drill_phi_recall; recall_gate ;;
+      router-bypass) drill_router_bypass; drill_router_bypass_gate ;;
+      audit-replay) drill_audit_replay; drill_audit_replay_gate ;;
+      injection) drill_injection; drill_injection_gate ;;
+      api-phi-exfil) drill_api_phi_exfil; drill_api_phi_exfil_gate ;;
+      *) c_fail "unknown drill: $only"; exit 2 ;;
+    esac
+    echo
+    c_pass "drill '$only' completed → ${OUT}/"
+    return
+  fi
+
+  run_all
   echo
   c_pass "All red-team drills completed → ${OUT}/"
 }
