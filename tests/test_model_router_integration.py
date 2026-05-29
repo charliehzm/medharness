@@ -93,7 +93,9 @@ def fixture_data() -> dict[str, object]:
     return _load_fixture()
 
 
-def test_model_router_e2e_scenarios(tmp_path: Path, monkeypatch, fixture_data: dict[str, object]) -> None:
+def test_model_router_e2e_scenarios(
+    tmp_path: Path, monkeypatch, fixture_data: dict[str, object]
+) -> None:
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
 
     for change in fixture_data["changes"]:  # type: ignore[index]

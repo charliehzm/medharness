@@ -59,22 +59,12 @@ def test_desensitize_dockerfile_copies_runtime_files_with_chown() -> None:
     assert "COPY --chown=medharness:medharness mcp/desensitize/server_v2.py" in text
     assert "COPY --chown=medharness:medharness mcp/desensitize/server.py" in text
     assert "COPY --chown=medharness:medharness mcp/desensitize/crypto_envelope.py" in text
+    assert ("COPY --chown=medharness:medharness mcp/desensitize/key_provider/__init__.py") in text
+    assert ("COPY --chown=medharness:medharness mcp/desensitize/key_provider/interface.py") in text
     assert (
-        "COPY --chown=medharness:medharness "
-        "mcp/desensitize/key_provider/__init__.py"
+        "COPY --chown=medharness:medharness mcp/desensitize/key_provider/file_provider.py"
     ) in text
-    assert (
-        "COPY --chown=medharness:medharness "
-        "mcp/desensitize/key_provider/interface.py"
-    ) in text
-    assert (
-        "COPY --chown=medharness:medharness "
-        "mcp/desensitize/key_provider/file_provider.py"
-    ) in text
-    assert (
-        "COPY --chown=medharness:medharness "
-        "mcp/desensitize/sql/phi_lookup.sql"
-    ) in text
+    assert ("COPY --chown=medharness:medharness mcp/desensitize/sql/phi_lookup.sql") in text
 
 
 def test_desensitize_dockerfile_excludes_skel_handoff_and_key_files() -> None:

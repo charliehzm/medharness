@@ -18,7 +18,9 @@ from hashchain import GENESIS_PREV_HASH, compute_hash  # noqa: E402
 
 
 class FakeClient:
-    def __init__(self, query_results: dict[str, list[tuple[object, ...]]] | None = None, insert_raises=None):
+    def __init__(
+        self, query_results: dict[str, list[tuple[object, ...]]] | None = None, insert_raises=None
+    ):
         self._query_results = query_results or {}
         self._insert_raises = insert_raises
         self.inserted: list[dict[str, object]] = []

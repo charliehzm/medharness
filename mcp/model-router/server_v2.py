@@ -146,9 +146,7 @@ class ClickHouseAuditAdapter(AuditAdapter):
             f"{record.get('change_id', '')}|"
             f"{record.get('data_level', '')}"
         )
-        output_payload = (
-            f"{routing_log_id}|{record.get('decision', '')}|{record.get('reason', '')}"
-        )
+        output_payload = f"{routing_log_id}|{record.get('decision', '')}|{record.get('reason', '')}"
 
         return {
             "event_id": routing_log_id,
