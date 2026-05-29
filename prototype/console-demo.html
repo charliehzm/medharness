@@ -262,6 +262,65 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .demo-note{font-size:11px;color:var(--muted);background:var(--bg);border:1px dashed var(--line);
     border-radius:8px;padding:8px 12px;margin-top:14px;text-align:center}
+
+  /* config panels（左导航切换） */
+  .cfg-panel{display:none}
+  .cfg-panel.show{display:block;animation:fade .25s ease}
+  .cfg-h{font-size:15px;font-weight:700;margin-bottom:4px}
+  .cfg-desc{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+  .cfg-kv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px}
+  .cfg-kv .k{color:var(--muted);font-weight:600}
+  .cfg-kv .v{font-weight:700;font-variant-numeric:tabular-nums}
+  .cfg-kv .v small{color:var(--muted);font-weight:500;margin-left:6px}
+  .chip-grid{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1.5px solid var(--line);border-radius:9px;
+    font-size:12.5px;font-weight:600;cursor:pointer;user-select:none;transition:.15s}
+  .chip:hover{border-color:#cbd5e1}
+  .chip.on{border-color:var(--teal);background:var(--code-bg);color:var(--teal-d)}
+  .chip .x{width:7px;height:7px;border-radius:50%;background:#cbd5e1}
+  .chip.on .x{background:var(--teal)}
+  .gov-note{font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--line);
+    border-radius:8px;padding:9px 13px;margin-top:14px}
+  .pill-on{font-size:11px;font-weight:800;color:#15803D;background:var(--green-bg);border:1px solid #bbf7d0;padding:2px 9px;border-radius:6px}
+  .pill-off{font-size:11px;font-weight:800;color:var(--muted);background:var(--bg);border:1px solid var(--line);padding:2px 9px;border-radius:6px}
+
+  /* pipeline 12 步看板 */
+  .pipe-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+  .pipe-prog{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);font-weight:600}
+  .pipe-bar{width:160px;height:8px;border-radius:5px;background:#EDF1F7;overflow:hidden}
+  .pipe-bar i{display:block;height:100%;background:var(--teal);border-radius:5px}
+  .pipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px}
+  .pstep{border:1px solid var(--line);border-radius:11px;padding:13px;position:relative;background:#fff}
+  .pstep .pn{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.5px}
+  .pstep .pt{font-size:13px;font-weight:700;margin-top:3px}
+  .pstep .pd{font-size:11px;margin-top:7px;display:flex;align-items:center;gap:6px;font-weight:600}
+  .pstep.done{background:var(--green-bg);border-color:#bbf7d0}
+  .pstep.done .pd{color:#15803D}
+  .pstep.active{border-color:var(--yellow);box-shadow:0 0 0 3px var(--yellow-bg)}
+  .pstep.active .pd{color:#92400E}
+  .pstep.pending{opacity:.6}
+  .pstep.pending .pd{color:var(--muted)}
+  .pstep .gb{position:absolute;top:11px;right:11px;font-size:9px;font-weight:800;color:var(--teal-d);background:var(--code-bg);padding:1px 6px;border-radius:5px}
+
+  /* reports 报表中心 */
+  .rep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:16px}
+  .rep{padding:18px;display:flex;flex-direction:column;gap:7px}
+  .rep .ri{font-size:24px}
+  .rep .rt{font-size:14px;font-weight:700}
+  .rep .rs{font-size:12px;color:var(--muted);flex:1}
+  .rep .rb{margin-top:6px;align-self:flex-start;background:var(--bg);border:1px solid var(--line);color:var(--navy);
+    padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700}
+  .rep .rb:hover{border-color:var(--teal);color:var(--teal-d)}
+  .kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
+  .kpi{padding:16px 18px}
+  .kpi .kn{font-size:24px;font-weight:800;color:var(--navy)}
+  .kpi .kl{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
+
+  /* audit quick chips + blocked lineage */
+  .qchips{display:flex;gap:8px;margin:0 2px 12px;flex-wrap:wrap}
+  .qchip{font-size:12px;font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#fff;font-family:"SF Mono",monospace}
+  .qchip:hover{border-color:var(--teal);color:var(--teal-d)}
+  .ln-node .circle.red{background:var(--red);box-shadow:0 4px 12px rgba(239,68,68,.3)}
 </style>
 </head>
 <body>
@@ -279,7 +338,7 @@
       <div class="nav-item" data-view="pipeline"><span class="ico">🚦</span>研发流水线</div>
       <div class="nav-item" data-view="config"><span class="ico">⚙️</span>策略配置</div>
       <div class="nav-item" data-view="upstream"><span class="ico">🔌</span>上游接入</div>
-      <div class="nav-item disabled"><span class="ico">📋</span>报表中心</div>
+      <div class="nav-item" data-view="reports"><span class="ico">📋</span>报表中心</div>
     </nav>
     <div class="side-foot">v0.6 demo · 合成数据<br>全界面 0 PHI</div>
   </aside>
@@ -463,26 +522,17 @@
           </div>
           <button class="btn-primary" onclick="exportBundle(this)">📦 导出监管包（AUDIT_BUNDLE）</button>
         </div>
-        <div class="section-title">血缘图 · routing#a1b2（一条 PHI 双向走完全程：入站合规 → 出站安全）</div>
+        <div class="qchips" id="audit-chips">
+          <span style="color:var(--muted);font-weight:600;font-size:12px;align-self:center">快速定位：</span>
+          <button class="qchip" data-ref="routing#a1b2">routing#a1b2</button>
+          <button class="qchip" data-ref="阻断#c3d4">阻断#c3d4</button>
+          <button class="qchip" data-ref="desens#e5f6">desens#e5f6</button>
+        </div>
+        <div class="section-title" id="audit-title"></div>
         <div class="card">
-          <div class="lineage">
-            <div class="ln-node"><div class="circle">📥</div><div class="ln-t">上游请求</div><div class="ln-s">dify-rag · 14:23:01</div></div>
-            <div class="ln-node"><div class="circle">🔍</div><div class="ln-t">闸门一命中</div><div class="ln-s">PHI×2 姓名/身份证</div></div>
-            <div class="ln-node"><div class="circle">🔐</div><div class="ln-t">闸门二加密</div><div class="ln-s">AES-256-GCM</div></div>
-            <div class="ln-node"><div class="circle">🚦</div><div class="ln-t">闸门三路由</div><div class="ln-s">qwen-max · 异构✓</div></div>
-            <div class="ln-node sec"><div class="circle">🤖</div><div class="ln-t">模型响应</div><div class="ln-s">回流入站方向</div></div>
-            <div class="ln-node sec"><div class="circle wip">🛡️</div><div class="ln-t">出站安全 🚧</div><div class="ln-s">PHI 回流 0 / 有害 0</div></div>
-            <div class="ln-node"><div class="circle">📤</div><div class="ln-t">返回上游</div><div class="ln-s">脱敏占位符</div></div>
-          </div>
-          <div class="hashbar">🔗 哈希链完整 · 当前 block #18,432 · 与上一条链接校验通过</div>
-          <div class="detail-list">
-            <div class="dl"><div class="k">prompt（脱敏后）</div><div class="v">"帮我看下 <span class="ph">__NAME_a1__</span> <span class="ph">__ID_b2__</span> 的检验报告异常项"</div></div>
-            <div class="dl"><div class="k">模型</div><div class="v">qwen-max-2026-01 <span style="color:var(--muted)">· 私有部署</span></div></div>
-            <div class="dl"><div class="k">数据分级</div><div class="v">L3 · allowlist ✓ · 异构性 ✓ · role=coder</div></div>
-            <div class="dl"><div class="k">出站检查</div><div class="v"><span class="wip">🚧 v0.6</span> PHI 回流 0 · 有害内容 0 · 幻觉医嘱 0 <span style="color:var(--muted)">· 规划中，示意</span></div></div>
-            <div class="dl"><div class="k">当前哈希</div><div class="v mono" style="color:var(--muted)">9f3a1c8e...c4d2</div></div>
-            <div class="dl"><div class="k">上一条哈希</div><div class="v mono" style="color:var(--muted)">7b1e44a0...a8f0</div></div>
-          </div>
+          <div class="lineage" id="lineage"></div>
+          <div class="hashbar" id="hashbar"></div>
+          <div class="detail-list" id="audit-detail"></div>
         </div>
         <div class="demo-note" style="margin-top:14px">🛡️ 注意：prompt 显示的是占位符版本。原始 PHI 反查需在受控环境单独授权，<b>不在 Console 界面内</b>——审计追溯本身也 0 PHI。</div>
       </section>
@@ -490,84 +540,215 @@
       <!-- ============ 策略配置 ============ -->
       <section class="view" id="view-config">
         <div class="cfg">
-          <div class="card cfg-nav" style="padding:8px">
+          <div class="card cfg-nav" id="cfg-nav" style="padding:8px">
             <div class="cfg-cat comp">合规策略</div>
-            <div class="cfg-item active">场景策略</div>
-            <div class="cfg-item">模型白名单</div>
-            <div class="cfg-item">PHI 字段</div>
-            <div class="cfg-item">闸门阈值</div>
-            <div class="cfg-item">保留策略</div>
+            <div class="cfg-item active" data-cfg="scene">场景策略</div>
+            <div class="cfg-item" data-cfg="models">模型白名单</div>
+            <div class="cfg-item" data-cfg="fields">PHI 字段</div>
+            <div class="cfg-item" data-cfg="thresholds">闸门阈值</div>
+            <div class="cfg-item" data-cfg="retention">保留策略</div>
             <div class="cfg-cat sec">安全策略</div>
-            <div class="cfg-item">注入防御</div>
-            <div class="cfg-item">输出安全 <span class="wip">🚧 v0.6</span></div>
-            <div class="cfg-item">配额限流 <span class="wip">🚧 v0.6</span></div>
+            <div class="cfg-item" data-cfg="injection">注入防御</div>
+            <div class="cfg-item" data-cfg="output">输出安全 <span class="wip">🚧 v0.6</span></div>
+            <div class="cfg-item" data-cfg="quota">配额限流 <span class="wip">🚧 v0.6</span></div>
             <div class="cfg-cat gov">治理</div>
-            <div class="cfg-item">上游接入</div>
-            <div class="cfg-item">审批流</div>
+            <div class="cfg-item" data-cfg="upstream">上游接入</div>
+            <div class="cfg-item" data-cfg="approval">审批流</div>
           </div>
           <div class="card cfg-body">
-            <h4 style="margin-bottom:4px">生产环境策略 <span class="ctx prod">context = prod</span></h4>
-            <p style="color:var(--muted);font-size:12.5px;margin-bottom:18px">影响所有 prod 上游（dify / comfyui）· 合规与安全分组管理，互不混淆</p>
 
-            <div class="cfg-sec-divider comp"><span class="dot-c"></span>合规策略<span class="ln"></span></div>
-
-            <div class="cfg-group">
-              <h4>PHI 命中处理</h4>
-              <div class="opt-row" data-radio="phi">
-                <div class="opt" data-v="warn"><span class="mk"></span>仅警告</div>
-                <div class="opt sel" data-v="block"><span class="mk"></span>硬阻断</div>
-                <div class="opt" data-v="desens"><span class="mk"></span>警告 + 脱敏</div>
+            <!-- 场景策略 -->
+            <div class="cfg-panel show" id="cfg-scene">
+              <div class="cfg-h">生产环境策略 <span class="ctx prod">context = prod</span></div>
+              <div class="cfg-desc">影响所有 prod 上游（dify / comfyui）· 合规与安全分组管理，互不混淆</div>
+              <div class="cfg-sec-divider comp"><span class="dot-c"></span>合规策略<span class="ln"></span></div>
+              <div class="cfg-group">
+                <h4>PHI 命中处理</h4>
+                <div class="opt-row" data-radio="phi">
+                  <div class="opt" data-v="warn"><span class="mk"></span>仅警告</div>
+                  <div class="opt sel" data-v="block"><span class="mk"></span>硬阻断</div>
+                  <div class="opt" data-v="desens"><span class="mk"></span>警告 + 脱敏</div>
+                </div>
+              </div>
+              <div class="cfg-group">
+                <h4>数据分级强制检查</h4>
+                <div class="opt-row" data-check="level">
+                  <div class="opt chk sel" data-v="L3"><span class="mk"></span>L3</div>
+                  <div class="opt chk sel" data-v="L4"><span class="mk"></span>L4</div>
+                  <div class="opt chk" data-v="L2"><span class="mk"></span>L2</div>
+                </div>
+              </div>
+              <div class="cfg-sec-divider sec"><span class="dot-s"></span>安全策略<span class="ln"></span></div>
+              <div class="cfg-group">
+                <h4>注入防御 <span style="font-size:11px;color:var(--green);font-weight:700">· 已上线</span></h4>
+                <div class="opt-row" data-radio="inj">
+                  <div class="opt sel" data-v="block"><span class="mk"></span>阻断</div>
+                  <div class="opt" data-v="warn"><span class="mk"></span>警告</div>
+                </div>
+              </div>
+              <div class="impact hidden" id="impact">
+                <span id="impact-txt">⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签</span>
+                <button class="approve-btn" id="approve-btn" onclick="submitConfig(this)">提交审批</button>
+              </div>
+              <div class="diff-box">
+                <div class="dh">变更预览 (DIFF) — policies.yaml · prod</div>
+                <div id="diff-content"><div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div></div>
               </div>
             </div>
 
-            <div class="cfg-group">
-              <h4>数据分级强制检查</h4>
-              <div class="opt-row" data-check="level">
-                <div class="opt chk sel" data-v="L3"><span class="mk"></span>L3</div>
-                <div class="opt chk sel" data-v="L4"><span class="mk"></span>L4</div>
-                <div class="opt chk" data-v="L2"><span class="mk"></span>L2</div>
+            <!-- 模型白名单 -->
+            <div class="cfg-panel" id="cfg-models">
+              <div class="cfg-h">模型白名单 <span class="ctx prod">allowlist.yaml</span></div>
+              <div class="cfg-desc">按数据分级路由 · 越权调用 11/11 全部拦截（&lt;5ms 开销）· 境外模型仅接收已脱敏占位符</div>
+              <table>
+                <thead><tr><th>模型</th><th>分级上限</th><th>部署</th><th>异构组</th><th>状态</th></tr></thead>
+                <tbody>
+                  <tr><td><b>qwen-max-2026-01</b></td><td><span class="tag-l l4">L4</span></td><td>私有部署</td><td>A</td><td><span class="pill-on">启用</span></td></tr>
+                  <tr><td><b>qwen-vl-2026</b></td><td><span class="tag-l l4">L4</span></td><td>私有部署</td><td>A</td><td><span class="pill-on">启用</span></td></tr>
+                  <tr><td><b>deepseek-v4-pro</b></td><td><span class="tag-l l3">L3</span></td><td>私有部署</td><td>B</td><td><span class="pill-on">启用</span></td></tr>
+                  <tr><td><b>claude-sonnet</b> <small style="color:var(--muted)">境外</small></td><td><span class="tag-l l2">L2</span></td><td>境外·仅脱敏</td><td>B</td><td><span class="pill-on">启用</span></td></tr>
+                  <tr><td><b>gpt-4o</b> <small style="color:var(--muted)">境外</small></td><td><span class="tag-l l2">L2</span></td><td>境外·仅脱敏</td><td>C</td><td><span class="pill-off">停用</span></td></tr>
+                </tbody>
+              </table>
+              <div class="gov-note">🔒 名单增删 / 分级上限调整需 <b>技委 + 合规委会签</b>；Compliance-Agent 必须与 coder 主线异构（不同厂商）。</div>
+            </div>
+
+            <!-- PHI 字段 -->
+            <div class="cfg-panel" id="cfg-fields">
+              <div class="cfg-h">PHI 字段 <span class="ctx prod">fields.yaml · 共 31 字段</span></div>
+              <div class="cfg-desc">命中即脱敏为占位符（如 <code>__NAME_a1__</code>）· 点击可启停（demo 仅视觉）</div>
+              <div class="chip-grid" id="phi-fields">
+                <div class="chip on"><span class="x"></span>姓名 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>身份证号 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>手机号 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>病案号 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>完整出生日期 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>银行卡号 <span class="tag-l l4">L4</span></div>
+                <div class="chip on"><span class="x"></span>住址 <span class="tag-l l3">L3</span></div>
+                <div class="chip on"><span class="x"></span>邮箱 <span class="tag-l l3">L3</span></div>
+                <div class="chip on"><span class="x"></span>诊断编码 <span class="tag-l l3">L3</span></div>
+                <div class="chip on"><span class="x"></span>影像元数据 <span class="tag-l l3">L3</span></div>
+                <div class="chip"><span class="x"></span>科室 <span class="tag-l l2">L2</span></div>
+                <div class="chip"><span class="x"></span>就诊日期(年月) <span class="tag-l l2">L2</span></div>
               </div>
+              <div class="gov-note">显示 12 / 31 常用字段 · 新增字段须走 <b>test-data-generation</b> 合成 + 指纹核验，禁止从生产采样脱敏。</div>
             </div>
 
-            <div class="cfg-sec-divider sec"><span class="dot-s"></span>安全策略<span class="ln"></span></div>
+            <!-- 闸门阈值 -->
+            <div class="cfg-panel" id="cfg-thresholds">
+              <div class="cfg-h">闸门阈值</div>
+              <div class="cfg-desc">内核经红队验证的运行参数 · 调整需技委会签 + 红队回归</div>
+              <div class="cfg-kv"><span class="k">PHI 检测召回阈值</span><span class="v">0.85 <small>实测 recall 1.0 / FP 0.09</small></span></div>
+              <div class="cfg-kv"><span class="k">路由延迟预算</span><span class="v">5 ms <small>p99 实测 &lt;5ms</small></span></div>
+              <div class="cfg-kv"><span class="k">脱敏加密 p99</span><span class="v">0.02 ms <small>AES-256-GCM + AAD</small></span></div>
+              <div class="cfg-kv"><span class="k">注入阻断率目标</span><span class="v">≥ 0.99 <small>实测 1.0 / 25 case</small></span></div>
+              <div class="cfg-kv"><span class="k">流式 SSE 边扫边转发</span><span class="v"><span class="wip">🚧 v0.6</span></span></div>
+              <button class="approve-btn" style="margin-top:14px" onclick="toast('阈值调整需技委会签 + 红队回归 · 变更落 audit-log，审批前不生效')">申请调整</button>
+            </div>
 
-            <div class="cfg-group">
-              <h4>注入防御 <span style="font-size:11px;color:var(--green);font-weight:700">· 已上线</span></h4>
-              <div class="opt-row" data-radio="inj">
-                <div class="opt sel" data-v="block"><span class="mk"></span>阻断</div>
-                <div class="opt" data-v="warn"><span class="mk"></span>警告</div>
+            <!-- 保留策略 -->
+            <div class="cfg-panel" id="cfg-retention">
+              <div class="cfg-h">保留策略</div>
+              <div class="cfg-desc">满足 HIPAA / PIPL 监管可重放要求 · 缩短保留期需合规委审批</div>
+              <div class="cfg-group">
+                <h4>审计日志保留</h4>
+                <div class="opt-row" data-radio2="audit_keep">
+                  <div class="opt sel" data-v="6y"><span class="mk"></span>6 年（HIPAA）</div>
+                  <div class="opt" data-v="10y"><span class="mk"></span>10 年</div>
+                  <div class="opt" data-v="forever"><span class="mk"></span>永久</div>
+                </div>
               </div>
-            </div>
-
-            <div class="cfg-group">
-              <h4>调用配额 / 限流 <span class="wip">🚧 v0.6</span></h4>
-              <div class="opt-row">
-                <div class="opt dis"><span class="mk"></span>关闭</div>
-                <div class="opt dis"><span class="mk"></span>按上游限流</div>
-                <div class="opt dis"><span class="mk"></span>按 role 限流</div>
+              <div class="cfg-group">
+                <h4>prompt history（脱敏）保留</h4>
+                <div class="opt-row" data-radio2="prompt_keep">
+                  <div class="opt" data-v="1y"><span class="mk"></span>1 年</div>
+                  <div class="opt sel" data-v="3y"><span class="mk"></span>3 年</div>
+                </div>
               </div>
-              <div class="wip-note">🚧 v0.6 规划：防滥用刷量 + 成本护栏。生产被打爆 / 越权高频调用时自动限流——开关上线前为预览态。</div>
+              <div class="cfg-kv"><span class="k">WORM 不可篡改 + 哈希链</span><span class="v"><span class="pill-on">已锁定</span></span></div>
+              <div class="gov-note">🔒 WORM 与哈希链为合规硬约束，不可在 Console 关闭；缩短保留期为高危变更，需合规委 + 法务会签。</div>
             </div>
 
-            <div class="cfg-group">
-              <h4>出站输出安全 <span class="wip">🚧 v0.6</span></h4>
-              <div class="opt-row">
-                <div class="opt chk dis"><span class="mk"></span>PHI 回流拦截</div>
-                <div class="opt chk dis"><span class="mk"></span>有害内容拦截</div>
-                <div class="opt chk dis"><span class="mk"></span>幻觉医嘱告警</div>
+            <!-- 注入防御 -->
+            <div class="cfg-panel" id="cfg-injection">
+              <div class="cfg-h">注入防御 <span class="pill-on">已上线</span></div>
+              <div class="cfg-desc">prompt-injection-scan 内核 · 阻断率 1.0 · 仅记录分类与处置，不留存 payload 原文（防二次传播）</div>
+              <div class="cfg-group">
+                <h4>启用扫描类别</h4>
+                <div class="chip-grid">
+                  <div class="chip on"><span class="x"></span>越权指令</div>
+                  <div class="chip on"><span class="x"></span>数据外泄诱导</div>
+                  <div class="chip on"><span class="x"></span>角色劫持</div>
+                  <div class="chip on"><span class="x"></span>RAG 检索污染</div>
+                </div>
               </div>
-              <div class="wip-note">🚧 v0.6 规划：响应回来再扫一遍——挡住模型把 PHI 带回、输出有害内容或幻觉医嘱。出站方向同样 0 PHI。</div>
+              <div class="cfg-group">
+                <h4>命中处置</h4>
+                <div class="opt-row" data-radio2="inj_action">
+                  <div class="opt sel" data-v="isolate"><span class="mk"></span>隔离 + 告警</div>
+                  <div class="opt" data-v="warn"><span class="mk"></span>仅告警</div>
+                </div>
+              </div>
+              <div class="gov-note">隔离区只保留<strong>分类标签与处置记录</strong>，原始 payload 不回显、不外发——避免恶意指令二次传播。</div>
             </div>
 
-            <div class="impact hidden" id="impact">
-              <span id="impact-txt">⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签</span>
-              <button class="approve-btn" id="approve-btn" onclick="submitConfig(this)">提交审批</button>
+            <!-- 输出安全 🚧 -->
+            <div class="cfg-panel" id="cfg-output">
+              <div class="cfg-h">出站输出安全 <span class="wip">🚧 v0.6</span></div>
+              <div class="cfg-desc">响应回来再扫一遍——挡住模型把 PHI 带回、输出有害内容或幻觉医嘱。出站方向同样 0 PHI。</div>
+              <div class="cfg-group">
+                <h4>出站扫描项（预览）</h4>
+                <div class="opt-row">
+                  <div class="opt chk dis"><span class="mk"></span>PHI 回流拦截</div>
+                  <div class="opt chk dis"><span class="mk"></span>有害内容拦截</div>
+                  <div class="opt chk dis"><span class="mk"></span>幻觉医嘱告警</div>
+                </div>
+              </div>
+              <div class="wip-note">🚧 v0.6 规划中：开源 v0.5.0-edge 只扫入站请求，出站方向尚未建成。控件上线前为预览态，不可保存。</div>
             </div>
 
-            <div class="diff-box">
-              <div class="dh">变更预览 (DIFF) — policies.yaml · prod</div>
-              <div id="diff-content"><div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div></div>
+            <!-- 配额限流 🚧 -->
+            <div class="cfg-panel" id="cfg-quota">
+              <div class="cfg-h">调用配额 / 限流 <span class="wip">🚧 v0.6</span></div>
+              <div class="cfg-desc">防滥用刷量 + 成本护栏 · 生产被打爆 / 越权高频调用时自动限流。</div>
+              <div class="cfg-group">
+                <h4>限流策略（预览）</h4>
+                <div class="opt-row">
+                  <div class="opt dis"><span class="mk"></span>关闭</div>
+                  <div class="opt dis"><span class="mk"></span>按上游限流</div>
+                  <div class="opt dis"><span class="mk"></span>按 role 限流</div>
+                </div>
+              </div>
+              <div class="cfg-kv"><span class="k">日成本上限（预览）</span><span class="v" style="color:var(--violet-d)">未启用</span></div>
+              <div class="wip-note">🚧 v0.6 规划中：配额与成本护栏尚未建成。控件上线前为预览态，不可保存。</div>
             </div>
+
+            <!-- 上游接入 -->
+            <div class="cfg-panel" id="cfg-upstream">
+              <div class="cfg-h">上游接入</div>
+              <div class="cfg-desc">已接入 4 个上游 · 生产 2（dify / comfyui）/ 开发 2（claude-code / codex）</div>
+              <div class="cfg-kv"><span class="k">接入方式</span><span class="v">base_url 指向 gateway · 零代码改造</span></div>
+              <div class="cfg-kv"><span class="k">协议兼容</span><span class="v">OpenAI · Anthropic <small>流式 SSE 🚧 v0.6</small></span></div>
+              <button class="btn-primary" style="margin-top:14px" onclick="go('upstream')">查看上游列表 →</button>
+            </div>
+
+            <!-- 审批流 -->
+            <div class="cfg-panel" id="cfg-approval">
+              <div class="cfg-h">审批流 · 配置治理矩阵</div>
+              <div class="cfg-desc">变更按风险分级走不同审批 · 全程落 audit-log（谁 / 何时 / 改了什么 / 谁批）· 审批前不生效、可回滚</div>
+              <table>
+                <thead><tr><th>变更类型</th><th>审批级别</th><th>审批人</th></tr></thead>
+                <tbody>
+                  <tr><td>PHI 字段增删</td><td><span class="tag-l l4">三签</span></td><td>合规委 + 技委 + 法务</td></tr>
+                  <tr><td>模型白名单变更</td><td><span class="tag-l l3">会签</span></td><td>技委 + 合规委</td></tr>
+                  <tr><td>闸门阈值调整</td><td><span class="tag-l l3">会签</span></td><td>技委 + 红队回归</td></tr>
+                  <tr><td>保留期缩短</td><td><span class="tag-l l4">三签</span></td><td>合规委 + 法务 + CTO</td></tr>
+                  <tr><td>dev 上游限流参数</td><td><span class="tag-l l2">单签</span></td><td>工程师</td></tr>
+                </tbody>
+              </table>
+              <div class="gov-note">高危变更（PHI 字段 / 保留期）即使 Console 可点，也必须走会签——按钮文案随风险级自动切换为「提交审批」。</div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -592,13 +773,43 @@
         <div class="demo-note" style="margin-top:14px">🔌 零代码改造：上游只需把 base_url 指向 gateway。开发期（Claude Code/Codex）与生产期（Dify/ComfyUI）同一个合规 + 安全强制点——入站扫 PHI 与注入，出站扫 PHI 回流与有害输出（出站 <span class="wip">🚧 v0.6</span>）。</div>
       </section>
 
-      <!-- ============ 研发流水线（占位） ============ -->
+      <!-- ============ 研发流水线 · 12 步 SOP 看板 ============ -->
       <section class="view" id="view-pipeline">
-        <div class="card placeholder-view">
-          <div class="pi">🚦</div>
-          <h3 style="margin:12px 0 6px;color:var(--ink)">研发流水线 · change 看板</h3>
-          <p>12 步 SOP 进度 · Step 0/10/12 合规闸门状态 · 红队 drill 结果<br>已在 v0.5.0-edge Console 实现 · 本 demo 聚焦 gateway 新增视图</p>
+        <div class="pipe-head">
+          <div>
+            <div class="section-title" style="margin:0 2px 4px">活跃 change · 示例-患者匹配最小可行版 <span class="ctx dev">dev</span></div>
+            <div style="font-size:12.5px;color:var(--muted)">12 步 SOP · <span style="color:var(--teal-d);font-weight:700">合规闸门 Step 0 / 10 / 12 不可跳过</span></div>
+          </div>
+          <div class="pipe-prog">
+            <span>进度 7 / 13</span>
+            <span class="pipe-bar"><i style="width:54%"></i></span>
+            <span style="color:var(--yellow);font-weight:700">Step 7 进行中</span>
+          </div>
         </div>
+        <div class="pipe-grid" id="pipe-grid"></div>
+        <div class="card" style="margin-top:18px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
+          <div>
+            <div style="font-weight:700;font-size:13.5px">🔴 红队演练 · PHI 渗透 drill</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:3px">最近一次：2026-05-26 · 合成 PHI 注入 40 例 · 脱敏/路由/审计全部阻断 · 漏出 <b style="color:var(--green)">0</b></div>
+          </div>
+          <button class="fix-btn" onclick="toast('红队 drill 由合规委员会每月发起 · 用合成 PHI 测脱敏/路由/审计是否阻断 · 结果落 audit-log + 季度报表')">查看 drill 记录</button>
+        </div>
+        <div class="demo-note" style="margin-top:14px">🚦 研发流水线是<b>开发期</b>落点：每个 change 走完 12 步才能归档。合规闸门（Step 0 预检 / Step 10 Gate / Step 12 审计冻结）由 Compliance-Agent 异构模型独立裁决，工程师不可绕过。</div>
+      </section>
+
+      <!-- ============ 报表中心 ============ -->
+      <section class="view" id="view-reports">
+        <div class="section-title">关键指标 · 本季度</div>
+        <div class="kpi-strip">
+          <div class="card kpi"><div class="kn num">78%</div><div class="kl">Verify 一次通过率</div></div>
+          <div class="card kpi"><div class="kn num" style="color:var(--green)">0</div><div class="kl">PHI 漏出</div></div>
+          <div class="card kpi"><div class="kn num">100%</div><div class="kl">审计可重放</div></div>
+          <div class="card kpi"><div class="kn num">100%</div><div class="kl">注入阻断率</div></div>
+          <div class="card kpi"><div class="kn num">↓34%</div><div class="kl">单 change 周期</div></div>
+        </div>
+        <div class="section-title">报表与监管材料 · 一键生成（合成 demo）</div>
+        <div class="rep-grid" id="rep-grid"></div>
+        <div class="demo-note" style="margin-top:16px">📋 报表全部基于<b>聚合统计与哈希</b>生成，0 PHI。监管应对包（AUDIT_BUNDLE）汇编脱敏 prompt history / 模型版本 / 路由决策 / 哈希链，模拟 4 小时交付监管。</div>
       </section>
 
     </div>
@@ -613,9 +824,10 @@ const titles = {
   posture:["合规·安全态势","CTO 落点 · 合规分 + 安全分一眼看懂"],
   traffic:["流量监控","杀手锏 · 双向看见 PHI / 注入被一层层拦下"],
   audit:["审计追溯","合规官落点 · 4 小时交监管包"],
-  pipeline:["研发流水线","工程师落点 · 仅开发期"],
+  pipeline:["研发流水线","工程师落点 · 开发期 12 步 SOP · Step 0/10/12 合规闸门"],
   config:["策略配置","配置中心 · 合规 / 安全 / 治理分组改策略"],
-  upstream:["上游接入","3 步接入 · 零代码改造"]
+  upstream:["上游接入","3 步接入 · 零代码改造"],
+  reports:["报表中心","合规官落点 · KPI + 监管材料一键生成"]
 };
 function go(view){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
@@ -743,6 +955,167 @@ function exportBundle(btn){
 let tt;
 function toast(msg){const t=document.getElementById('toast');t.innerHTML='💬 '+msg;t.classList.add('show');
   clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3800);}
+
+/* ============ config left-nav panel switch ============ */
+document.getElementById('cfg-nav').addEventListener('click',e=>{
+  const item=e.target.closest('.cfg-item'); if(!item)return;
+  const key=item.dataset.cfg;
+  document.querySelectorAll('#cfg-nav .cfg-item').forEach(x=>x.classList.toggle('active',x===item));
+  document.querySelectorAll('.cfg-panel').forEach(p=>p.classList.toggle('show',p.id==='cfg-'+key));
+});
+
+/* ============ secondary radio groups (retention / injection action) ============ */
+const radio2Msg={
+  audit_keep:'审计保留期为合规硬约束 · 缩短需合规委 + 法务会签 · 变更落 audit-log',
+  prompt_keep:'prompt history（脱敏）保留期变更已记录 · 提交后落 audit-log',
+  inj_action:'注入命中处置已记录 · 提交后落 audit-log（审批前不生效）'
+};
+document.querySelectorAll('[data-radio2]').forEach(grp=>{
+  grp.addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;
+    grp.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel',x===o));
+    toast('✏️ '+(radio2Msg[grp.dataset.radio2]||'变更已记录 · 提交后落 audit-log'));});
+});
+
+/* ============ chip visual toggle (PHI fields / injection categories) ============ */
+document.querySelectorAll('.cfg-panel .chip-grid').forEach(grid=>{
+  grid.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;
+    c.classList.toggle('on');});
+});
+
+/* ============ audit lineage records + search ============ */
+const auditRecords={
+  'routing#a1b2':{
+    title:'routing#a1b2 · 脱敏后路由（prod-dify-rag）',
+    cls:'',
+    nodes:[
+      {ico:'📥',t:'入站请求',s:'prod-dify-rag'},
+      {ico:'🔍',t:'PHI 扫描',s:'命中 3 字段'},
+      {ico:'🔐',t:'脱敏',s:'AES-256-GCM'},
+      {ico:'🧭',t:'路由决策',s:'qwen-max · L3'},
+      {ico:'🤖',t:'模型响应',s:'脱敏态'},
+      {ico:'🔒',t:'审计上链',s:'WORM'}
+    ],
+    hash:'✓ 哈希链完整 · block #18,420 · daily verify 通过 · 6 年可重放',
+    details:[
+      ['时间','2026-05-29 14:22:07'],
+      ['上游','prod-dify-rag <span class="ctx prod">prod</span>'],
+      ['数据分级','<span class="tag-l l3">L3</span>'],
+      ['命中字段','姓名 / 病案号 / 手机号 → 占位符'],
+      ['占位符样例','<span class="ph">__NAME_a1__</span> <span class="ph">__MRN_b2__</span>'],
+      ['路由模型','qwen-max-2026-01（私有部署 · 异构组 A）'],
+      ['决策依据','allowlist · L3 ≤ 私有部署 · 越权拦截 11/11'],
+      ['哈希','routing#a1b2 → sha256:9f3c…e7']
+    ]
+  },
+  '阻断#c3d4':{
+    title:'阻断#c3d4 · 未脱敏 L4 影像硬阻断（prod-comfyui）',
+    cls:'blocked',
+    nodes:[
+      {ico:'📥',t:'入站请求',s:'prod-comfyui'},
+      {ico:'🔍',t:'PHI 扫描',s:'命中 L4 影像'},
+      {ico:'🚫',t:'硬阻断',s:'未脱敏 L4',circle:'red'}
+    ],
+    hash:'✓ 阻断事件已落账 · 哈希链完整 · block #18,425 · 审计链未断裂',
+    details:[
+      ['时间','2026-05-29 14:24:51'],
+      ['上游','prod-comfyui <span class="ctx prod">prod</span>'],
+      ['数据分级','<span class="tag-l l4">L4</span>（影像元数据）'],
+      ['拦截原因','未脱敏 L4 影像尝试直发 → 硬阻断'],
+      ['处置','退回上游 · 提示先经 phi-desensitize'],
+      ['模型','未路由（阻断发生在路由前）'],
+      ['哈希','阻断#c3d4 → sha256:1ab8…c0']
+    ]
+  },
+  'desens#e5f6':{
+    title:'desens#e5f6 · 命中脱敏后路由（prod-dify-rag）',
+    cls:'',
+    nodes:[
+      {ico:'📥',t:'入站请求',s:'prod-dify-rag'},
+      {ico:'🔍',t:'PHI 扫描',s:'命中 5 字段'},
+      {ico:'🔐',t:'脱敏',s:'AES-256-GCM + AAD'},
+      {ico:'🧭',t:'路由决策',s:'deepseek-v4-pro'},
+      {ico:'🔒',t:'审计上链',s:'WORM'}
+    ],
+    hash:'✓ 哈希链完整 · block #18,431 · 反向映射表存于受控 KMS（不在 Console）',
+    details:[
+      ['时间','2026-05-29 14:30:12'],
+      ['上游','prod-dify-rag <span class="ctx prod">prod</span>'],
+      ['数据分级','<span class="tag-l l3">L3</span>'],
+      ['命中字段','姓名 / 住址 / 邮箱 / 诊断编码 / 就诊日期 → 占位符'],
+      ['占位符样例','<span class="ph">__NAME_a1__</span> <span class="ph">__ADDR_d4__</span>'],
+      ['路由模型','deepseek-v4-pro（私有部署 · 异构组 B）'],
+      ['反查','需受控环境单独授权 · 不在 Console 界面内'],
+      ['哈希','desens#e5f6 → sha256:7c20…9d']
+    ]
+  }
+};
+function renderAudit(ref){
+  const r=auditRecords[ref]; if(!r)return false;
+  document.getElementById('audit-title').textContent='调用血缘 · '+r.title;
+  document.getElementById('lineage').innerHTML=r.nodes.map(n=>
+    `<div class="ln-node"><div class="circle${n.circle?' '+n.circle:''}">${n.ico}</div>`+
+    `<div class="ln-t">${n.t}</div><div class="ln-s">${n.s}</div></div>`).join('');
+  const hb=document.getElementById('hashbar');
+  hb.textContent=r.hash; hb.style.cssText='';
+  document.getElementById('audit-detail').innerHTML=r.details.map(d=>
+    `<div class="dl"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join('');
+  return true;
+}
+document.getElementById('audit-chips').addEventListener('click',e=>{
+  const c=e.target.closest('.qchip'); if(!c)return;
+  const ref=c.dataset.ref;
+  document.getElementById('audit-search').value=ref; renderAudit(ref);
+  toast('🔍 已定位 '+ref);
+});
+document.getElementById('audit-search').addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const q=e.target.value.trim();
+  if(renderAudit(q)) toast('🔍 已定位 '+q);
+  else toast('未找到「'+q+'」· 试试 routing#a1b2 / 阻断#c3d4 / desens#e5f6');
+});
+renderAudit('routing#a1b2');
+
+/* ============ pipeline 12-step SOP board ============ */
+const steps=[
+  ['Step 0','合规预检','compliance-precheck','done','gate'],
+  ['Step 1','PRD 预检','prd-impl-precheck','done',''],
+  ['Step 2','TDD 对齐','tdd-alignment','done',''],
+  ['Step 3','OpenSpec','openspec-new-change','done',''],
+  ['Step 4','任务拆解','task-decomposition','done',''],
+  ['Step 5','Mock 数据','test-data-generation','done',''],
+  ['Step 6','实现','openspec-apply-change','done',''],
+  ['Step 7','Verify','openspec-verify-change','active',''],
+  ['Step 8','Review+Debug','requesting-code-review','pending',''],
+  ['Step 9','Mocking 测试','mocking-stubbing','pending',''],
+  ['Step 10','合规 Gate','compliance-review','pending','gate'],
+  ['Step 11','合规整改','条件触发','pending',''],
+  ['Step 12','归档审计','audit-snapshot','pending','gate']
+];
+const stMark={done:'✓ 完成',active:'◗ 进行中',pending:'○ 待执行'};
+(function(){const g=document.getElementById('pipe-grid'); if(!g)return;
+  g.innerHTML=steps.map(s=>
+    `<div class="pstep ${s[3]}">${s[4]==='gate'?'<span class="gb">合规闸门</span>':''}`+
+    `<div class="pn">${s[0]}</div><div class="pt">${s[1]}</div>`+
+    `<div class="pd"><span>${stMark[s[3]]}</span></div>`+
+    `<div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-family:'SF Mono',monospace">${s[2]}</div></div>`).join('');
+})();
+
+/* ============ reports center ============ */
+const reports=[
+  ['📊','季度合规报表','PHI 漏出 / 阻断 / 路由决策聚合 · 提交合规委月度回顾'],
+  ['🔎','月度审计抽查','按 5% 抽样人工复核脱敏 prompt history · 出具抽查结论'],
+  ['🩺','Skill 健康周报','Memory-Curator 输出触发命中率 / 失败案例 / 误触发率'],
+  ['🔴','红队演练报告','合成 PHI 渗透 drill 结果 · 脱敏/路由/审计阻断率'],
+  ['📦','监管应对包','AUDIT_BUNDLE 汇编 · 模拟 4 小时交付监管（0 PHI）']
+];
+(function(){const g=document.getElementById('rep-grid'); if(!g)return;
+  g.innerHTML=reports.map(r=>
+    `<div class="card rep"><div class="ri">${r[0]}</div><div class="rt">${r[1]}</div>`+
+    `<div class="rs">${r[2]}</div><button class="rb">生成报表</button></div>`).join('');
+  g.addEventListener('click',e=>{const b=e.target.closest('.rb');if(!b)return;
+    const name=b.parentNode.querySelector('.rt').textContent;
+    toast('📄 已生成「'+name+'」（合成 demo · 基于聚合统计与哈希 · 0 PHI）');});
+})();
 </script>
 </body>
 </html>
