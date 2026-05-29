@@ -174,7 +174,9 @@ class AuditLogServerV2:
                 try:
                     new_ch._client.insert("_audit_log", [row], column_names=new_ch.COLUMN_ORDER)
                 except Exception as exc:
-                    LOGGER.error("backfill insert failed for row_id=%s: %s", event.get("row_id"), exc)
+                    LOGGER.error(
+                        "backfill insert failed for row_id=%s: %s", event.get("row_id"), exc
+                    )
                     return {
                         "replayed_files": replayed_files,
                         "replayed_events": replayed_events,
@@ -222,4 +224,8 @@ class AuditLogServerV2:
         return {"status": "not_implemented", "message": "use scripts/verify-hashchain.sh (T4.7)"}
 
     def seal_bundle(self) -> dict[str, Any]:
-        return {"status": "placeholder", "chain_head": self._last_hash, "next_row_id": self._next_row_id}
+        return {
+            "status": "placeholder",
+            "chain_head": self._last_hash,
+            "next_row_id": self._next_row_id,
+        }

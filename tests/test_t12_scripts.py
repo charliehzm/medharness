@@ -28,11 +28,15 @@ assert spec.loader is not None
 spec.loader.exec_module(hashchain)
 
 
-def _run(cmd: list[str], *, env: dict[str, str] | None = None, timeout: int = 45) -> subprocess.CompletedProcess[str]:
+def _run(
+    cmd: list[str], *, env: dict[str, str] | None = None, timeout: int = 45
+) -> subprocess.CompletedProcess[str]:
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
-    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False, env=merged_env)
+    return subprocess.run(
+        cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False, env=merged_env
+    )
 
 
 def _gpg_available() -> bool:
@@ -146,7 +150,14 @@ def test_restore_roundtrip_recovers_data(tmp_path: Path) -> None:
     restore_dir.mkdir()
 
     restore = _run(
-        ["bash", str(RESTORE), "--backup", str(_backup_file(backup_dir)), "--target-prefix", str(restore_dir)],
+        [
+            "bash",
+            str(RESTORE),
+            "--backup",
+            str(_backup_file(backup_dir)),
+            "--target-prefix",
+            str(restore_dir),
+        ],
         env={"MEDHARNESS_BACKUP_PASSPHRASE": "synthetic-passphrase"},
     )
 
@@ -169,7 +180,14 @@ def test_restore_verifies_sha256_when_present(tmp_path: Path) -> None:
         fh.write(b"tamper")
 
     restore = _run(
-        ["bash", str(RESTORE), "--backup", str(backup), "--target-prefix", str(tmp_path / "restored")],
+        [
+            "bash",
+            str(RESTORE),
+            "--backup",
+            str(backup),
+            "--target-prefix",
+            str(tmp_path / "restored"),
+        ],
         env={"MEDHARNESS_BACKUP_PASSPHRASE": "synthetic-passphrase"},
     )
 

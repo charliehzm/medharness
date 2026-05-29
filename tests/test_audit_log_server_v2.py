@@ -25,7 +25,9 @@ def _load_module(module_name: str, path: Path, alias: str | None = None):
     return module
 
 
-hashchain_mod = _load_module("audit_log_hashchain", AUDIT_LOG_DIR / "hashchain.py", alias="hashchain")
+hashchain_mod = _load_module(
+    "audit_log_hashchain", AUDIT_LOG_DIR / "hashchain.py", alias="hashchain"
+)
 clickhouse_writer_mod = _load_module(
     "audit_log_clickhouse_writer", AUDIT_LOG_DIR / "clickhouse_writer.py", alias="clickhouse_writer"
 )
@@ -175,7 +177,9 @@ def test_init_with_clickhouse_available_enters_normal(tmp_path: Path) -> None:
     server = AuditLogServerV2(
         clickhouse_config={"host": "localhost", "port": 8123, "user": "user", "password": "pass"},
         fallback_base_dir=tmp_path,
-        clickhouse_writer_factory=lambda **kwargs: FakeClickHouseWriter(last_hash="hash-1", next_row_id=3),
+        clickhouse_writer_factory=lambda **kwargs: FakeClickHouseWriter(
+            last_hash="hash-1", next_row_id=3
+        ),
         fallback_writer_factory=lambda base_dir: FakeFallbackWriter(base_dir),
     )
 

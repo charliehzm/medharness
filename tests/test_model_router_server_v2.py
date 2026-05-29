@@ -324,7 +324,9 @@ def test_clickhouse_audit_adapter_accepts_factory() -> None:
     assert factory_calls == 0
     assert adapter.write_routing_decision(_routing_record()) == "route-0001"
     assert factory_calls == 1
-    assert adapter.write_routing_decision(_routing_record(routing_log_id="route-0002")) == "route-0002"
+    assert (
+        adapter.write_routing_decision(_routing_record(routing_log_id="route-0002")) == "route-0002"
+    )
     assert factory_calls == 1
 
 
@@ -374,12 +376,11 @@ def test_record_to_event_maps_all_fields_correctly() -> None:
         "reason": "allowed by policy",
         "duration_ms": 12.345,
     }
-    assert event["input_hash"] == hashlib.sha256(
-        b"qwen-max|feat/T4.8-router-audit-adapter|L2"
-    ).hexdigest()
-    assert event["output_hash"] == hashlib.sha256(
-        b"route-0001|allow|allowed by policy"
-    ).hexdigest()
+    assert (
+        event["input_hash"]
+        == hashlib.sha256(b"qwen-max|feat/T4.8-router-audit-adapter|L2").hexdigest()
+    )
+    assert event["output_hash"] == hashlib.sha256(b"route-0001|allow|allowed by policy").hexdigest()
 
 
 def test_record_to_event_does_not_leak_raw_payload() -> None:
@@ -395,6 +396,7 @@ def test_record_to_event_does_not_leak_raw_payload() -> None:
     assert "RAW-PHI-CLAIM" not in event_text
     assert "prompt" not in event
     assert "raw_text" not in event
-    assert event["input_hash"] == hashlib.sha256(
-        b"qwen-max|feat/T4.8-router-audit-adapter|L2"
-    ).hexdigest()
+    assert (
+        event["input_hash"]
+        == hashlib.sha256(b"qwen-max|feat/T4.8-router-audit-adapter|L2").hexdigest()
+    )

@@ -181,7 +181,9 @@ def _write_raw(root: Path, change_id: str, raw_text: str) -> Path:
     return target
 
 
-def _render_allowlist_models(model_id: str, vendor_family: str, allowed_roles: list[str], allowed_levels: list[str], qps: int) -> dict[str, Any]:
+def _render_allowlist_models(
+    model_id: str, vendor_family: str, allowed_roles: list[str], allowed_levels: list[str], qps: int
+) -> dict[str, Any]:
     return {
         "id": model_id,
         "vendor_family": vendor_family,
@@ -243,9 +245,7 @@ def _seed_allowlists(root: Path) -> None:
         {
             "schema_version": "T3.allowlist.v1",
             "policy_version": "",
-            "models": [
-                _render_allowlist_models("gpt-5", "openai", ["coder"], ["L1", "L2"], 2)
-            ],
+            "models": [_render_allowlist_models("gpt-5", "openai", ["coder"], ["L1", "L2"], 2)],
         },
     )
     _write_allowlist(
@@ -350,7 +350,9 @@ def main() -> int:
         cases = DEFAULT_CASES
         results = [_run_case(root, case) for case in cases]
         report = _build_report(cases, results)
-        Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        Path(args.out).write_text(
+            json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         print(json.dumps(report, ensure_ascii=False))
         return 0 if report["passed"] else 1
 
