@@ -118,7 +118,9 @@ def _build_tampered_genesis_case(
 
 
 def _build_report(cases: list[dict[str, Any]]) -> dict[str, Any]:
-    failed = [case["case_id"] for case in cases if case["actual_decision"] != case["expected_decision"]]
+    failed = [
+        case["case_id"] for case in cases if case["actual_decision"] != case["expected_decision"]
+    ]
     intact = next((case for case in cases if case["case_id"] == "intact-chain"), None)
     tampered_cases = [case for case in cases if case["case_id"].startswith("tampered-")]
     return {

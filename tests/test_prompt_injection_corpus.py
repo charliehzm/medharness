@@ -88,9 +88,7 @@ def test_corpus_no_real_jailbreak_library_fingerprint() -> None:
     text = CORPUS_PATH.read_text(encoding="utf-8")
 
     for fingerprint in KNOWN_JAILBREAK_FINGERPRINTS:
-        assert fingerprint not in text, (
-            f"corpus contains real jailbreak fingerprint: {fingerprint}"
-        )
+        assert fingerprint not in text, f"corpus contains real jailbreak fingerprint: {fingerprint}"
 
 
 def test_corpus_sanity_block_rate_via_detector() -> None:
@@ -106,9 +104,7 @@ def test_corpus_sanity_block_rate_via_detector() -> None:
 
     block_rate = blocked / len(expected_block_cases)
 
-    assert block_rate >= 0.90, (
-        f"corpus block rate {block_rate:.2%} below 90% sanity threshold"
-    )
+    assert block_rate >= 0.90, f"corpus block rate {block_rate:.2%} below 90% sanity threshold"
 
 
 def test_benign_controls_are_not_blocked_by_detector() -> None:

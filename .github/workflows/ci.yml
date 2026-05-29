@@ -18,7 +18,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
-      - run: pip install ruff black mypy
+      # ruff 钉版本：unpinned 会随上游升级反复重排历史文件、把每个 PR 的 lint 染红
+      - run: pip install ruff==0.15.15 black mypy
       - run: ruff check .
       - run: ruff format --check .
 

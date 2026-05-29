@@ -85,7 +85,9 @@ class ClickHouseAuditWriter:
 
     def _fetch_last_hash(self) -> str:
         try:
-            result = self._client.query("SELECT current_hash FROM _audit_log ORDER BY row_id DESC LIMIT 1")
+            result = self._client.query(
+                "SELECT current_hash FROM _audit_log ORDER BY row_id DESC LIMIT 1"
+            )
         except Exception as exc:
             raise ClickHouseUnavailable(f"startup query failed: {exc}") from exc
         if getattr(result, "result_rows", None):
@@ -105,7 +107,16 @@ class ClickHouseAuditWriter:
 
     @staticmethod
     def _required_event_fields(event: dict[str, Any]) -> tuple[str, ...]:
-        return ("event_id", "timestamp", "actor", "action", "context", "result", "input_hash", "output_hash")
+        return (
+            "event_id",
+            "timestamp",
+            "actor",
+            "action",
+            "context",
+            "result",
+            "input_hash",
+            "output_hash",
+        )
 
     @staticmethod
     def _validate_event(event: dict[str, Any]) -> None:

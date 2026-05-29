@@ -13,7 +13,9 @@ SCRIPT = ROOT / "scripts" / "setup-worm.sh"
 TARGET_DIRS = ("_audit_log", "audit-export", "audit-backup")
 
 
-def _run(env_override: dict[str, str] | None = None, expect_exit: int | None = 0) -> subprocess.CompletedProcess[str]:
+def _run(
+    env_override: dict[str, str] | None = None, expect_exit: int | None = 0
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     if env_override:
         env.update(env_override)
