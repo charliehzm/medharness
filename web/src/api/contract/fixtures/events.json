@@ -1,0 +1,8 @@
+{
+  "events": [
+    { "ts": "2026-05-29T08:12:03Z", "cat": "comp", "status": "green", "upstream": "dify-rag", "ctx": "prod", "level": "L3", "action": "脱敏后路由 qwen-max", "ref": "routing#a1b2" },
+    { "ts": "2026-05-29T08:15:41Z", "cat": "sec", "status": "red", "upstream": "dify-rag", "ctx": "prod", "sec_type": "注入", "action": "检索内容含可疑指令→隔离", "ref": "inj#c3d4", "payload": null },
+    { "ts": "2026-05-29T08:20:10Z", "cat": "comp", "status": "green", "upstream": "dify-rag", "ctx": "prod", "level": "L3", "action": "脱敏 __NAME_a1__ __MRN_b2__", "ref": "desens#e5f6" },
+    { "ts": "2026-05-29T08:22:55Z", "cat": "sec", "status": "yellow", "upstream": "local-batch", "ctx": "dev", "sec_type": "滥用", "action": "高频调用→限流（规划 🚧）", "ref": "rate#0f7a", "payload": null }
+  ]
+}

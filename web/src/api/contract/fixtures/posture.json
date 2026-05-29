@@ -1,0 +1,16 @@
+{
+  "composite": 92,
+  "compliance_score": 96,
+  "security_score": 89,
+  "gates": [
+    { "id": "phi-inbound", "group": "compliance", "status": "green", "metric": "100%", "desc": "泄漏拦截率·220 样本", "built": true },
+    { "id": "desensitize", "group": "compliance", "status": "green", "metric": "0.02ms", "built": true },
+    { "id": "model-router", "group": "compliance", "status": "green", "metric": "11/11", "built": true },
+    { "id": "injection", "group": "security", "status": "green", "metric": "100%", "built": true },
+    { "id": "outbound-safety", "group": "security", "status": "planned", "metric": "🚧 v0.6", "built": false },
+    { "id": "rate-limit", "group": "security", "status": "planned", "metric": "🚧 v0.6", "built": false }
+  ],
+  "alerts": [
+    { "cat": "security", "type": "注入", "level": "warn", "summary": "prod-dify 今日拦截 3 次注入尝试", "payload": null }
+  ]
+}

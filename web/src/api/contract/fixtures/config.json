@@ -1,0 +1,12 @@
+{
+  "scene": { "section": "scene", "title": "场景与数据分级", "fields": [ { "k": "默认分级", "v": "L3" }, { "k": "场景数", "v": "4" } ] },
+  "models": { "section": "models", "title": "模型 allowlist", "fields": [ { "k": "编码", "v": "openai 系" }, { "k": "审查", "v": "anthropic / deepseek（异构）" }, { "k": "出站分类器", "v": "经 model-router" } ] },
+  "fields": { "section": "fields", "title": "字段最小化", "fields": [ { "k": "PHI 字段", "v": "11 类" }, { "k": "最小化", "v": "开" } ] },
+  "thresholds": { "section": "thresholds", "title": "阈值", "fields": [ { "k": "PHI recall 下限", "v": "0.92" }, { "k": "注入阻断下限", "v": "0.95" } ] },
+  "retention": { "section": "retention", "title": "留存", "fields": [ { "k": "审计保留", "v": "≥ 6 年" }, { "k": "WORM", "v": "开" } ] },
+  "injection": { "section": "injection", "title": "注入防护", "fields": [ { "k": "RAG 隔离", "v": "开" }, { "k": "处置", "v": "隔离·不回显" } ] },
+  "output": { "section": "output", "title": "出站输出安全", "built": false, "note": "🚧 v0.6 规划", "fields": [ { "k": "PHI 回流", "v": "拦截（规划）" }, { "k": "幻觉医嘱", "v": "告警（规划）" } ] },
+  "quota": { "section": "quota", "title": "配额限流", "built": false, "note": "🚧 v0.6 规划", "fields": [ { "k": "按上游", "v": "规划" }, { "k": "日成本护栏", "v": "规划" } ] },
+  "upstream": { "section": "upstream", "title": "上游接入", "fields": [ { "k": "上游数", "v": "2" }, { "k": "协议", "v": "openai" } ] },
+  "approval": { "section": "approval", "title": "审批流", "fields": [ { "k": "配置写口", "v": "提交审批（不旁路 Hook）" }, { "k": "等级", "v": "单签 / 会签 / 三签" } ] }
+}
