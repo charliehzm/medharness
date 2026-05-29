@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedHarness Console · 合规网关控制台（demo）</title>
+<!--
+  MedHarness Console · 可点击 HTML 原型（单文件 · 零依赖 · 离线可用）
+  用途：销售现场 / 投资人 demo / 客户 POC 预演
+  安全：全部为合成 mock 数据 · 绝无真实 PHI · 全界面只显示占位符 + 哈希 + 聚合数
+  配套设计：docs/productization/console-product-design.md
+-->
+<style>
+  :root{
+    --navy:#0B1F3A; --navy-2:#13294d; --teal:#0FB5A6; --teal-d:#0a8c81;
+    --bg:#F4F6FA; --card:#ffffff; --line:#E2E8F0; --ink:#1E293B; --muted:#64748B;
+    --green:#22C55E; --green-bg:#ECFDF5; --yellow:#F59E0B; --yellow-bg:#FFFBEB;
+    --red:#EF4444; --red-bg:#FEF2F2; --code-bg:#E6FBF8;
+    --shadow:0 1px 3px rgba(15,31,58,.08),0 4px 16px rgba(15,31,58,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+  code,.mono{font-family:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace}
+
+  /* layout */
+  .app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  .side{background:var(--navy);color:#cdd9ec;padding:0;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+  .brand{padding:20px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--teal),#22d3c5);
+    display:grid;place-items:center;font-weight:800;color:var(--navy);font-size:16px}
+  .brand b{color:#fff;font-size:15px;letter-spacing:.3px}
+  .brand small{display:block;color:#7e93b8;font-size:11px;font-weight:400}
+  nav{padding:12px 10px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer;
+    color:#aebfda;font-size:13.5px;margin-bottom:3px;transition:.15s;user-select:none}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav-item.active{background:var(--teal);color:#fff;font-weight:600;box-shadow:0 4px 12px rgba(15,181,166,.35)}
+  .nav-item .ico{font-size:16px;width:20px;text-align:center}
+  .nav-item.disabled{opacity:.4;cursor:not-allowed}
+  .nav-item.disabled:hover{background:none;color:#aebfda}
+  .side-foot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#6b80a8}
+
+  /* topbar */
+  .main{display:flex;flex-direction:column;min-width:0}
+  .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    justify-content:space-between;padding:0 26px;position:sticky;top:0;z-index:20}
+  .topbar h1{font-size:17px;font-weight:700}
+  .topbar h1 small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
+  .top-right{display:flex;align-items:center;gap:14px}
+  .phi-badge{display:flex;align-items:center;gap:7px;background:var(--green-bg);color:#15803D;
+    border:1px solid #bbf7d0;padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600}
+  .phi-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px #bbf7d0}
+  .role-select{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px}
+  .role-select button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;
+    font-size:12.5px;color:var(--muted);font-weight:600}
+  .role-select button.on{background:#fff;color:var(--navy);box-shadow:var(--shadow)}
+
+  .content{padding:26px;overflow:auto}
+  .view{display:none;animation:fade .35s ease}
+  .view.show{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+  .grid{display:grid;gap:18px}
+  .section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:6px 2px 12px}
+
+  /* health score */
+  .hero{display:grid;grid-template-columns:300px 1fr;gap:22px;margin-bottom:18px}
+  .score-card{padding:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .ring-wrap{position:relative;width:184px;height:184px}
+  .ring-wrap svg{transform:rotate(-90deg)}
+  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring-center .big{font-size:58px;font-weight:800;line-height:1;color:var(--navy)}
+  .ring-center .den{font-size:14px;color:var(--muted)}
+  .badge-status{margin-top:14px;display:inline-flex;align-items:center;gap:7px;background:var(--green-bg);
+    color:#15803D;padding:7px 16px;border-radius:20px;font-weight:700;font-size:14px}
+  .score-meta{margin-top:12px;color:var(--muted);font-size:12.5px}
+  .score-meta b{color:var(--green)}
+
+  .gates{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;align-content:start}
+  .gate{padding:18px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+  .gate .tag{font-size:11px;color:var(--muted);font-weight:600}
+  .gate .name{font-size:15px;font-weight:700}
+  .gate .metric{font-size:26px;font-weight:800;color:var(--navy)}
+  .gate .desc{font-size:12px;color:var(--muted)}
+  .gate .pill{position:absolute;top:16px;right:16px;width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-bg)}
+
+  /* alerts */
+  .alerts{margin-top:6px}
+  .alert{display:flex;align-items:center;gap:13px;padding:15px 18px;border-radius:12px;margin-bottom:10px;border:1px solid}
+  .alert.warn{background:var(--yellow-bg);border-color:#fde68a}
+  .alert.ok{background:var(--green-bg);border-color:#bbf7d0}
+  .alert .ai{font-size:20px}
+  .alert .txt{flex:1}
+  .alert .txt b{display:block;font-size:13.5px}
+  .alert .txt span{font-size:12.5px;color:var(--muted)}
+  .fix-btn{background:#fff;border:1px solid var(--line);padding:7px 14px;border-radius:8px;cursor:pointer;
+    font-size:12.5px;font-weight:600;color:var(--navy);white-space:nowrap}
+  .fix-btn:hover{border-color:var(--teal);color:var(--teal-d)}
+
+  /* traffic / sankey */
+  .traffic-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .filter{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);padding:4px;border-radius:10px}
+  .filter button{border:0;background:none;padding:7px 16px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);font-weight:600}
+  .filter button.on{background:var(--navy);color:#fff}
+  .live{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;font-weight:600}
+  .live .dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}70%{box-shadow:0 0 0 7px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+
+  .sankey-card{padding:18px 18px 8px}
+  .sankey-cols{display:flex;justify-content:space-between;padding:0 8px 8px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px}
+  .flow-path{fill:none;stroke-linecap:round}
+  .flow-anim{stroke-dasharray:7 13;animation:flow 1s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-40}}
+  .node-rect{rx:9}
+  .node-label{font-size:12px;font-weight:700;fill:#fff}
+  .node-sub{font-size:10.5px;fill:#cdd9ec}
+  .gate-box{fill:#fff;stroke:var(--teal);stroke-width:2;rx:11}
+  .gate-t{font-size:12.5px;font-weight:800;fill:var(--navy)}
+  .gate-s{font-size:10.5px;fill:var(--muted)}
+  .blocked-t{font-size:11px;font-weight:700;fill:var(--red)}
+
+  /* event stream */
+  .stream{padding:8px}
+  .stream-row{display:grid;grid-template-columns:18px 86px 110px 1fr 120px;gap:10px;align-items:center;
+    padding:11px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;animation:slideIn .4s ease}
+  @keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
+  .stream-row .t{color:var(--muted);font-size:12px}
+  .stream-row .up{font-weight:700}
+  .stream-row .act{color:var(--ink)}
+  .stream-row .ref{color:var(--muted);text-align:right;font-size:12px}
+  .stream-row.blocked{background:var(--red-bg);animation:slideIn .4s ease,shake .5s ease .1s}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  .st{width:9px;height:9px;border-radius:50%}
+  .st.g{background:var(--green)} .st.y{background:var(--yellow)} .st.r{background:var(--red)}
+  .tag-l{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px}
+  .tag-l.l2{background:#E0F2FE;color:#0369A1} .tag-l.l3{background:#FEF3C7;color:#92400E} .tag-l.l4{background:#FEE2E2;color:#991B1B}
+
+  /* audit lineage */
+  .lineage{display:flex;align-items:stretch;gap:0;padding:24px 18px;overflow-x:auto}
+  .ln-node{min-width:150px;flex:1;text-align:center;position:relative;padding:0 6px}
+  .ln-node .circle{width:46px;height:46px;border-radius:50%;margin:0 auto 10px;display:grid;place-items:center;
+    font-size:20px;background:var(--teal);color:#fff;box-shadow:0 4px 12px rgba(15,181,166,.3)}
+  .ln-node .ln-t{font-weight:700;font-size:13px}
+  .ln-node .ln-s{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .ln-node:not(:last-child)::after{content:"→";position:absolute;right:-6px;top:14px;color:var(--teal);font-size:20px;font-weight:700}
+  .hashbar{margin:6px 18px 18px;padding:12px 16px;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:10px;
+    display:flex;align-items:center;gap:10px;font-size:13px;color:#15803D;font-weight:600}
+  .detail-list{padding:6px 18px 18px}
+  .detail-list .dl{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
+  .detail-list .dl .k{width:120px;color:var(--muted);font-weight:600}
+  .detail-list .dl .v{flex:1}
+  .ph{background:var(--code-bg);color:var(--teal-d);padding:1px 7px;border-radius:5px;font-weight:600}
+
+  /* config */
+  .cfg{display:grid;grid-template-columns:200px 1fr;gap:18px}
+  .cfg-nav .cfg-item{padding:11px 14px;border-radius:9px;cursor:pointer;font-size:13.5px;color:var(--muted);font-weight:600;margin-bottom:3px}
+  .cfg-nav .cfg-item:hover{background:var(--bg)}
+  .cfg-nav .cfg-item.active{background:var(--navy);color:#fff}
+  .cfg-body{padding:22px}
+  .cfg-group{margin-bottom:24px}
+  .cfg-group h4{font-size:14px;margin-bottom:12px}
+  .opt-row{display:flex;gap:10px;flex-wrap:wrap}
+  .opt{display:flex;align-items:center;gap:8px;padding:10px 16px;border:1.5px solid var(--line);border-radius:10px;
+    cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s;user-select:none}
+  .opt:hover{border-color:#cbd5e1}
+  .opt.sel{border-color:var(--teal);background:var(--code-bg);color:var(--teal-d)}
+  .opt .mk{width:16px;height:16px;border-radius:50%;border:2px solid #cbd5e1}
+  .opt.sel .mk{border-color:var(--teal);background:var(--teal);box-shadow:inset 0 0 0 3px #fff}
+  .opt.chk .mk{border-radius:5px}
+  .impact{margin-top:8px;padding:13px 16px;background:var(--yellow-bg);border:1px solid #fde68a;border-radius:10px;
+    font-size:13px;color:#92400E;display:flex;align-items:center;justify-content:space-between;gap:14px}
+  .impact.hidden{display:none}
+  .approve-btn{background:var(--navy);color:#fff;border:0;padding:9px 18px;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap}
+  .approve-btn.save{background:var(--teal)}
+  .diff-box{margin-top:14px;background:#0d1b30;border-radius:11px;padding:14px 16px;font-size:12.5px}
+  .diff-box .dh{color:#7e93b8;font-size:11px;margin-bottom:8px;font-weight:700;letter-spacing:.5px}
+  .diff-box .dl{font-family:"SF Mono",monospace;padding:2px 0}
+  .diff-box .del{color:#fca5a5} .diff-box .add{color:#86efac} .diff-box .none{color:#64748b}
+
+  /* upstream table */
+  table{width:100%;border-collapse:collapse}
+  thead th{text-align:left;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
+    padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
+  tbody td{padding:14px 16px;border-bottom:1px solid #f1f5f9;font-size:13.5px}
+  tbody tr:hover{background:var(--bg)}
+  .stat{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .stat .d{width:8px;height:8px;border-radius:50%}
+  .ctx{font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px}
+  .ctx.prod{background:#EEF2FF;color:#4338CA} .ctx.dev{background:#F0FDF4;color:#15803D}
+  .btn-primary{background:var(--teal);color:#fff;border:0;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px}
+
+  .placeholder-view{padding:60px 30px;text-align:center;color:var(--muted)}
+  .placeholder-view .pi{font-size:44px;opacity:.4}
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--navy);
+    color:#fff;padding:14px 22px;border-radius:11px;box-shadow:0 8px 30px rgba(0,0,0,.25);font-size:13.5px;
+    font-weight:600;opacity:0;transition:.3s;z-index:50;display:flex;align-items:center;gap:10px}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .demo-note{font-size:11px;color:var(--muted);background:var(--bg);border:1px dashed var(--line);
+    border-radius:8px;padding:8px 12px;margin-top:14px;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- sidebar -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div><b>MedHarness</b><small>合规网关控制台</small></div>
+    </div>
+    <nav id="nav">
+      <div class="nav-item active" data-view="posture"><span class="ico">🏠</span>合规态势</div>
+      <div class="nav-item" data-view="traffic"><span class="ico">📊</span>流量监控</div>
+      <div class="nav-item" data-view="audit"><span class="ico">🔍</span>审计追溯</div>
+      <div class="nav-item" data-view="pipeline"><span class="ico">🚦</span>研发流水线</div>
+      <div class="nav-item" data-view="config"><span class="ico">⚙️</span>策略配置</div>
+      <div class="nav-item" data-view="upstream"><span class="ico">🔌</span>上游接入</div>
+      <div class="nav-item disabled"><span class="ico">📋</span>报表中心</div>
+    </nav>
+    <div class="side-foot">v0.6 demo · 合成数据<br>全界面 0 PHI</div>
+  </aside>
+
+  <!-- main -->
+  <div class="main">
+    <header class="topbar">
+      <h1 id="page-title">合规态势 <small id="page-sub">CTO 落点 · 一眼看懂今天合规吗</small></h1>
+      <div class="top-right">
+        <div class="phi-badge"><span class="dot"></span>本页 0 PHI</div>
+        <div class="role-select" id="roles">
+          <button class="on" data-role="cto" data-home="posture">CTO</button>
+          <button data-role="compliance" data-home="audit">合规官</button>
+          <button data-role="engineer" data-home="config">工程师</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ============ 合规态势 ============ -->
+      <section class="view show" id="view-posture">
+        <div class="hero">
+          <div class="card score-card">
+            <div class="ring-wrap">
+              <svg width="184" height="184" viewBox="0 0 184 184">
+                <circle cx="92" cy="92" r="80" fill="none" stroke="#EDF1F7" stroke-width="14"/>
+                <circle id="score-ring" cx="92" cy="92" r="80" fill="none" stroke="var(--green)" stroke-width="14"
+                  stroke-linecap="round" stroke-dasharray="502" stroke-dashoffset="502"/>
+              </svg>
+              <div class="ring-center">
+                <div class="big num" id="score-num">0</div>
+                <div class="den">/ 100</div>
+              </div>
+            </div>
+            <div class="badge-status">🟢 健康</div>
+            <div class="score-meta">较昨日 <b>+2</b> · 本周 <b>0</b> 次 PHI 漏出</div>
+          </div>
+          <div class="gates">
+            <div class="card gate"><span class="pill"></span><span class="tag">闸门一</span><span class="name">PHI 出站扫描</span><span class="metric num">100%</span><span class="desc">患者信息泄漏拦截率 · 220 样本验证</span></div>
+            <div class="card gate"><span class="pill"></span><span class="tag">闸门二</span><span class="name">脱敏 + KMS</span><span class="metric num">0.02ms</span><span class="desc">AES-256-GCM 加密 p99 延迟 · 正常</span></div>
+            <div class="card gate"><span class="pill"></span><span class="tag">闸门三</span><span class="name">模型路由</span><span class="metric num">11/11</span><span class="desc">越权调用全部拦截 · &lt;5ms 开销</span></div>
+            <div class="card gate"><span class="pill"></span><span class="tag">第四层</span><span class="name">注入防御</span><span class="metric num">100%</span><span class="desc">恶意指令阻断率 · 25 case 验证</span></div>
+          </div>
+        </div>
+        <div class="section-title">需要注意</div>
+        <div class="alerts">
+          <div class="alert warn">
+            <div class="ai">🟡</div>
+            <div class="txt"><b>dev-codex 上游今日触发限流 30 次</b><span>开发期高频调用触发 QPS 上限 · 不影响合规，但可能拖慢开发体验</span></div>
+            <button class="fix-btn" onclick="toast('跳转 runbook · 08-troubleshooting：调高 dev 上游 rate_limit_qps')">点这里看怎么修</button>
+          </div>
+          <div class="alert ok">
+            <div class="ai">🟢</div>
+            <div class="txt"><b>哈希链完整 · 审计链未断裂</b><span>最新 block #18,432 · daily verify 通过 · 6 年可重放</span></div>
+            <button class="fix-btn" onclick="go('audit')">查看审计链</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 流量监控 ============ -->
+      <section class="view" id="view-traffic">
+        <div class="traffic-head">
+          <div class="filter" id="traffic-filter">
+            <button class="on" data-f="all">全部</button>
+            <button data-f="dev">开发期</button>
+            <button data-f="prod">生产期</button>
+          </div>
+          <div class="live"><span class="dot"></span>实时 · 最近 1 小时</div>
+        </div>
+
+        <div class="card sankey-card" style="margin-bottom:18px">
+          <div class="sankey-cols"><span>上游（谁在调 LLM）</span><span>MedHarness 闸门</span><span>下游模型</span></div>
+          <svg width="100%" viewBox="0 0 880 320" preserveAspectRatio="xMidYMid meet">
+            <!-- flows upstream -> gate -->
+            <path class="flow-path flow-anim" d="M170,70 C300,70 300,150 380,150" stroke="#0FB5A6" stroke-width="14" opacity=".55"/>
+            <path class="flow-path flow-anim" d="M170,160 C300,160 300,150 380,150" stroke="#0FB5A6" stroke-width="9" opacity=".5"/>
+            <path class="flow-path flow-anim" d="M170,250 C300,250 300,160 380,160" stroke="#0FB5A6" stroke-width="5" opacity=".45"/>
+            <!-- flows gate -> downstream (green = ok) -->
+            <path class="flow-path flow-anim" d="M620,140 C700,140 700,90 770,90" stroke="#22C55E" stroke-width="13" opacity=".55"/>
+            <path class="flow-path flow-anim" d="M620,150 C700,150 700,190 770,190" stroke="#22C55E" stroke-width="6" opacity=".5"/>
+            <!-- blocked flow (red) -->
+            <path class="flow-path flow-anim" d="M620,168 C690,168 700,250 760,250" stroke="#EF4444" stroke-width="5" opacity=".7"/>
+
+            <!-- upstream nodes -->
+            <g><rect class="node-rect" x="30" y="48" width="140" height="44" fill="#13294d"/>
+              <text class="node-label" x="44" y="70">Dify RAG</text><text class="node-sub" x="44" y="84">生产 · 1.2k/h</text></g>
+            <g><rect class="node-rect" x="30" y="138" width="140" height="44" fill="#13294d"/>
+              <text class="node-label" x="44" y="160">ComfyUI</text><text class="node-sub" x="44" y="174">生产 · 380/h</text></g>
+            <g><rect class="node-rect" x="30" y="228" width="140" height="44" fill="#13294d"/>
+              <text class="node-label" x="44" y="250">Codex dev</text><text class="node-sub" x="44" y="264">开发 · 90/h</text></g>
+
+            <!-- gate box -->
+            <rect class="gate-box" x="380" y="96" width="240" height="118"/>
+            <text class="gate-t" x="400" y="124">🛡️ PHI 扫描 + 脱敏</text>
+            <text class="gate-s" x="400" y="146">命中 <tspan font-weight="800" fill="#0a8c81">47</tspan> → 自动脱敏</text>
+            <text class="gate-s" x="400" y="166">拦截 <tspan font-weight="800" fill="#EF4444">3</tspan> → 硬阻断 🔴</text>
+            <text class="gate-s" x="400" y="186">放行 <tspan font-weight="800" fill="#22C55E">1,627</tspan> 条合规流量</text>
+            <text class="gate-s" x="400" y="204" fill="#0a8c81">全程仅占位符流动</text>
+
+            <!-- downstream nodes -->
+            <g><rect class="node-rect" x="770" y="68" width="100" height="44" fill="#13294d"/>
+              <text class="node-label" x="784" y="90">私有 Qwen</text><text class="node-sub" x="784" y="104">脱敏后</text></g>
+            <g><rect class="node-rect" x="770" y="168" width="100" height="44" fill="#13294d"/>
+              <text class="node-label" x="784" y="190">境外 API</text><text class="node-sub" x="784" y="204">已脱敏 12</text></g>
+            <text class="blocked-t" x="760" y="246">✗ 阻断 3</text>
+            <text class="blocked-t" x="760" y="262" font-weight="400" fill="#991B1B">未脱敏 L4 影像</text>
+          </svg>
+          <div class="demo-note">💡 demo 提示：桑基图上你永远看不到"张三"——闸门二在第 ④ 步就把原始 PHI 加密成占位符 <code>__NAME_a1__</code>。Console 只看得到占位符、哈希、聚合数。这是设计，不是疏漏。</div>
+        </div>
+
+        <div class="section-title">实时事件流</div>
+        <div class="card stream" id="stream"></div>
+      </section>
+
+      <!-- ============ 审计追溯 ============ -->
+      <section class="view" id="view-audit">
+        <div class="traffic-head">
+          <div style="display:flex;align-items:center;gap:10px">
+            <input id="audit-search" placeholder="搜索 routing#a1b2 / 阻断#c3d4 / 时间区间"
+              style="width:340px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:13.5px">
+          </div>
+          <button class="btn-primary" onclick="exportBundle(this)">📦 导出监管包（AUDIT_BUNDLE）</button>
+        </div>
+        <div class="section-title">血缘图 · routing#a1b2（一条 PHI 走完全程）</div>
+        <div class="card">
+          <div class="lineage">
+            <div class="ln-node"><div class="circle">📥</div><div class="ln-t">上游请求</div><div class="ln-s">dify-rag · 14:23:01</div></div>
+            <div class="ln-node"><div class="circle">🔍</div><div class="ln-t">闸门一命中</div><div class="ln-s">PHI×2 姓名/身份证</div></div>
+            <div class="ln-node"><div class="circle">🔐</div><div class="ln-t">闸门二加密</div><div class="ln-s">AES-256-GCM</div></div>
+            <div class="ln-node"><div class="circle">🚦</div><div class="ln-t">闸门三路由</div><div class="ln-s">qwen-max · 异构✓</div></div>
+            <div class="ln-node"><div class="circle">✅</div><div class="ln-t">下游放行</div><div class="ln-s">私有部署</div></div>
+          </div>
+          <div class="hashbar">🔗 哈希链完整 · 当前 block #18,432 · 与上一条链接校验通过</div>
+          <div class="detail-list">
+            <div class="dl"><div class="k">prompt（脱敏后）</div><div class="v">"帮我看下 <span class="ph">__NAME_a1__</span> <span class="ph">__ID_b2__</span> 的检验报告异常项"</div></div>
+            <div class="dl"><div class="k">模型</div><div class="v">qwen-max-2026-01 <span style="color:var(--muted)">· 私有部署</span></div></div>
+            <div class="dl"><div class="k">数据分级</div><div class="v">L3 · allowlist ✓ · 异构性 ✓ · role=coder</div></div>
+            <div class="dl"><div class="k">当前哈希</div><div class="v mono" style="color:var(--muted)">9f3a1c8e...c4d2</div></div>
+            <div class="dl"><div class="k">上一条哈希</div><div class="v mono" style="color:var(--muted)">7b1e44a0...a8f0</div></div>
+          </div>
+        </div>
+        <div class="demo-note" style="margin-top:14px">🛡️ 注意：prompt 显示的是占位符版本。原始 PHI 反查需在受控环境单独授权，<b>不在 Console 界面内</b>——审计追溯本身也 0 PHI。</div>
+      </section>
+
+      <!-- ============ 策略配置 ============ -->
+      <section class="view" id="view-config">
+        <div class="cfg">
+          <div class="card cfg-nav" style="padding:10px">
+            <div class="cfg-item">上游接入</div>
+            <div class="cfg-item active">场景策略</div>
+            <div class="cfg-item">模型白名单</div>
+            <div class="cfg-item">闸门阈值</div>
+            <div class="cfg-item">PHI 字段</div>
+            <div class="cfg-item">保留策略</div>
+          </div>
+          <div class="card cfg-body">
+            <h4 style="margin-bottom:4px">生产环境策略 <span class="ctx prod">context = prod</span></h4>
+            <p style="color:var(--muted);font-size:12.5px;margin-bottom:20px">影响所有 prod 上游（dify / comfyui）的合规松紧</p>
+
+            <div class="cfg-group">
+              <h4>PHI 命中处理</h4>
+              <div class="opt-row" data-radio="phi">
+                <div class="opt" data-v="warn"><span class="mk"></span>仅警告</div>
+                <div class="opt sel" data-v="block"><span class="mk"></span>硬阻断</div>
+                <div class="opt" data-v="desens"><span class="mk"></span>警告 + 脱敏</div>
+              </div>
+            </div>
+
+            <div class="cfg-group">
+              <h4>数据分级强制检查</h4>
+              <div class="opt-row" data-check="level">
+                <div class="opt chk sel" data-v="L3"><span class="mk"></span>L3</div>
+                <div class="opt chk sel" data-v="L4"><span class="mk"></span>L4</div>
+                <div class="opt chk" data-v="L2"><span class="mk"></span>L2</div>
+              </div>
+            </div>
+
+            <div class="cfg-group">
+              <h4>注入防御</h4>
+              <div class="opt-row" data-radio="inj">
+                <div class="opt sel" data-v="block"><span class="mk"></span>阻断</div>
+                <div class="opt" data-v="warn"><span class="mk"></span>警告</div>
+              </div>
+            </div>
+
+            <div class="impact hidden" id="impact">
+              <span id="impact-txt">⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签</span>
+              <button class="approve-btn" id="approve-btn" onclick="submitConfig(this)">提交审批</button>
+            </div>
+
+            <div class="diff-box">
+              <div class="dh">变更预览 (DIFF) — policies.yaml · prod</div>
+              <div id="diff-content"><div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 上游接入 ============ -->
+      <section class="view" id="view-upstream">
+        <div class="traffic-head">
+          <div class="section-title" style="margin:0">已接入上游 · 4</div>
+          <button class="btn-primary" onclick="toast('接入向导：① 选协议 openai/anthropic → ② 选场景 dev/prod → ③ 生成 base_url + API key → 复制给 Dify/ComfyUI/IDE')">+ 接入新上游</button>
+        </div>
+        <div class="card">
+          <table>
+            <thead><tr><th>名称</th><th>场景</th><th>协议</th><th>状态</th><th>今日流量</th><th>PHI 拦截</th></tr></thead>
+            <tbody>
+              <tr><td><b>prod-dify-rag</b></td><td><span class="ctx prod">prod</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">8,247</td><td>命中 312 / 拦 5</td></tr>
+              <tr><td><b>prod-comfyui</b></td><td><span class="ctx prod">prod</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">2,103</td><td>命中 88 / 拦 2</td></tr>
+              <tr><td><b>dev-claude-code</b></td><td><span class="ctx dev">dev</span></td><td>anthropic</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">340</td><td>命中 12 / 拦 0</td></tr>
+              <tr><td><b>dev-codex</b></td><td><span class="ctx dev">dev</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--yellow)"></span>限流</span></td><td class="num">892</td><td>命中 30 / 拦 0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="demo-note" style="margin-top:14px">🔌 零代码改造：上游只需把 base_url 指向 gateway。开发期（Claude Code/Codex）与生产期（Dify/ComfyUI）同一个合规强制点。</div>
+      </section>
+
+      <!-- ============ 研发流水线（占位） ============ -->
+      <section class="view" id="view-pipeline">
+        <div class="card placeholder-view">
+          <div class="pi">🚦</div>
+          <h3 style="margin:12px 0 6px;color:var(--ink)">研发流水线 · change 看板</h3>
+          <p>12 步 SOP 进度 · Step 0/10/12 合规闸门状态 · 红队 drill 结果<br>已在 v0.5.0-edge Console 实现 · 本 demo 聚焦 gateway 新增视图</p>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ view + role switching ============ */
+const titles = {
+  posture:["合规态势","CTO 落点 · 一眼看懂今天合规吗"],
+  traffic:["流量监控","杀手锏 · 看见 PHI 被一层层拦下来"],
+  audit:["审计追溯","合规官落点 · 4 小时交监管包"],
+  pipeline:["研发流水线","工程师落点 · 仅开发期"],
+  config:["策略配置","配置中心 · 不碰 YAML 改策略"],
+  upstream:["上游接入","3 步接入 · 零代码改造"]
+};
+function go(view){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('show'));
+  document.getElementById('view-'+view).classList.add('show');
+  document.getElementById('page-title').firstChild.textContent = titles[view][0]+' ';
+  document.getElementById('page-sub').textContent = titles[view][1];
+  document.querySelector('.content').scrollTop = 0;
+  if(view==='posture') animateScore();
+}
+document.getElementById('nav').addEventListener('click',e=>{
+  const item=e.target.closest('.nav-item'); if(!item||item.classList.contains('disabled'))return;
+  go(item.dataset.view);
+});
+document.getElementById('roles').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#roles button').forEach(x=>x.classList.toggle('on',x===b));
+  go(b.dataset.home);
+  toast('已切换到「'+b.textContent+'」视图 · 默认落到 '+titles[b.dataset.home][0]);
+});
+
+/* ============ health score ring ============ */
+function animateScore(){
+  const ring=document.getElementById('score-ring'), num=document.getElementById('score-num');
+  const target=98, circ=502, off=circ-(circ*target/100);
+  ring.style.transition='none'; ring.style.strokeDashoffset=circ; num.textContent='0';
+  setTimeout(()=>{ring.style.transition='stroke-dashoffset 1.2s ease'; ring.style.strokeDashoffset=off;},60);
+  let cur=0; const iv=setInterval(()=>{cur+=2; if(cur>=target){cur=target;clearInterval(iv);} num.textContent=cur;},22);
+}
+animateScore();
+
+/* ============ live event stream ============ */
+const samples=[
+  {st:'g',up:'dify-rag',ctx:'prod',lv:'l2',act:'脱敏后路由 qwen-max',ref:'routing#'},
+  {st:'g',up:'dify-rag',ctx:'prod',lv:'l3',act:'脱敏后路由 qwen-max',ref:'routing#'},
+  {st:'r',up:'comfyui',ctx:'prod',lv:'l4',act:'未脱敏 L4 影像 → 阻断',ref:'阻断#'},
+  {st:'g',up:'codex-dev',ctx:'dev',lv:'l2',act:'无 PHI · 直接路由',ref:'routing#'},
+  {st:'y',up:'dify-rag',ctx:'prod',lv:'l3',act:'命中 PHI → 自动脱敏',ref:'desens#'},
+  {st:'g',up:'claude-code',ctx:'dev',lv:'l2',act:'无 PHI · 直接路由',ref:'routing#'},
+  {st:'r',up:'codex-dev',ctx:'dev',lv:'l4',act:'尝试直连境外 → 阻断',ref:'阻断#'},
+  {st:'g',up:'comfyui',ctx:'prod',lv:'l2',act:'脱敏后路由 qwen-vl',ref:'routing#'}
+];
+let curFilter='all';
+function hex(){return Math.random().toString(16).slice(2,6);}
+function pad(n){return n<10?'0'+n:n;}
+function nowStr(){const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
+function addEvent(){
+  let pool=samples.filter(s=>curFilter==='all'||s.ctx===curFilter);
+  const s=pool[Math.floor(Math.random()*pool.length)];
+  const stream=document.getElementById('stream');
+  const row=document.createElement('div');
+  row.className='stream-row'+(s.st==='r'?' blocked':'');
+  const dot=s.st==='g'?'g':s.st==='y'?'y':'r';
+  row.innerHTML=`<span class="st ${dot}"></span><span class="t num">${nowStr()}</span>
+    <span class="up">${s.up}</span>
+    <span class="act"><span class="tag-l ${s.lv}">${s.lv.toUpperCase()}</span> ${s.act}</span>
+    <span class="ref mono">${s.ref}${hex()}</span>`;
+  stream.prepend(row);
+  while(stream.children.length>9) stream.removeChild(stream.lastChild);
+}
+for(let i=0;i<6;i++) addEvent();
+setInterval(addEvent, 2400);
+document.getElementById('traffic-filter').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  document.querySelectorAll('#traffic-filter button').forEach(x=>x.classList.toggle('on',x===b));
+  curFilter=b.dataset.f;
+});
+
+/* ============ config diff + approval ============ */
+const baseline={phi:'block',inj:'block',level:['L3','L4']};
+const state={phi:'block',inj:'block',level:['L3','L4']};
+const labels={phi:{warn:'warn',block:'hard_block',desens:'warn_and_desensitize'},inj:{block:'block',warn:'warn'}};
+document.querySelectorAll('[data-radio]').forEach(grp=>{
+  grp.addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;
+    grp.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel',x===o));
+    state[grp.dataset.radio]=o.dataset.v; renderDiff();});
+});
+document.querySelector('[data-check]').addEventListener('click',e=>{
+  const o=e.target.closest('.opt');if(!o)return; o.classList.toggle('sel');
+  state.level=[...document.querySelectorAll('[data-check] .opt.sel')].map(x=>x.dataset.v).sort();
+  renderDiff();
+});
+function renderDiff(){
+  const lines=[]; let highRisk=false;
+  if(state.phi!==baseline.phi){lines.push(['phi_on_hit',labels.phi[baseline.phi],labels.phi[state.phi]]);highRisk=true;}
+  if(state.inj!==baseline.inj){lines.push(['block_on_injection',labels.inj[baseline.inj],labels.inj[state.inj]]);highRisk=true;}
+  if(state.level.join()!==baseline.level.join()){lines.push(['data_level_required','['+baseline.level.join(', ')+']','['+state.level.join(', ')+']']);highRisk=true;}
+  const box=document.getElementById('diff-content'), impact=document.getElementById('impact');
+  if(lines.length===0){box.innerHTML='<div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div>';
+    impact.classList.add('hidden'); return;}
+  box.innerHTML=lines.map(l=>`<div class="dl del">- ${l[0]}: ${l[1]}</div><div class="dl add">+ ${l[0]}: ${l[2]}</div>`).join('');
+  impact.classList.remove('hidden');
+  const btn=document.getElementById('approve-btn');
+  if(highRisk){btn.className='approve-btn';btn.textContent='提交审批';
+    document.getElementById('impact-txt').textContent='⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签';}
+}
+function submitConfig(btn){
+  toast('✅ 已提交合规委员会会签 · 审批前不生效 · 变更已落 audit-log（谁/何时/改了什么/谁批）· 可回滚');
+  btn.textContent='已进入审批队列'; btn.disabled=true; btn.style.opacity=.6;
+}
+
+/* ============ misc ============ */
+function exportBundle(btn){
+  const orig=btn.textContent; btn.textContent='⏳ 打包中…'; btn.disabled=true;
+  setTimeout(()=>{btn.textContent='✅ 已生成 AUDIT_BUNDLE.tar.gz';
+    toast('监管包已生成：prompt history（脱敏）/ model versions / routing decisions / 哈希链 · 模拟 4h 应对流程');
+    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},2600);},1100);
+}
+let tt;
+function toast(msg){const t=document.getElementById('toast');t.innerHTML='💬 '+msg;t.classList.add('show');
+  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3800);}
+</script>
+</body>
+</html>
