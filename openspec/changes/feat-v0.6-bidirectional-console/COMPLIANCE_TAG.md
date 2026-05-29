@@ -66,9 +66,11 @@
 | 提案人 | charliehzm | 2026-05-29 | ✅ |
 | Compliance Officer | charliehzm（兼任 · M4 拆岗） | 2026-05-29 | ✅ 经 maintainer 授权代签 |
 | 技术 Lead | charliehzm | 2026-05-29 | ✅ 经 maintainer 授权代签 |
-| Compliance-Agent（异构） | ⟪回填·模型名/会话标识⟫ | ⟪回填·日期⟫ | ⟪回填·复审结论；PASS=✅ 异构复审通过⟫ |
+| Compliance-Agent（异构） | 见下注（openai/Codex 已技术复审·依规则不具签字资格） | 2026-05-29 | ⚠️ WAIVED |
 
-> ⏳ **本行为占位**：本 PR 是异构复审签字回填模板。待独立非-anthropic 会话（DeepSeek / Qwen）跑完 Step 10 复审后——**PASS** 则用其返回的签字串替换上表三个 `⟪回填⟫` 占位、删除本注脚、转 Ready 再合并；**FAIL** 则关闭本 PR，main 维持 ⚠️ WAIVED 并按其意见整改。**回填前禁止合并。** 此前 Claude 侧 Step 8/10 review 见 PR #101 描述；WAIVED 始末见 main 上 COMPLIANCE_TAG §6 历史。
+> ⚠️ **WAIVED（maintainer 授权）· 暂无合格的正式签字模型**：当前可用模型仅 **openai + anthropic** 两族。本批 spec/契约作者为 anthropic（Claude），唯一非-anthropic 选项是 openai/Codex；但项目规则要求 Compliance-Agent **非-openai**，且 deepseek/qwen 暂不可用 → 不存在同时满足「异构于作者」且「非-openai」的合格签字模型，交集为空。
+> 已由 **openai/Codex 会话做独立技术复审（2026-05-29）**：A–H 项**未发现阻断性 PHI 泄露**，另提 2 项非阻断加固（见 §8）；该会话依「Compliance-Agent 非-openai」规则**主动拒签** §6（异构机制按设计生效）。
+> maintainer charliehzm 决定：**保持 WAIVED 放行本 change**，待 deepseek/qwen 会话复跑同一证据后回填正式签字。Claude 侧 Step 8/10 review 见 PR #101。
 
 ## 7. 验签命令（任意人可跑）
 
@@ -85,3 +87,14 @@ python tools/phi_fingerprint_check.py web/**/fixtures/*.json mcp/outbound-safety
 bash tests/red-team-drills/run_all.sh --only api-phi-exfil
 # 期望：0 条返回体命中 PHI
 ```
+
+## 8. 异构复审 findings（backlog · 非阻断）
+
+openai/Codex 独立技术复审（2026-05-29）未发现阻断性 PHI 泄露，提出 2 项后续加固：
+
+| # | owner | finding | 处置 |
+|---|---|---|---|
+| 1 | A0（契约 owner） | 值级 0 PHI 目前主要靠注释 / spec / drill 保证，缺类型/运行时强制 | 后续加 sanitized branded type 或 runtime validator（如 api-client 收到响应跑 `assertNoPhi` 守卫），把「0 PHI」从约定升级为类型 + 运行时双保险 |
+| 2 | BE（A0 端点实现 lane） | `ApiError.msg?: string` 实现时可能泄露内部路径 / 版本 / 栈 | 实现强制错误净化：msg 只出业务可读文案、剥离系统信息（呼应 A0 spec C4 / ADR-17）；接 red-team 用例覆盖 |
+
+两项均为加固，不阻断本 change。**BE Codex 上岗读本文件时须接 finding #2**；finding #1 由契约 owner（我/charliehzm）择期以 contract-v0.6.x 小版本落地。
