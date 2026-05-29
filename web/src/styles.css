@@ -1,0 +1,58 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+    "Segoe UI", sans-serif;
+  background: #f5f7fb;
+  color: #0b1f3a;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.bootstrap-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.bootstrap-panel {
+  width: min(560px, 100%);
+  background: #fff;
+  border: 1px solid #e5e9f2;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(11, 31, 58, 0.08);
+  padding: 32px;
+}
+
+.bootstrap-kicker {
+  color: #0a8c81;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.bootstrap-panel h1 {
+  margin: 10px 0 12px;
+  font-size: 32px;
+  line-height: 1.15;
+}
+
+.bootstrap-panel p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  line-height: 1.7;
+}

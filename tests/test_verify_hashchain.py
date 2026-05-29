@@ -65,7 +65,9 @@ def _run_logic(path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _run_shell(path: Path | None = None, env_override: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _run_shell(
+    path: Path | None = None, env_override: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     if env_override:
         env.update(env_override)

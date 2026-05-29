@@ -14,7 +14,9 @@ NGINX_CONF = ROOT / "deploy" / "nginx" / "medharness.conf"
 
 
 def _run(cmd: list[str], *, timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False)
+    return subprocess.run(
+        cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False
+    )
 
 
 def _run_gen_tls(out_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
