@@ -1,6 +1,6 @@
 # MedHarness 系统架构设计
 
-> **状态**：DRAFT（draft · 待技委 + 合规委会签）
+> **状态**：**定稿 v1（实现基线）** · 内容锁定供实现；异构闸门 WAIVED（待 Phase A B1 代码 + r3 复审）· 双委员会会签 pending
 > **范畴**：**产品运行态架构**（客户侧的医疗大模型流量网关），不是本仓库 AI-Coding 研发 harness 的架构（那条见 [../architecture/dependency-graph.md](../architecture/dependency-graph.md) 的 L1–L6）。
 > **锚点**：底座 RFC [r4 锁 new-api / r5 单 SKU](../architecture/gateway-substrate-selection.md) · ADR-11「egress 网关是唯一强制点」[../architecture/unified-gateway.md](../architecture/unified-gateway.md) · 四目标 PRD [../productization/product-requirements.md](../productization/product-requirements.md)。
 
@@ -13,7 +13,7 @@
 | **安全** | 请求/响应必经 **pre-call 4 闸 + post-call 1 闸**；PHI 永不裸出境；模型按 allowlist 路由；注入隔离 |
 | **划算** | 数据分级双通道：脱敏后低敏流量走**常规通道（境内低成本池）**，高敏走**敏感通道（私有不出境）**；复用 new-api 渠道加权 + 缓存 |
 | **审计** | 每次调用前后全量落 **ClickHouse WORM + 哈希链**；0 PHI（仅占位符/哈希/聚合）；监管应对包 ≤4h |
-| **稳定** | 网关附加延迟有界（非流式 p95≤80ms）；provider 故障切换（限 allowlist 内）；熔断/限流；**fail-closed 不下线**；ClickHouse 故障 → 文件 fallback 续链 |
+| **稳定** | 网关附加延迟有界（非流式**目标** p95≤80ms · **待 Phase A POC 证明**，Codex B4）；provider 故障切换（限 allowlist 内）；熔断/限流；**fail-closed 不下线**；ClickHouse 故障 → 文件 fallback 续链 |
 
 > **铁律优先级**：`fail-closed` > 划算 > 可用。任一闸门 fail/超时/不确定 → 默认拒或落敏感通道，**绝不为省钱或保活放行危险请求**。
 
@@ -74,6 +74,7 @@
 | C14 | nginx | DMZ 反代 | TLS 终止 + 健康检查 + egress allowlist 边界 | ✅（仅代 `/api/route`、`/api/audit`） |
 
 > **C8 命名澄清**：`mcp-model-router` 是运行态 gate；`compliance-precheck` Skill（研发期 Step 0）生成 `MODEL_ALLOWLIST.json` 注入 C5 作 allowlist —— 二者一个运行态、一个研发态，别混。
+> **状态读法（Codex M2）**：C3–C8 标 ✅ 指「内核已建 + 单测过」，**不**代表「网关路径已焊」——经 C1/C2 HTTP 可达的网关路径属 Phase A，未通前 Console 用 mock + `built:false`。
 
 ---
 
@@ -100,7 +101,7 @@
 4. **缓存只在 gate 之后**：cache 仅含脱敏体；命中也必须过 post-call gate 再回。
 5. **审计前后双写**：外呼**前后**均有 audit 记录，哈希链可重放。
 
-> 🔴 **当前缺口**：v0.5 的 MCP 服务是 stdio 内部服务，nginx 仅代 `/api/route`、`/api/audit`，**没有任何 HTTP 网关在边界强制以上顺序**。Phase A = fork new-api + **内置 Go 合规中间件（C2，已决：进程内，非独立服务）** 把这条顺序焊死在 relay 链上——enforcement 在网关内、不可绕过、少一跳。**这是落地第一优先级**。
+> 🔴 **当前缺口**：v0.5 的 MCP 服务是 stdio 内部服务，nginx 仅代 `/api/route`、`/api/audit`，**没有任何 HTTP 网关在边界强制以上顺序**。Phase A = fork new-api + **内置 Go 合规中间件（C2，已决：进程内，非独立服务）** 把这条顺序焊死在 relay 链上——enforcement 在网关内、不可绕过、少一跳。顺序契约 + 签名 RouteDecision + 底座禁用清单见 [ADR-18](../architecture/ADR-18-gateway-control-plane.md)（Codex r1 B1/B2/B3）。**这是落地第一优先级**。
 
 ---
 
@@ -168,11 +169,22 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | **v0.5.0-edge（已建）** | 6 控制面服务内核 + 337 测试 + 4 红队演练 + 容器化 + A0 契约冻结 + Console 脚手架 | ✅ |
-| **Phase A（落地第一优先级）** | fork new-api + gate-orchestrator 焊接 §D.1 + ClickHouse/Redis/KMS 入 compose + A0 后端实现 | 🔴 待建 |
+| **Phase A（落地第一优先级）** | fork new-api + **内置 Go 中间件焊接 §D.1（[ADR-18](../architecture/ADR-18-gateway-control-plane.md)）** + 杀裸 `/api/route`（B1）+ ClickHouse/Redis/KMS 入 compose + A0 后端（含管理只读代理 B5） | 🔴 待建 |
 | **Phase B** | 流式 SSE 边扫边转 + outbound-safety 全集成 + Console F1–F3 屏幕 | 🟡 |
 | **v1.0** | HA/多副本/failover + 云 KMS proxy + 多模态 PHI（DICOM/影像）+ 语义重放 | ⏭️ |
 
 > **诚实声明**：v0.5「PoC-grade not SLA-grade」。本架构「稳定」指**单实例健壮性**，不等于 HA。合同/客户沟通须讲清。
+
+> **Phase A 准入门禁**（Codex 异构复审 r1 阻断项 · 全绿才进编码 · [处置记录](REVIEW-r1-codex.md)）：
+> 1. **B1 杀脊柱旁路**：对外只暴露 fork `/v1/*`，撤掉/内网封死裸 `/api/route`；所有 relay 子路由必经中间件（集成测试「deny → provider 0 连接」）。
+> 2. **B4 延迟 POC**：fork 上实测 pre-call p50/p95/p99；未达 §G.2 预算则收紧为「PHI-lane 缓冲 + clean-lane rule-only」或降级 SLO 文案——**未证明前不对外宣称 p95≤80ms**。
+> 3. **B6 授权门禁**：new-api 商业许可已签 + SBOM 含 AGPL 义务说明，否则不得对外交付镜像。
+> 4. **H4 仅非流式**：Phase A 不上流式 SSE（半句 PHI 风险）；流式 → Phase B + ADR-19。
+> 5. **H7 出站**：Phase A 至少最小 B1（phi_scan 注入）焊入 ⑥，否则四目标表降级「入站-only Phase A」。
+> 6. **ADR-18 会签**：RouteDecision 签名 schema + 底座禁用清单冻结（[ADR-18](../architecture/ADR-18-gateway-control-plane.md)）。
+> 7. **B1/H2 代码 enforcement（r2 实查）**：model-router 拒收客户端自报分级（仅接受签名 RouteDecision）+ 错误体 sanitize；当前 v0.5 代码仍可伪造（`server_v2.py:187/195`+`policy.py:151`）。
+>
+> **异构复审状态 = FAIL / 维持 WAIVED**（[r1](REVIEW-r1-codex.md) 设计级 + [r2](REVIEW-r2-codecheck.md) 代码级）。**不升正式签字**，须 **r3 复审**确认运行态闭环（非仅合成 fixture）+ 上述门禁全绿。
 
 ---
 

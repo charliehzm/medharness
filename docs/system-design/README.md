@@ -1,7 +1,8 @@
 # MedHarness 系统设计（System Design）
 
 > **职责**：把产品设计（PRD / 产品形态 / UI / 高保真原型）落成**可实施的系统设计**——架构、后端、前端三份。
-> **状态**：DRAFT · 与代码现状对齐（v0.5.0-edge 已建闸门 + A0 契约冻结；Phase A 网关焊接待建）。
+> **状态**：**定稿 v1（实现基线）** · 内容锁定，供 Step 2 任务拆解 + Codex 前/后端开发。
+> **异构合规闸门 = WAIVED**（[r1](REVIEW-r1-codex.md) 设计级整改 + [r2](REVIEW-r2-codecheck.md) 代码级 **FAIL**）：须 Phase A 把 B1（签名 RouteDecision · 拒客户端自报分级）焊进代码 + **r3 异构复审**确认运行态闭环，才可 WAIVED→签字。双委员会会签 pending。
 > **维护**：技术委员会 + 合规委员会会签。
 
 ---

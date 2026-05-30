@@ -1,6 +1,6 @@
 # MedHarness 后端设计
 
-> **状态**：DRAFT · 与代码现状对齐。**已建** = mcp/ 6 服务 + 契约；**待建** = 网关焊接(C1/C2) + A0 后端(C9) + ClickHouse/Redis/KMS。
+> **状态**：**定稿 v1（实现基线）** · 异构闸门 WAIVED（待 B1 代码 + r3）。**已建** = mcp/ 6 服务 + 契约；**待建** = 网关焊接(C1/C2) + A0 后端(C9) + ClickHouse/Redis/KMS。
 > **锚点**：[01-architecture.md](01-architecture.md) §4 Hook 顺序契约（脊柱）· A0 契约 [web/src/api/contract/](../../web/src/api/contract/)。
 
 ---
@@ -29,17 +29,18 @@ nginx DMZ (TLS·allowlist)
 new-api 的 relay 处理链（`relay/` 控制器）在「收到请求 → 选渠道 → 外呼 provider → 返回」之间。我们**在最前插 pre-call、最后插 post-call**：
 
 ```go
-// new-api fork · relay middleware（伪码）
+// new-api fork · relay 内置中间件（伪码 · 详见 ADR-18）
 func ComplianceRelay(c *gin.Context) {
     body := readBody(c)
-    decision := gate.PreCall(body)          // ① HTTP→C2，阻塞
-    if decision.Action == "deny" {          // 不变量①：deny 即静默
-        audit.Log("deny", decision);  c.JSON(deny);  return   // 不外呼/不写cache/不落上游日志
+    decision := gate.PreCall(body)              // ① HTTP→C3-C6，阻塞；中间件签发签名 RouteDecision
+    audit.Log("pre-call", decision.AuditLabels) // 不变量⑤：外呼前写（双写之一·Codex L2）
+    if decision.Action == "deny" {              // 不变量①：deny 即静默
+        c.JSON(deny);  return                   // 不外呼/不写 cache/不落上游日志
     }
-    c.Set("route_decision", decision)        // 不变量②：底座只执行
-    resp := relayWithDecision(c, decision)   // ②cache ③retry(限set) ④dispatch ⑤log，全在 allowed_model_set 内
-    safe := gate.PostCall(resp, decision)    // ⑥ HTTP→C2
-    audit.Log("complete", safe.AuditLabels)
+    // 不变量②③：底座先 Verify(decision.Sig)，只在 allowed_model_set 内扇出，忽略客户端 model_id
+    resp := relayWithDecision(c, decision)       // ②cache(仅脱敏体) ③retry(限set) ④dispatch ⑤log
+    safe := gate.PostCall(resp, decision)        // ⑥ outbound-safety
+    audit.Log("complete", safe.AuditLabels)      // 双写之二（外呼后）
     c.JSON(safe.Body)
 }
 ```
@@ -65,6 +66,7 @@ post-call:
   "audit_labels": { "input_hash": "...", "lane": "...", "model_class": "..." } }
 ```
 
+> **Codex B2/B3**：当前 `policy.py` 的 RouteDecision 仅 `decision/reason/layer_failed`，**未**输出 `allowed_model_set`/`lane`/`max_data_level`；Phase A 必须按 [ADR-18 §2](../architecture/ADR-18-gateway-control-plane.md) 扩 PolicyCore + 中间件 **HMAC 签名**，且**拒收客户端自报分级**（B3）。
 > **inline 仅 rule-first**：重 NLP（phi 深检 / 注入 LLM 分类 / B1）异步或抽样，不进首字节阻塞路径（守 §G.2 预算）。**开放项 ②**：C3–C8 需对 Go 中间件暴露稳定 HTTP/JSON（或 gRPC）+ 超时/重试/熔断契约——落 **ADR-18**。
 
 ---
@@ -97,6 +99,8 @@ post-call:
 | ⑤ 异构性 | （合规审查等场景）coder 模型 ≠ reviewer 模型厂商（`vendor_families.yml`） | 同源 → deny |
 
 输出 `allowed_model_set` 后，**底座只在集合内按价/延迟/健康排序**。叠加 `limits.py`：per-token/per-model 限流 + 熔断（默认阈值 5）。
+
+> **Codex B3/H1/H2**：分级（`data_level`/`desensitized`/`lane`）**只由中间件在 ①② 后写入**，PolicyCore 拒收客户端自报（[ADR-18 §3](../architecture/ADR-18-gateway-control-plane.md)）；`level_exceeds` 可降敏时返回 `action:reroute`（lane=sensitive 重算 set）而非纯 deny（H1）；新增**层⑥ lane×region 校验**（allowlist 加 `region/egress_zone`，H2）。
 
 ---
 
@@ -171,6 +175,8 @@ GET /channels → ChannelsResponse { channels: Channel[] }
 - 写口语义：`propose` 只入审批队列 → 审批通过后才走 PR/Hook 改配置；`export` 落审计 + 异步打包。
 
 > **未实现**：拟 FastAPI 单服务，读 ClickHouse + 调 model-router/audit-log。Phase A 落地。
+> **Codex B5（管理面 0-PHI）**：接入屏的**读**（用户/令牌/渠道列表）不得让 FE 直调 new-api（绕过 `Sanitized<T>` 守卫）；A0 增**管理只读代理** `GET /admin/{users|tokens|channels}`，**字段白名单**只回 `id 哈希/角色/配额/数据等级`，**禁 email/phone/display_name/备注**，过 `assertNoPhi`。**写**仍直调 new-api 但走审批（不经 A0）。
+> **Codex L5**：A0 聚合实现**禁 SELECT 非白名单列**，禁 join 含原文的 new-api 日志表。
 
 ---
 
@@ -196,8 +202,9 @@ GET /channels → ChannelsResponse { channels: Channel[] }
 
 | 场景 | 处置 |
 |---|---|
-| 任一闸门 fail/超时/不确定 | **默认拒** 或落敏感通道，绝不滑入常规通道 |
+| 任一闸门 fail/超时/**不确定** | **不确定 = deny**（Codex M5）；仅「已脱敏但 lane 模糊」可落敏感通道，绝不滑入常规 |
 | ClickHouse 故障 | audit 切 FALLBACK（文件续链 + PID lock），服务不下线，恢复后 BACKFILL |
+| **审计写不可用**（FALLBACK 满 / BACKFILL 阻塞） | **= deny**（审计不可用不得放行，Codex H5）；BACKFILL 与实时写分离 + 异步队列满则 deny |
 | provider 故障 | 重试/切换**限 allowed_model_set**，集合外网络层拦 |
 | 雪崩 | 熔断（默认 5）+ 入站限流 |
 | 网关自身故障 | 危险请求 fail-closed；网关服务保持可用（单实例健壮性，HA 留 v1.0） |
@@ -219,3 +226,4 @@ GET /channels → ChannelsResponse { channels: Channel[] }
 | 云 KMS proxy / 多模态 PHI / 语义重放 | ⏭️ | v1.0 |
 
 > P0 = Phase A，先把 §4 脊柱在 HTTP 边界焊死 + A0 通了 Console 才有真数据。
+> **Codex r1 门禁补充**：B4 fork 延迟 POC（p50/p95/p99）+ H7 出站最小 B1 焊 ⑥ + L4 BACKFILL 后全链 verify 自动化测试 + 禁用清单集成测试（[ADR-18 §5](../architecture/ADR-18-gateway-control-plane.md)）—— 均 Phase A 验收项。详见 [复审处置](REVIEW-r1-codex.md)。

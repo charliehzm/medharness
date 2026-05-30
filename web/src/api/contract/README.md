@@ -23,7 +23,7 @@ Console 调用的全部端点的 request / response 类型 + 合成 mock fixture
 | `fixtures/*.json` | 合成数据（0 PHI），同时被 FE 与 `api-phi-exfil` drill 消费 |
 | `index.ts` | barrel |
 
-## 端点（6 GET + 2 POST）
+## 端点（8 GET + 2 POST · v0.7.0）
 
 | key | 方法 | 路径 | 说明 |
 |---|---|---|---|
@@ -32,6 +32,8 @@ Console 调用的全部端点的 request / response 类型 + 合成 mock fixture
 | events | GET | `/events?cat=&ctx=&limit=` | 合规事件（带 level）/ 安全事件（带 sec_type，payload 恒 null） |
 | audit | GET | `/audit/{ref}` | 血缘（ref 如 `routing#a1b2`），未命中 404 |
 | upstreams | GET | `/upstreams` | 上游状态 + 聚合 PHI 摘要 |
+| cost | GET | `/cost?window=` | 成本 KPI/构成/趋势/省钱建议（聚合·0 PHI · v0.7.0） |
+| channels | GET | `/channels` | 渠道比价择优（价/延迟/区域/权重/健康 · v0.7.0） |
 | config | GET | `/config/{section}` | 只读策略快照（10 section） |
 | auditExport | POST | `/audit/export` | 导出 AUDIT_BUNDLE（**必落审计**） |
 | configPropose | POST | `/config/{section}/propose` | 配置变更**唯一写口**（提交审批，不旁路 Hook） |
