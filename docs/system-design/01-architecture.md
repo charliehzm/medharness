@@ -182,9 +182,9 @@
 > 4. **H4 仅非流式**：Phase A 不上流式 SSE（半句 PHI 风险）；流式 → Phase B + ADR-19。
 > 5. **H7 出站**：Phase A 至少最小 B1（phi_scan 注入）焊入 ⑥，否则四目标表降级「入站-only Phase A」。
 > 6. **ADR-18 会签**：RouteDecision 签名 schema + 底座禁用清单冻结（[ADR-18](../architecture/ADR-18-gateway-control-plane.md)）。
-> 7. **B1/H2 代码 enforcement（r2 实查）**：model-router 拒收客户端自报分级（仅接受签名 RouteDecision）+ 错误体 sanitize；当前 v0.5 代码仍可伪造（`server_v2.py:187/195`+`policy.py:151`）。
+> 7. **B1/H2/M1 代码 enforcement（r2）✅ 已闭环（2026-05-31）**：model-router tier HMAC 签名 + PolicyCore layer-0 fail-closed（拒客户端自报分级）、错误体 sanitize、审计降级显式化——回归测试 + 367 全量 + api-phi-exfil drill 绿（见 [REVIEW-r2 本轮整改](REVIEW-r2-codecheck.md)）。
 >
-> **异构复审状态 = FAIL / 维持 WAIVED**（[r1](REVIEW-r1-codex.md) 设计级 + [r2](REVIEW-r2-codecheck.md) 代码级）。**不升正式签字**，须 **r3 复审**确认运行态闭环（非仅合成 fixture）+ 上述门禁全绿。
+> **异构复审状态 = 维持 WAIVED**：in-repo 安全 findings 已全 **CLOSED**（B1/H2/M1/H3）；剩 **B4**(需 fork 实测)/**B6**(需法务授权)/**B5**(需 new-api 字段 + A0 后端) 外部门禁 + **r3 复审**确认运行态闭环，才升正式签字。
 
 ---
 

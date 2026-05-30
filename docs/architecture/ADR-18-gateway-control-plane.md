@@ -67,7 +67,7 @@ PolicyCore 新增**层⑥ lane×region 校验**：`lane==sensitive ⇒ egress_zo
 
 **不变量**：PolicyCore 接口拒绝请求体中的 `data_level`/`desensitized`/`lane`/`map_id`（若出现即视为攻击 → deny + 审计 `tier_spoof`）。`desensitized:true` 无对应 `map_id` ⇒ 拒。
 
-> 🔴 **现状漏洞（r2 实查 · Phase A 必改）**：v0.5 代码**正相反**——`mcp/model-router/server_v2.py:187/189/195` 把 `desensitized`/`caller_vendor_family`/`data_level` **从客户端 payload 取**，`policy.py:151-153 _has_desensitized_marker` 信任 `metadata["desensitized"]`，`heterogeneity.py:68` 用客户端 `caller_vendor_family`。**Phase A 必做**：① model-router 仅接受携 `sig` 的签名 RouteDecision；② 入口剥离/拒绝一切客户端自报分级字段；③ 集成测试「未签 / 伪造分级 → deny」。见 [REVIEW-r2](../system-design/REVIEW-r2-codecheck.md) B1。
+> ✅ **已实现（2026-05-31 · B1 闭环）**：原 v0.5 代码信任客户端自报分级（漏洞）；现已落代码——`mcp/model-router/tier_trust.py`（HMAC 签 tier）+ `server_v2._build_request` 验签 → `metadata.tier_trusted` + `policy.py` **layer-0「未签即 `deny(tier)`」**（fail-closed）。回归测试 `test_unsigned_tier_denied` / `test_forged_tier_denied` 验证未签 / 伪造分级被拒；367 全量测试 + api-phi-exfil drill 绿。**注**：v0.5 签发方是受信测试/部署方；Phase A 由 new-api 内置 Go 中间件签发（phi-detect + 脱敏定级后）。见 [REVIEW-r2 B1](../system-design/REVIEW-r2-codecheck.md)。
 
 ---
 

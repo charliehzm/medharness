@@ -23,8 +23,19 @@
 2. new-api 用户/令牌/渠道 API 的**精确字段集**（是否含 email/display_name/备注）——决定 H1 白名单粒度。
 3. `route_v2` 前是否有未纳入本次范围的 shim 先剥 `desensitized`/`caller_vendor_family`——本次无证据，**先按开放漏洞计**。
 
+## ✅ 本轮代码整改（in-repo findings 闭环 · 测试验证 2026-05-31）
+
+| Finding | 状态 | 代码 + 测试证据 |
+|---|---|---|
+| **B1** caller 伪造分级 | ✅ **CLOSED** | 新增 `mcp/model-router/tier_trust.py`（HMAC 签 tier）；`server_v2._build_request` 验签 → `metadata.tier_trusted`；`policy.py` 加 **layer-0**：未签即 `deny(tier)`。回归测试 `test_unsigned_tier_denied` / `test_forged_tier_denied`。**全套 model-router + 367 全量测试 + api-phi-exfil drill 绿。运行态 gate 不再可伪造。** |
+| **H2** 错误体外泄 | ✅ **CLOSED** | `server_v2._error_response` 外发 generic msg + stable code，detail 仅留 audit；测试改为校验 detail 在审计、`error.message` 不含 tier 值。 |
+| **M1** 审计降级伪装空态 | ✅ **CLOSED** | `audit-log/server_v2.query()` 改返 `{degraded,state,rows}` 信封，降级不再伪装空数据。 |
+| **H3 / M4** 0-PHI 守卫口径 | ✅ **CLOSED（收口）** | 「全程 0 PHI」已收窄为「防回显护栏 · 0-PHI 以后端字段白名单为准」；前端**不**加会误报的中文姓名/DOB 正则（会砸合法聚合数据）。 |
+
+> **外部 / Phase-A 依赖（非本仓库可关 · 给死门禁）**：**B4** 延迟 POC 需 fork 实测 · **B6** 需法务签 new-api 商业授权 · **B5** 需 new-api 精确字段集 + A0 后端建成（读路径设计已改 A0 代理）。这些**不是设计/代码缺陷**，是外部前置，签字前必过。
+
 ## 结论与处置（authoritative）
-- **异构复审状态 = FAIL · 维持 WAIVED**。**不**升正式签字。（纠正 r1 乐观措辞。）
+- **异构复审状态**：r2 两条 FAIL 根因——**运行态可伪造（B1）已代码闭环 + 测试**；**Console 0-PHI 绕口（H1/B5）读路径设计已改（A0 代理），但 A0 后端属 Phase A 未建**。故**维持 WAIVED**（in-repo 安全 findings 已全 CLOSED）：待 A0 后端 + 外部门禁（B4/B6/B5）+ **r3 异构复审**确认运行态闭环才升签字。
 - **B1/B2/B3 → Phase A 代码阻断**：ADR-18 §2/§3 是目标 schema；**v0.5 代码必须改**——model-router **只接受中间件签发的签名 RouteDecision**，拒收任何客户端自报 `data_level/desensitized/lane/map_id/caller_vendor_family`。enforcement 依赖签名机制（须先有中间件）。
 - **可现在修（不依赖中间件）**：H2（error sanitize）、H3（收 0-PHI 口径）、M2（RFC 收口）。
 - **Phase A 准入升级**（取代 r1 的乐观判断）：
