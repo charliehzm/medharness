@@ -5,6 +5,9 @@
  * 后端 ready 后切真实 fetch。所有 fixture 均为合成数据，0 PHI。
  */
 import type {
+  AdminChannelsResponse,
+  AdminTokensResponse,
+  AdminUsersResponse,
   ApiError,
   AuditExportResponse,
   AuditLineageResponse,
@@ -27,6 +30,9 @@ import upstreams from "./fixtures/upstreams.json";
 import cost from "./fixtures/cost.json";
 import channels from "./fixtures/channels.json";
 import config from "./fixtures/config.json";
+import adminUsers from "./fixtures/admin_users.json";
+import adminTokens from "./fixtures/admin_tokens.json";
+import adminChannels from "./fixtures/admin_channels.json";
 import exportRes from "./fixtures/export.json";
 import propose from "./fixtures/propose.json";
 
@@ -62,6 +68,12 @@ export function resolveMock(method: string, rawPath: string): MockResult<unknown
   if (m === "GET" && path === "/cost") return ok(cost as CostResponse, "GET /cost");
   if (m === "GET" && path === "/channels")
     return ok(channels as ChannelsResponse, "GET /channels");
+  if (m === "GET" && path === "/admin/users")
+    return ok(adminUsers as AdminUsersResponse, "GET /admin/users");
+  if (m === "GET" && path === "/admin/tokens")
+    return ok(adminTokens as AdminTokensResponse, "GET /admin/tokens");
+  if (m === "GET" && path === "/admin/channels")
+    return ok(adminChannels as AdminChannelsResponse, "GET /admin/channels");
 
   const auditM = path.match(/^\/audit\/(.+)$/);
   if (m === "GET" && auditM) {

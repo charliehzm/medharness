@@ -253,6 +253,50 @@ export interface ChannelsResponse {
   channels: Channel[];
 }
 
+// ── 9. GET /admin/{users|tokens|channels} ─ 管理面只读代理（v0.7.1 · B5）────
+// 红线：接入屏的「读」经此（不直调 new-api，防绕过 Sanitized<T> 守卫）。
+// **字段白名单**：只回 id 哈希 / 角色 / 配额 / 数据等级 / 区域；
+// **禁** email / phone / display_name / 备注 / 明文密钥（key）/ 社交 id。
+export interface AdminUser {
+  /** 用户 id 的哈希引用，非原始 id / 用户名 */
+  id_hash: string;
+  role: string;
+  status: string;
+  group: string;
+  quota: string;
+  used_quota: string;
+  /** 映射 Console 2 角色；普通用户/服务为 null（仅令牌、不进 Console） */
+  console_role?: "研发负责人" | "系统管理员" | null;
+}
+export interface AdminToken {
+  id_hash: string;
+  /** 令牌标签（用户自设·非密钥）；后端确保非 PHI */
+  name: string;
+  status: string;
+  remain_quota: string;
+  used_quota: string;
+  allowed_data_levels: DataLevel[];
+}
+export interface AdminChannel {
+  id_hash: string;
+  name: string;
+  type: string;
+  status: EventStatus;
+  weight: number;
+  region: string;
+  lane: "normal" | "sensitive";
+  models: string[];
+}
+export interface AdminUsersResponse {
+  users: AdminUser[];
+}
+export interface AdminTokensResponse {
+  tokens: AdminToken[];
+}
+export interface AdminChannelsResponse {
+  channels: AdminChannel[];
+}
+
 /** 端点 key → 响应类型映射（供 api-client 泛型推导） */
 export interface ResponseByEndpoint {
   posture: PostureResponse;
@@ -263,6 +307,9 @@ export interface ResponseByEndpoint {
   cost: CostResponse;
   channels: ChannelsResponse;
   config: ConfigSnapshot;
+  adminUsers: AdminUsersResponse;
+  adminTokens: AdminTokensResponse;
+  adminChannels: AdminChannelsResponse;
   auditExport: AuditExportResponse;
   configPropose: ConfigProposeResponse;
 }
