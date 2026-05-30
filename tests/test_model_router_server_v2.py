@@ -23,13 +23,17 @@ sys.modules["model_router_server_v2"] = server_v2
 assert spec.loader is not None
 spec.loader.exec_module(server_v2)
 
+import tier_trust  # noqa: E402,I001
+
 
 CHANGE_ID = "change-t3-server"
+_TIER_SECRET = "test-tier-secret-server"
 
 
 @pytest.fixture(autouse=True)
 def _reset_runtime(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setenv("MODEL_ROUTER_TIER_SECRET", _TIER_SECRET)
     server_v2._RUNTIME = None
 
 
@@ -78,6 +82,7 @@ def _route_payload(**overrides: object) -> dict[str, object]:
         "desensitized": True,
     }
     payload.update(overrides)
+    payload["tier_sig"] = tier_trust.sign_tier(payload, _TIER_SECRET.encode("utf-8"))
     return payload
 
 
@@ -155,7 +160,41 @@ def test_missing_desensitized_marker_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "marker"
     assert denied["error"]["type"] == "PolicyDenyError"
-    assert "must route through mcp-desensitize first" in denied["error"]["message"]
+    # H2: detail is in the audit record, NOT the external error message
+    assert any(
+        "must route through mcp-desensitize first" in str(r.get("reason", ""))
+        for r in _audit_lines(tmp_path)
+    )
+
+
+def test_unsigned_tier_denied(tmp_path: Path) -> None:
+    """B1: a caller cannot self-assert tier — unsigned tier is rejected (fail-closed)."""
+    _allowlist_path(tmp_path)
+    payload = {
+        "model_id": "qwen-max",
+        "agent_role": "coder",
+        "data_level": "L2",
+        "change_id": CHANGE_ID,
+        "caller_vendor_family": "openai",
+        "desensitized": True,
+        # no tier_sig — caller is not the trusted gate middleware
+    }
+    denied = server_v2.route_v2(payload)
+
+    assert denied["decision"] == "deny"
+    assert denied["error"]["layer_failed"] == "tier"
+
+
+def test_forged_tier_denied(tmp_path: Path) -> None:
+    """B1: tampering a signed tier field (downgrade L4->L1) breaks the signature -> deny."""
+    _allowlist_path(tmp_path)
+    payload = _route_payload(data_level="L4")  # validly signed for L4
+    payload["data_level"] = "L1"  # caller forges a downgrade after signing
+
+    denied = server_v2.route_v2(payload)
+
+    assert denied["decision"] == "deny"
+    assert denied["error"]["layer_failed"] == "tier"
 
 
 def test_allowlist_miss_denies(tmp_path: Path) -> None:
@@ -164,7 +203,7 @@ def test_allowlist_miss_denies(tmp_path: Path) -> None:
 
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "allowlist"
-    assert "missing-model" in denied["error"]["message"]
+    assert any("missing-model" in str(r.get("reason", "")) for r in _audit_lines(tmp_path))
 
 
 def test_data_level_over_policy_denies(tmp_path: Path) -> None:
@@ -174,7 +213,10 @@ def test_data_level_over_policy_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "data_level"
     assert denied["error"]["type"] == "PolicyDenyError"
-    assert "data_level='L4'" in denied["error"]["message"]
+    assert any("data_level='L4'" in str(r.get("reason", "")) for r in _audit_lines(tmp_path))
+    # H2: external message is generic — must NOT leak the tier value or policy trace
+    assert "L4" not in denied["error"]["message"]
+    assert denied["error"]["message"] == "request denied by routing policy"
 
 
 def test_same_family_compliance_call_denies(tmp_path: Path) -> None:
@@ -189,7 +231,9 @@ def test_same_family_compliance_call_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "heterogeneity"
     assert denied["error"]["severity"] == "WARN"
-    assert "heterogeneity policy denied" in denied["error"]["message"]
+    assert any(
+        "heterogeneity policy denied" in str(r.get("reason", "")) for r in _audit_lines(tmp_path)
+    )
 
 
 def test_five_denies_open_circuit_and_sixth_is_sev2(tmp_path: Path) -> None:

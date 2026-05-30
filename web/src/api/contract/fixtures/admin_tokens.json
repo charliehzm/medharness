@@ -1,0 +1,7 @@
+{
+  "tokens": [
+    { "id_hash": "tk#e5f6", "name": "tk-dify-prod", "status": "enabled", "remain_quota": "¥26/日", "used_quota": "¥124", "allowed_data_levels": ["L2", "L3"] },
+    { "id_hash": "tk#a1b2", "name": "tk-claude-code", "status": "enabled", "remain_quota": "¥32/日", "used_quota": "¥18", "allowed_data_levels": ["L2"] },
+    { "id_hash": "tk#c3d4", "name": "tk-codex", "status": "throttled", "remain_quota": "¥0/日", "used_quota": "¥30", "allowed_data_levels": ["L2"] }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "channels": [
+    { "name": "火山-DeepSeek", "model": "deepseek-v4-pro", "weight": 70, "unit_price": "¥0.8/万tok", "p95_ms": 320, "region": "境内", "picked": true, "status": "green" },
+    { "name": "官方-DeepSeek", "model": "deepseek-v4-pro", "weight": 30, "unit_price": "¥1.2/万tok", "p95_ms": 280, "region": "境内", "picked": false, "status": "green" },
+    { "name": "阿里-Qwen", "model": "qwen-max-2026", "weight": 100, "unit_price": "¥2.4/万tok", "p95_ms": 360, "region": "境内", "picked": true, "status": "green" },
+    { "name": "Anthropic", "model": "claude-sonnet", "weight": 100, "unit_price": "¥18/万tok", "p95_ms": 620, "region": "境外·仅脱敏", "picked": true, "status": "green" }
+  ]
+}

@@ -24,7 +24,12 @@ export const ENDPOINTS = {
   events: { method: "GET", path: "/events", readonly: true },
   audit: { method: "GET", path: "/audit/{ref}", readonly: true },
   upstreams: { method: "GET", path: "/upstreams", readonly: true },
+  cost: { method: "GET", path: "/cost", readonly: true },
+  channels: { method: "GET", path: "/channels", readonly: true },
   config: { method: "GET", path: "/config/{section}", readonly: true },
+  adminUsers: { method: "GET", path: "/admin/users", readonly: true },
+  adminTokens: { method: "GET", path: "/admin/tokens", readonly: true },
+  adminChannels: { method: "GET", path: "/admin/channels", readonly: true },
   auditExport: { method: "POST", path: "/audit/export", readonly: false },
   configPropose: { method: "POST", path: "/config/{section}/propose", readonly: false },
 } as const satisfies Record<string, EndpointDef>;

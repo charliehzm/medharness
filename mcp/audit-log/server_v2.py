@@ -210,15 +210,27 @@ class AuditLogServerV2:
             "fb_available": self._fb_writer is not None,
         }
 
-    def query(self, sql: str) -> list[dict[str, Any]]:
+    def query(self, sql: str) -> dict[str, Any]:
+        # M1: surface the audit backend state so a degraded backend is never silently
+        # rendered as "no data". Callers (A0 /audit, /posture) MUST show `degraded`
+        # explicitly rather than treating an empty list as a healthy empty result.
         if self._state != ServerState.NORMAL or self._ch_writer is None:
-            return []
+            return {"degraded": True, "state": self._state.value, "rows": []}
         try:
             result = self._ch_writer._client.query(sql)
         except Exception as exc:
             LOGGER.error("query failed: %s", exc)
-            return []
-        return [{"row": row} for row in getattr(result, "result_rows", [])]
+            return {
+                "degraded": True,
+                "state": self._state.value,
+                "error": "query_unavailable",
+                "rows": [],
+            }
+        return {
+            "degraded": False,
+            "state": self._state.value,
+            "rows": [{"row": row} for row in getattr(result, "result_rows", [])],
+        }
 
     def verify(self) -> dict[str, Any]:
         return {"status": "not_implemented", "message": "use scripts/verify-hashchain.sh (T4.7)"}

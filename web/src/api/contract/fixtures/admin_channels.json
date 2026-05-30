@@ -1,0 +1,8 @@
+{
+  "channels": [
+    { "id_hash": "ch#70a1", "name": "火山-DeepSeek", "type": "openai", "status": "green", "weight": 70, "region": "境内", "lane": "normal", "models": ["deepseek-v4-pro"] },
+    { "id_hash": "ch#30b2", "name": "官方-DeepSeek", "type": "openai", "status": "green", "weight": 30, "region": "境内", "lane": "normal", "models": ["deepseek-v4-pro"] },
+    { "id_hash": "ch#qw01", "name": "阿里-Qwen", "type": "openai", "status": "green", "weight": 100, "region": "境内", "lane": "sensitive", "models": ["qwen-max-2026", "qwen-vl-2026"] },
+    { "id_hash": "ch#an01", "name": "Anthropic", "type": "anthropic", "status": "green", "weight": 100, "region": "境外·仅脱敏", "lane": "normal", "models": ["claude-sonnet"] }
+  ]
+}
