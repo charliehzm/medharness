@@ -175,7 +175,15 @@ GET /channels → ChannelsResponse { channels: Channel[] }
 - 写口语义：`propose` 只入审批队列 → 审批通过后才走 PR/Hook 改配置；`export` 落审计 + 异步打包。
 
 > **未实现**：拟 FastAPI 单服务，读 ClickHouse + 调 model-router/audit-log。Phase A 落地。
-> **Codex B5（管理面 0-PHI）**：接入屏的**读**（用户/令牌/渠道列表）不得让 FE 直调 new-api（绕过 `Sanitized<T>` 守卫）；A0 增**管理只读代理** `GET /admin/{users|tokens|channels}`，**字段白名单**只回 `id 哈希/角色/配额/数据等级`，**禁 email/phone/display_name/备注**，过 `assertNoPhi`。**写**仍直调 new-api 但走审批（不经 A0）。
+> **Codex B5（管理面 0-PHI）✅ 契约 v0.7.1 已落**：接入屏的**读**经 A0 **管理只读代理** `GET /admin/{users|tokens|channels}`（不直调 new-api，过 `assertNoPhi`）；类型 [types.ts](../../web/src/api/contract/types.ts) `Admin{User,Token,Channel}`，fixtures 实测 0-PHI。**写**仍直调 new-api 但走审批（不经 A0）。**字段白名单**（new-api OSS schema → 只回安全列）：
+>
+> | 实体 | 只回 | **禁（PII / 密钥）** |
+> |---|---|---|
+> | user | id 哈希 · role · status · group · quota/used_quota · console_role | username · **display_name** · **email** · github/wechat/telegram_id · access_token · password · verification_code |
+> | token | id 哈希 · name(标签) · status · remain/used_quota · allowed_data_levels | **key（明文密钥）** |
+> | channel | id 哈希 · name · type · status · weight · region · lane · models | **key · base_url（含密钥）** |
+>
+> ⏳ BE-6b 实现时**核对 fork 实际字段集**（防 new-api 当前版多字段）。
 > **Codex L5**：A0 聚合实现**禁 SELECT 非白名单列**，禁 join 含原文的 new-api 日志表。
 
 ---
@@ -227,3 +235,6 @@ GET /channels → ChannelsResponse { channels: Channel[] }
 
 > P0 = Phase A，先把 §4 脊柱在 HTTP 边界焊死 + A0 通了 Console 才有真数据。
 > **Codex r1 门禁补充**：B4 fork 延迟 POC（p50/p95/p99）+ H7 出站最小 B1 焊 ⑥ + L4 BACKFILL 后全链 verify 自动化测试 + 禁用清单集成测试（[ADR-18 §5](../architecture/ADR-18-gateway-control-plane.md)）—— 均 Phase A 验收项。详见 [复审处置](REVIEW-r1-codex.md)。
+
+> **B4 延迟实测（2026-05-31 · 已 de-risk）**：phi-detector v3 inline 用 `RegexOnlyNlpEngine`（故意不装 spaCy 重模型）= §G.2「inline 仅 rule-first」已落代码；实测 `detect_v3` **p50 0.20 / p95 0.22 / p99 0.29ms**（194 字符多 PHI 样本）。全 inline 链（phi 0.22 + desens 0.02 + router <5 + inj-regex）≈ **<6ms**，远低于 35ms 预算 → fork POC 是**确认非发现**（仅余 Go 中间件一跳 + new-api relay 小增量）。
+> **但暴露 cost×覆盖取舍**：regex-only inline **漏检 CN_NAME / MRN / 生物标识**（需 NLP 模型）。**推荐 Option B**：regex inline（快）+ **重 NLP 异步/抽样** + **L3+ 或含姓名/MRN 嫌疑内容默认落敏感通道（保守 fail-closed）**——不为省延迟在 inline 装 NLP（破预算风险）；0-PHI 真正靠**脱敏 + 后端字段白名单**，非 inline regex 全检（呼应 H3）。Option A（inline 装 NLP）留 fork POC 重测后再议。

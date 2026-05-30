@@ -32,7 +32,7 @@
 | **M1** 审计降级伪装空态 | ✅ **CLOSED** | `audit-log/server_v2.query()` 改返 `{degraded,state,rows}` 信封，降级不再伪装空数据。 |
 | **H3 / M4** 0-PHI 守卫口径 | ✅ **CLOSED（收口）** | 「全程 0 PHI」已收窄为「防回显护栏 · 0-PHI 以后端字段白名单为准」；前端**不**加会误报的中文姓名/DOB 正则（会砸合法聚合数据）。 |
 
-> **外部 / Phase-A 依赖（非本仓库可关 · 给死门禁）**：**B4** 延迟 POC 需 fork 实测 · **B5** 需 new-api 精确字段集 + A0 后端建成（读路径设计已改 A0 代理）。（**B6 ✅ 已满足**：new-api 完全授权已获 2026-05-31，fork 解封。）这些**不是设计/代码缺陷**，是外部前置，签字前必过。
+> **外部 / Phase-A 依赖（多数已 de-risk）**：**B4 延迟 ✅ 实测**（phi inline p95 **0.22ms** · 全链 <6ms；fork POC 仅确认）——余项＝inline NLP 覆盖取舍（推荐 **Option B**：regex+异步+L3 默认敏感，见 [02 §10](02-backend-design.md)）· **B5 ✅ 白名单已定 + 契约 v0.7.1 落 admin 代理**（剩 BE-6b 核 fork 字段）· A0 后端建成属 Phase A · **B6 ✅ 已满足**（完全授权 2026-05-31）。签字前：fork POC 确认 B4 + r3 异构复审。
 
 ## 结论与处置（authoritative）
 - **异构复审状态**：r2 两条 FAIL 根因——**运行态可伪造（B1）已代码闭环 + 测试**；**Console 0-PHI 绕口（H1/B5）读路径设计已改（A0 代理），但 A0 后端属 Phase A 未建**。故**维持 WAIVED**（in-repo 安全 findings 已全 CLOSED）：待 A0 后端 + 外部门禁（B4/B5；**B6 已满足**）+ **r3 异构复审**确认运行态闭环才升签字。
