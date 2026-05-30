@@ -3,7 +3,7 @@
 > **单 owner：charliehzm**（前后端的「缝」）。FE 只 `import`，**不改**；BE 照此实现端点。
 > 契约变更走「单 owner 改 + 版本号 bump + 双 lane 通知」。Codex 改到此目录会被 review 打回。
 
-当前版本：`CONTRACT_VERSION = 0.6.1`（见 `version.ts`）。0.6.1 为 additive · 非破坏：加运行时 0 PHI 守卫（finding #1）。
+当前版本：`CONTRACT_VERSION = 0.7.1`（见 `version.ts`）。0.7.x 均为 additive · 非破坏：0.7.0 加 cost/channels 成本端点；0.7.1 加管理面只读代理 `/admin/{users\|tokens\|channels}`（B5 · 字段白名单·禁 email/display_name/明文密钥）。
 
 ## 这是什么
 

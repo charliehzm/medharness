@@ -3,8 +3,9 @@
 > **设计基线**：[系统设计 01/02/03](../../../docs/system-design/) + [ADR-18](../../../docs/architecture/ADR-18-gateway-control-plane.md)（控制面契约）。
 > **分工**：Claude = 拆解 + 异构 code review + 合规 Gate；**Codex-BE** = 后端；**Codex-FE** = 前端。
 > **铁律**：每任务 **≤2 文件**、单文档、依赖序执行；A0 契约（v0.7.x · 单 owner=Claude）是 FE/BE **唯一缝**，任一 Codex **不得私改契约**——需改提给 Claude bump。
-> **已继承（无需重做）**：B1 tier 签名（`mcp/model-router/tier_trust.py` + PolicyCore layer-0）、H2 错误脱敏、M1 审计降级、A0 契约 v0.7.0。
+> **已继承（无需重做）**：B1 tier 签名（`mcp/model-router/tier_trust.py` + PolicyCore layer-0）、H2 错误脱敏、M1 审计降级、A0 契约 v0.7.1。
 > **DoD 通用**：① 该任务测试绿 + 不破坏 367 全量 ② ruff/tsc 过 ③ 触 L3/L4 路径有 0-PHI 验收 ④ 经 Claude 异构 review 关闭。
+> **分支模型**：集成分支 **`feat/phase-a`**（off 设计分支 `docs/gateway-substrate-rfc` @ `bcc1353`，已含 FE-1）；每任务从 `feat/phase-a` 切 `feat/<task>`，PR 回 `feat/phase-a`，经 Claude 异构 review 合入。**勿基于 `main`**（缺设计 + 契约 + B1/H2/M1 修复）。
 
 ---
 
@@ -19,7 +20,7 @@
 
 | # | 任务 | 文件(≤2) | 依赖 | DoD 关键验收 |
 |---|---|---|---|---|
-| **BE-0** | **fork/vendor new-api 入仓** + 基线编译 + 移除转售模块（禁用开关·ADR-18 §5）· *infra 大任务·免 ≤2 文件* | `vendor/new-api/`（fork 子树）· `deploy/docker-compose.prod.yml` | —（**B6 已满足 → 立即开**，∥ BE-1）| fork 起得来；自助注册/支付/订阅/兑换/充值/钱包/社交登录 不可达；SBOM 出；上游 rebase 友好 |
+| **BE-0** | **fork/vendor new-api 入仓**（pin **QuantumNous/new-api** @ tag `v1.0.0-rc.10` · commit `de83ea2f` · git subtree）+ 基线编译 + 移除转售模块（禁用开关·ADR-18 §5）· *infra 大任务·免 ≤2 文件* | `vendor/new-api/`（fork 子树）· `deploy/docker-compose.prod.yml` | —（**B6 已满足 → 立即开**，∥ BE-1）| fork 起得来；自助注册/支付/订阅/兑换/充值/钱包/社交登录 不可达；SBOM 出；上游 rebase 友好 |
 | **BE-1** | ClickHouse + Redis 入 compose + 卷/网/健康 | `deploy/docker-compose.prod.yml` · `deploy/.env.production.example` | — | compose up 起 CH/Redis；audit-log/desensitize 健康连真 CH（非 mock） |
 | **BE-2** | audit-log 接真 ClickHouse（去 mock）+ 哈希链落表 | `mcp/audit-log/clickhouse_writer.py` · `mcp/audit-log/server_v2.py` | BE-1 | 写入 `_audit_log`、daily verify 通过；CH 故障 → FALLBACK 续链；query 返 `{degraded}` |
 | **BE-3** | desensitize 接真 CH `_phi_lookup` + KMS/FileKeyProvider 配置化 | `mcp/desensitize/server_v2.py` · `mcp/desensitize/key_provider/file_provider.py` | BE-1 | 信封落 `_phi_lookup`（仅密文）；反查需授权；轮换 `key_generation` 落表 |

@@ -10,7 +10,7 @@
 1. `openspec/changes/feat-phase-a-gateway/tasks.md` —— 你的任务在「前端轨」，依赖序。
 2. `docs/system-design/03-frontend-design.md`（前端设计：技术栈/IA/逐屏↔端点映射/RBAC）+ `docs/productization/ui-design.md`（设计 token + 界面用语规范）。
 3. **设计基准** `prototype/console-demo.html`（单文件高保真原型——视觉/交互/文案逐条对齐它）。
-4. `web/src/api/contract/`（**已冻结 v0.7.0**：types/endpoints/mock/sanitize/fixtures）—— **只 import，不改**。
+4. `web/src/api/contract/`（**已冻结 v0.7.1**：types/endpoints/mock/sanitize/fixtures，含 cost/channels/admin 代理）—— **只 import，不改**。
 
 ## 不可逾越的红线
 - **0-PHI 双层守卫**：任何 A0 响应（mock 或真实）**必须**先过 `assertNoPhi` 拿到 `Sanitized<T>` 才进 React state（`web/src/api/contract/sanitize.ts` 已就绪）。界面**永远只显**占位符 `__NAME_a1__` / 哈希 `routing#a1b2` / 聚合数；安全事件**不显 payload**；原文反查**不在 Console 内**。
@@ -21,6 +21,7 @@
 - **管理面（接入）读路径**走 **A0 admin 代理**（`/admin/...`），**不**直调 new-api（防绕过守卫）。
 
 ## 工作约定
+- **分支**：从集成分支 `feat/phase-a` 切 `feat/<task>`（FE-1 已合入 `feat/phase-a`）；PR 回 `feat/phase-a`。**勿基于 `main`**（缺契约 + 设计）。
 - **一次一个任务**，按 tasks.md 依赖序；每任务 **≤2 文件**。
 - **不改 A0 契约**——要加端点/字段写进 PR 提给 Claude bump。
 - 默认 **mock 模式**（`resolveMock`），不被后端阻塞；A0 真端点 ready 后由开关切真。
