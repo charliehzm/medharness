@@ -8,8 +8,10 @@ import type {
   ApiError,
   AuditExportResponse,
   AuditLineageResponse,
+  ChannelsResponse,
   ConfigProposeResponse,
   ConfigSnapshot,
+  CostResponse,
   EventsResponse,
   PostureResponse,
   TrafficResponse,
@@ -22,6 +24,8 @@ import traffic from "./fixtures/traffic.json";
 import events from "./fixtures/events.json";
 import audit from "./fixtures/audit.json";
 import upstreams from "./fixtures/upstreams.json";
+import cost from "./fixtures/cost.json";
+import channels from "./fixtures/channels.json";
 import config from "./fixtures/config.json";
 import exportRes from "./fixtures/export.json";
 import propose from "./fixtures/propose.json";
@@ -55,6 +59,9 @@ export function resolveMock(method: string, rawPath: string): MockResult<unknown
   if (m === "GET" && path === "/events") return ok(events as EventsResponse, "GET /events");
   if (m === "GET" && path === "/upstreams")
     return ok(upstreams as UpstreamsResponse, "GET /upstreams");
+  if (m === "GET" && path === "/cost") return ok(cost as CostResponse, "GET /cost");
+  if (m === "GET" && path === "/channels")
+    return ok(channels as ChannelsResponse, "GET /channels");
 
   const auditM = path.match(/^\/audit\/(.+)$/);
   if (m === "GET" && auditM) {

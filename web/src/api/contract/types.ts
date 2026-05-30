@@ -201,6 +201,58 @@ export interface ConfigProposeResponse {
   status: "queued";
 }
 
+// ── 7. GET /cost?window= ─ 用量与成本（v0.7.0 · 全聚合·天然 0 PHI） ─
+export interface CostKpi {
+  month_cost: string;
+  saved_vs_direct: string;
+  saved_ratio: string;
+  cache_hit_ratio: string;
+  cache_saved: string;
+  cap_day: string;
+  cap_used: string;
+  cap_left_ratio: string;
+  normal_lane_ratio: string;
+}
+/** 成本构成单元（按通道 / 按模型）；color_token 为设计 token 名，非颜色值 */
+export interface CostByDim {
+  name: string;
+  color_token: string;
+  pct: number;
+  amount: string;
+}
+export interface CostTip {
+  tip: string;
+  saving: string;
+}
+export interface CostQuery {
+  window?: "1h" | "24h" | "7d" | "month";
+}
+export interface CostResponse {
+  window: "1h" | "24h" | "7d" | "month";
+  kpi: CostKpi;
+  by_lane: CostByDim[];
+  by_model: CostByDim[];
+  /** 近 N 日成本趋势（聚合数） */
+  trend: number[];
+  tips: CostTip[];
+}
+
+// ── 8. GET /channels ─ 渠道比价择优（v0.7.0 · 聚合·无 PHI） ────────
+export interface Channel {
+  name: string;
+  model: string;
+  weight: number;
+  unit_price: string;
+  p95_ms: number;
+  region: string;
+  /** 当前择优命中（最优渠道） */
+  picked: boolean;
+  status: EventStatus;
+}
+export interface ChannelsResponse {
+  channels: Channel[];
+}
+
 /** 端点 key → 响应类型映射（供 api-client 泛型推导） */
 export interface ResponseByEndpoint {
   posture: PostureResponse;
@@ -208,6 +260,8 @@ export interface ResponseByEndpoint {
   events: EventsResponse;
   audit: AuditLineageResponse;
   upstreams: UpstreamsResponse;
+  cost: CostResponse;
+  channels: ChannelsResponse;
   config: ConfigSnapshot;
   auditExport: AuditExportResponse;
   configPropose: ConfigProposeResponse;

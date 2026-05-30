@@ -1,0 +1,30 @@
+{
+  "window": "month",
+  "kpi": {
+    "month_cost": "¥3,240",
+    "saved_vs_direct": "¥2,240",
+    "saved_ratio": "41%",
+    "cache_hit_ratio": "28%",
+    "cache_saved": "¥420",
+    "cap_day": "¥200",
+    "cap_used": "¥124",
+    "cap_left_ratio": "62%",
+    "normal_lane_ratio": "73%"
+  },
+  "by_lane": [
+    { "name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 36, "amount": "¥1,180" },
+    { "name": "敏感通道（私有）", "color_token": "lane-sensitive", "pct": 64, "amount": "¥2,060" }
+  ],
+  "by_model": [
+    { "name": "qwen-max-2026", "color_token": "compliance", "pct": 43, "amount": "¥1,400" },
+    { "name": "claude-sonnet", "color_token": "primary", "pct": 28, "amount": "¥900" },
+    { "name": "deepseek-v4-pro", "color_token": "ok", "pct": 17, "amount": "¥540" },
+    { "name": "qwen-vl-2026", "color_token": "cost", "pct": 12, "amount": "¥400" }
+  ],
+  "trend": [58, 62, 55, 70, 64, 61, 52],
+  "tips": [
+    { "tip": "开发期简单补全占 38%，建议默认走 deepseek（更省的小模型）", "saving": "省 ¥18/天" },
+    { "tip": "常规通道缓存命中 28%，规范 prompt 可提到 ~40%", "saving": "省 ¥260/月" },
+    { "tip": "claude-sonnet 28% 调用可降级到 qwen-max（境内）", "saving": "省 ¥420/月" }
+  ]
+}
