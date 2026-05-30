@@ -32,10 +32,10 @@
 | **M1** 审计降级伪装空态 | ✅ **CLOSED** | `audit-log/server_v2.query()` 改返 `{degraded,state,rows}` 信封，降级不再伪装空数据。 |
 | **H3 / M4** 0-PHI 守卫口径 | ✅ **CLOSED（收口）** | 「全程 0 PHI」已收窄为「防回显护栏 · 0-PHI 以后端字段白名单为准」；前端**不**加会误报的中文姓名/DOB 正则（会砸合法聚合数据）。 |
 
-> **外部 / Phase-A 依赖（非本仓库可关 · 给死门禁）**：**B4** 延迟 POC 需 fork 实测 · **B6** 需法务签 new-api 商业授权 · **B5** 需 new-api 精确字段集 + A0 后端建成（读路径设计已改 A0 代理）。这些**不是设计/代码缺陷**，是外部前置，签字前必过。
+> **外部 / Phase-A 依赖（非本仓库可关 · 给死门禁）**：**B4** 延迟 POC 需 fork 实测 · **B5** 需 new-api 精确字段集 + A0 后端建成（读路径设计已改 A0 代理）。（**B6 ✅ 已满足**：new-api 完全授权已获 2026-05-31，fork 解封。）这些**不是设计/代码缺陷**，是外部前置，签字前必过。
 
 ## 结论与处置（authoritative）
-- **异构复审状态**：r2 两条 FAIL 根因——**运行态可伪造（B1）已代码闭环 + 测试**；**Console 0-PHI 绕口（H1/B5）读路径设计已改（A0 代理），但 A0 后端属 Phase A 未建**。故**维持 WAIVED**（in-repo 安全 findings 已全 CLOSED）：待 A0 后端 + 外部门禁（B4/B6/B5）+ **r3 异构复审**确认运行态闭环才升签字。
+- **异构复审状态**：r2 两条 FAIL 根因——**运行态可伪造（B1）已代码闭环 + 测试**；**Console 0-PHI 绕口（H1/B5）读路径设计已改（A0 代理），但 A0 后端属 Phase A 未建**。故**维持 WAIVED**（in-repo 安全 findings 已全 CLOSED）：待 A0 后端 + 外部门禁（B4/B5；**B6 已满足**）+ **r3 异构复审**确认运行态闭环才升签字。
 - **B1/B2/B3 → Phase A 代码阻断**：ADR-18 §2/§3 是目标 schema；**v0.5 代码必须改**——model-router **只接受中间件签发的签名 RouteDecision**，拒收任何客户端自报 `data_level/desensitized/lane/map_id/caller_vendor_family`。enforcement 依赖签名机制（须先有中间件）。
 - **可现在修（不依赖中间件）**：H2（error sanitize）、H3（收 0-PHI 口径）、M2（RFC 收口）。
 - **Phase A 准入升级**（取代 r1 的乐观判断）：

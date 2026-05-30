@@ -2,7 +2,7 @@
 
 > **职责**：把产品设计（PRD / 产品形态 / UI / 高保真原型）落成**可实施的系统设计**——架构、后端、前端三份。
 > **状态**：**定稿 v1（实现基线）** · 内容锁定，供 Step 2 任务拆解 + Codex 前/后端开发。
-> **异构合规闸门 = WAIVED**（[r1](REVIEW-r1-codex.md) 设计级 + [r2](REVIEW-r2-codecheck.md) 代码级）：**B1/H2/M1/H3 已代码闭环 + 测试**（2026-05-31 · in-repo findings 全 CLOSED）；剩 B4(fork 延迟实测)/B6(法务授权)/B5(new-api 字段 + A0 后端) 外部门禁 + **r3 异构复审**确认运行态闭环，才可 WAIVED→签字。双委员会会签 pending。
+> **异构合规闸门 = WAIVED**（[r1](REVIEW-r1-codex.md) 设计级 + [r2](REVIEW-r2-codecheck.md) 代码级）：**B1/H2/M1/H3 已代码闭环 + 测试**（2026-05-31 · in-repo findings 全 CLOSED）；剩 B4(fork 延迟实测)/B5(new-api 字段 + A0 后端) 外部门禁（**B6 ✅ 已满足**：new-api 完全授权已获 2026-05-31）+ **r3 异构复审**确认运行态闭环，才可 WAIVED→签字。双委员会会签 pending。
 > **维护**：技术委员会 + 合规委员会会签。
 
 ---

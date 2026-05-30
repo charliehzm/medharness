@@ -9,9 +9,9 @@
 ---
 
 ## 0. 外部门禁（开工前 / 交付前必须，非 Codex 可解）
-- **B6** new-api 商业授权签署 + SBOM（**BE-7 fork 前阻塞**）。
+- **B6** ✅ **已满足**：new-api **完全授权已获**（2026-05-31）——fork / 入仓 / 对外交付**不再受阻**，关键路径解压；仅留 SBOM 记账（BE-0 顺手）。
 - **B4** fork 上 pre-call 延迟 POC（p50/p95/p99）——**BE-7 后立即跑**，未达标收紧 lane 或降级 SLO 文案。
-- **B5** 核 new-api 用户/令牌/渠道 **精确字段集**（定 admin 代理白名单粒度）——**BE-5 前**由 Claude+BE 核。
+- **B5** 核 new-api 用户/令牌/渠道 **精确字段集**（定 admin 代理白名单粒度）——**BE-6b 前**由 Claude+BE 核。
 
 ---
 
@@ -19,6 +19,7 @@
 
 | # | 任务 | 文件(≤2) | 依赖 | DoD 关键验收 |
 |---|---|---|---|---|
+| **BE-0** | **fork/vendor new-api 入仓** + 基线编译 + 移除转售模块（禁用开关·ADR-18 §5）· *infra 大任务·免 ≤2 文件* | `vendor/new-api/`（fork 子树）· `deploy/docker-compose.prod.yml` | —（**B6 已满足 → 立即开**，∥ BE-1）| fork 起得来；自助注册/支付/订阅/兑换/充值/钱包/社交登录 不可达；SBOM 出；上游 rebase 友好 |
 | **BE-1** | ClickHouse + Redis 入 compose + 卷/网/健康 | `deploy/docker-compose.prod.yml` · `deploy/.env.production.example` | — | compose up 起 CH/Redis；audit-log/desensitize 健康连真 CH（非 mock） |
 | **BE-2** | audit-log 接真 ClickHouse（去 mock）+ 哈希链落表 | `mcp/audit-log/clickhouse_writer.py` · `mcp/audit-log/server_v2.py` | BE-1 | 写入 `_audit_log`、daily verify 通过；CH 故障 → FALLBACK 续链；query 返 `{degraded}` |
 | **BE-3** | desensitize 接真 CH `_phi_lookup` + KMS/FileKeyProvider 配置化 | `mcp/desensitize/server_v2.py` · `mcp/desensitize/key_provider/file_provider.py` | BE-1 | 信封落 `_phi_lookup`（仅密文）；反查需授权；轮换 `key_generation` 落表 |
@@ -26,7 +27,7 @@
 | **BE-5** | A0 后端骨架（FastAPI）+ `/posture` `/traffic` `/events` | `mcp/a0-api/app.py` · `mcp/a0-api/serializers.py` | BE-2,BE-4 | 读 CH/router 聚合；**字段白名单序列化**；安全事件 `payload:null`；过 `assertNoPhi` 等价 |
 | **BE-6** | A0 `/audit/{ref}` `/upstreams` `/config` `/cost` `/channels` + `/audit/export` `/config/propose` | `mcp/a0-api/routes_*.py`（拆 2 子任务）| BE-5 | 血缘/哈希链；propose 只产 approval_id 不改配置；cost/channels 聚合 0-PHI |
 | **BE-6b** | **B5 admin 只读代理** `/admin/{users\|tokens\|channels}` + 字段白名单 | `mcp/a0-api/routes_admin.py` · `web/src/api/contract/*`(Claude bump v0.7.1) | BE-5 · B5 核字段 | 只回 id 哈希/角色/配额/等级/区域，**禁 email/phone/display_name/备注**；红队 `admin-phi-exfil` 0 命中 |
-| **BE-7** | **new-api fork + 内置 Go 合规中间件**焊 §D.1 + tier_sig 签发 | new-api fork `relay/middleware_compliance.go`(+1) | **B6** · BE-4 | 全 `/v1/*` 必经中间件；pre①②③④→base→post⑥；中间件签 tier（model-router 已验签 B1）；非流式 |
+| **BE-7** | **内置 Go 合规中间件**焊 §D.1 + tier_sig 签发（fork 已在 BE-0 入仓）| new-api fork `relay/middleware_compliance.go`(+1) | **BE-0 · BE-4** | 全 `/v1/*` 必经中间件；pre①②③④→base→post⑥；中间件签 tier（model-router 已验签 B1）；非流式 |
 | **BE-8** | 底座禁用清单 + 杀裸 `/api/route` + egress allowlist（ADR-18 §5）| `deploy/nginx/medharness.conf` · new-api fork config | BE-7 | 对外仅 fork `/v1/*` + A0 `/api/v1/*`；裸 MCP 内网封死；**集成测试「deny→provider 0 连接」** |
 | **BE-9** | 出站 B1 最小集成（phi_scan 注入 outbound-safety）焊入 ⑥ | `mcp/outbound-safety/classifier.py` · 中间件 hook | BE-7 | post-call 扫 PHI 回流；PHI-lane 缓冲后放；H7 |
 
@@ -55,7 +56,7 @@
 ---
 
 ## 并行与里程碑
-- **可立即并行**：FE-1..FE-5（mock）与 BE-1..BE-6 互不阻塞（缝=A0 契约）。
-- **BE 关键路径**：BE-1→2/3→4→5/6→（B6）→7→8→9。
+- **可立即并行**：FE-1..FE-5（mock）+ **BE-0（fork 入仓 · B6 已满足）** + BE-1..BE-6 互不阻塞（缝=A0 契约）。
+- **BE 关键路径**：BE-0/1→2/3→4→5/6→7→8→9（B6 已解，中间件焊接不再等授权）。
 - **会合点**：A0 真端点 ready → FE 切真 + Claude 跑 0-PHI 回归。
-- **Phase A 出口**：BE-8 集成测试「deny→0 连接」绿 + B4 延迟达标 + B6 授权 + **r3 异构复审** → 异构闸门 WAIVED→签字。
+- **Phase A 出口**：BE-8 集成测试「deny→0 连接」绿 + **B4 延迟达标** + **r3 异构复审** → 异构闸门 WAIVED→签字。（B6 已满足。）

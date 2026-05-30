@@ -24,7 +24,7 @@
 - **一次一个任务**，按 tasks.md 依赖序；每任务 **≤2 文件**；改完更新该任务行的勾选。
 - **不改 A0 契约**（`web/src/api/contract/`）——要加端点/字段，写进 PR 描述提给 Claude bump（如 BE-6b 的 admin 端点）。
 - 每任务**带测试**（pytest），不破坏 367 全量；`ruff check` + `ruff format` 过；触 L3/L4 路径加 0-PHI 断言或红队 drill。
-- **外部门禁**：BE-7（fork）前确认 **B6 商业授权已签**；BE-7 后跑 **B4 延迟 POC**；BE-6b 前与 Claude 核 **B5 new-api 字段集**。
+- **外部门禁**：**B6 已满足**（new-api 完全授权已获 2026-05-31）——**BE-0 fork 入仓立即可开**；BE-7 后跑 **B4 延迟 POC**；BE-6b 前与 Claude 核 **B5 new-api 字段集**。
 - 交付：每任务一个 diff + 测试结果，等 Claude review 关闭再下一个。
 
 ## 每个 PR 自检（交给 Claude 前）

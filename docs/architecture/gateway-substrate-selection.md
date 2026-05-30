@@ -9,7 +9,7 @@
 > ### 🟢 r4 裁决（2026-05-30 · maintainer charliehzm · 产品决策覆盖）
 > **底座锁定 `new-api` 深度 fork。** AGPL §13 / 分发义务由**商业授权兜底**——向 new-api 取得商业许可，解除 network-copyleft 与分发义务，从而解 R5「永久 Apache 2.0」冲突。
 > **覆盖范围**：本裁决**取代**下文 §A 选型表、§E（结论/建议）、§G.0 #1、§G.3、§H 中所有「硬排除 new-api · 底座定 one-api」的结论；保留那些分析仅作**推理血缘**，最终结论以本 r4 为准。
-> **执行项**：① 商业授权落地（合同 + 版本钉死）；② fork 维护纪律（移除项用禁用开关 + 路由隐藏，降 rebase 冲突，见 §G）；③ 仍待技委 + 合规委会签 ADR-18/19。
+> **执行项**：① ✅ **商业授权已获（2026-05-31 · 完全授权）**——解 AGPL；② fork 维护纪律（移除项用禁用开关 + 路由隐藏，降 rebase 冲突，见 §G）；③ 仍待技委 + 合规委会签 ADR-18/19。
 
 > ### 🟢 r5 裁决（2026-05-30 · maintainer charliehzm · 产品决策覆盖）
 > **收敛为单 SKU。** 目标客户锁定 **≤30 人小厂** → **不做 Slim / Full 双档**。单一产品 = **全栈安全形态**：new-api fork + phi-detector + desensitize + model-router（分级/异构）+ 注入隔离（B3）+ 出站安全（B1）+ **ClickHouse WORM 审计** + 合规受控低成本池 + OpenAI 门面，**单主机 docker-compose** 部署。
@@ -183,7 +183,7 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 
 ### §G.1 仍待技委/合规委会签
 
-- 底座 license 复核：**r4 后转为 new-api 商业授权落地复核**（取得商业许可解 AGPL §13 + 分发义务）；~~`one-api` MIT 核内确认~~。`LiteLLM` 仅备选时评 OSS 核 + 钉版本避 EE。
+- 底座 license 复核：**✅ new-api 完全授权已获（2026-05-31）**——解 AGPL §13 + 分发义务；~~`one-api` MIT 核内确认~~。`LiteLLM` 仅备选时评 OSS 核 + 钉版本避 EE。
 - 拟新增 **ADR-18（OSS 底座 + 控制面 hook 化）** + **ADR-19（数据分级条件路由 · 含流式出站扫描取舍）**（r5：去「双档 SKU」；编号顺延，落 design.md 确认）。
 - 重设计后的排期与 change 包结构（替代原 v0.6 change，走 12 步 SOP）。
 

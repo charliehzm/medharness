@@ -178,13 +178,13 @@
 > **Phase A 准入门禁**（Codex 异构复审 r1 阻断项 · 全绿才进编码 · [处置记录](REVIEW-r1-codex.md)）：
 > 1. **B1 杀脊柱旁路**：对外只暴露 fork `/v1/*`，撤掉/内网封死裸 `/api/route`；所有 relay 子路由必经中间件（集成测试「deny → provider 0 连接」）。
 > 2. **B4 延迟 POC**：fork 上实测 pre-call p50/p95/p99；未达 §G.2 预算则收紧为「PHI-lane 缓冲 + clean-lane rule-only」或降级 SLO 文案——**未证明前不对外宣称 p95≤80ms**。
-> 3. **B6 授权门禁**：new-api 商业许可已签 + SBOM 含 AGPL 义务说明，否则不得对外交付镜像。
+> 3. **B6 ✅ 已满足**：new-api **完全授权已获**（2026-05-31）——fork / 对外交付不再受阻；仅留 SBOM 记账。
 > 4. **H4 仅非流式**：Phase A 不上流式 SSE（半句 PHI 风险）；流式 → Phase B + ADR-19。
 > 5. **H7 出站**：Phase A 至少最小 B1（phi_scan 注入）焊入 ⑥，否则四目标表降级「入站-only Phase A」。
 > 6. **ADR-18 会签**：RouteDecision 签名 schema + 底座禁用清单冻结（[ADR-18](../architecture/ADR-18-gateway-control-plane.md)）。
 > 7. **B1/H2/M1 代码 enforcement（r2）✅ 已闭环（2026-05-31）**：model-router tier HMAC 签名 + PolicyCore layer-0 fail-closed（拒客户端自报分级）、错误体 sanitize、审计降级显式化——回归测试 + 367 全量 + api-phi-exfil drill 绿（见 [REVIEW-r2 本轮整改](REVIEW-r2-codecheck.md)）。
 >
-> **异构复审状态 = 维持 WAIVED**：in-repo 安全 findings 已全 **CLOSED**（B1/H2/M1/H3）；剩 **B4**(需 fork 实测)/**B6**(需法务授权)/**B5**(需 new-api 字段 + A0 后端) 外部门禁 + **r3 复审**确认运行态闭环，才升正式签字。
+> **异构复审状态 = 维持 WAIVED**：in-repo 安全 findings 已全 **CLOSED**（B1/H2/M1/H3）；剩 **B4**(需 fork 实测)/**B5**(需 new-api 字段 + A0 后端) 外部门禁（**B6 已满足**）+ **r3 复审**确认运行态闭环，才升正式签字。
 
 ---
 

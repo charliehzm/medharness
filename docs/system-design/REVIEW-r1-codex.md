@@ -17,7 +17,7 @@
 | **B3** | 信任客户端自报 `data_level`/`desensitized`：可 L4 标 L1 + desensitized:true 走常规/境外 | ✅ 分级/lane/map_id **仅由 Go 中间件在 ①② 后写入签名 RouteDecision**（HMAC/内部 JWT）；PolicyCore **拒收**客户端自报分级 | [ADR-18](../architecture/ADR-18-gateway-control-plane.md) §3 · [02 §4](02-backend-design.md) |
 | **B4** | §G.2 延迟预算未与实现闭环：串行 Presidio+脱敏+路由+注入 的 p95≤35ms 未证明；控制面无统一 HTTP 契约 | ✅ Phase A **前置 mandatory POC**：fork 上实测 p50/p95/p99；未达标收紧为「PHI-lane 缓冲 + clean-lane rule-only」或降级 SLO 文案。承诺软化 | [01 §9](01-architecture.md) · [02 §10](02-backend-design.md) POC 门禁 |
 | **B5** | 管理面绕开 0-PHI 双层守卫：接入屏直调 new-api users/tokens/channels，不经 A0、assertNoPhi 不覆盖 | ✅ 管理**读**经 **A0 代理 + 字段白名单**（只回 user_id 哈希/角色/配额），或 FE 对 new-api 响应跑同口径 assertNoPhi + 禁 email/phone；写仍走审批 | [03 §10](03-frontend-design.md) · [02 §6](02-backend-design.md) A0 加管理只读代理 |
-| **B6** | new-api AGPL 依赖「商业授权兜底」未落地；授权签署前 fork 分发阻断社区 Apache 发行 | ✅ Phase A **门禁** = 商业许可已签 + SBOM 含 new-api 义务说明；否则不得对外交付 compose 镜像 | [01 §9/§10](01-architecture.md) |
+| **B6** | new-api AGPL 依赖「商业授权兜底」未落地 | ✅ **已满足（2026-05-31）**：new-api **完全授权已获** → fork / 对外交付不再受阻；仅留 SBOM 记账 | [01 §9](01-architecture.md) |
 
 ## 高（High）
 
@@ -64,4 +64,4 @@
 - 🔴×6 + 🟠×7 → 已落 [ADR-18](../architecture/ADR-18-gateway-control-plane.md) + 01/02/03 修订（见各落点）。
 - 📌 backlog（M3/M4/M7/L4）→ 进 Phase A change 的 tasks.md，指派 owner。
 - 本记录 + Codex 原始 finding 归档进 AUDIT_BUNDLE（audit-snapshot Skill）。
-- **Phase A 准入** = 本表全部 🔴 已 resolved + ADR-18 技委/合规委会签 + B4 POC 达标 + B6 授权签署。
+- **Phase A 准入** = 本表全部 🔴 已 resolved + ADR-18 技委/合规委会签 + B4 POC 达标（B6 授权已获）。
