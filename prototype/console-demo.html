@@ -3,1119 +3,493 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MedHarness Console · 合规 + 安全网关控制台（demo）</title>
+<title>MedHarness Console · 医疗大模型流量网关（demo）</title>
 <!--
   MedHarness Console · 可点击 HTML 原型（单文件 · 零依赖 · 离线可用）
-  用途：销售现场 / 投资人 demo / 客户 POC 预演
-  安全：全部为合成 mock 数据 · 绝无真实 PHI · 全界面只显示占位符 + 哈希 + 聚合数
-  配套设计：docs/productization/console-product-design.md
+  四目标：安全 · 划算 · 审计 · 稳定 ｜ 2 角色：研发负责人 / 系统管理员
+  安全：全部合成 mock · 无真实 PHI · 全界面只显示占位符 + 哈希 + 聚合数
+  配套设计：docs/productization/console-product-design.md · ui-design.md · product-requirements.md
 -->
 <style>
-  :root{
-    --navy:#0B1F3A; --navy-2:#13294d; --teal:#0FB5A6; --teal-d:#0a8c81;
-    --violet:#7C3AED; --violet-d:#6d28d9; --violet-bg:#F5F3FF; --violet-code:#EDE9FE;
-    --bg:#F4F6FA; --card:#ffffff; --line:#E2E8F0; --ink:#1E293B; --muted:#64748B;
-    --green:#22C55E; --green-bg:#ECFDF5; --yellow:#F59E0B; --yellow-bg:#FFFBEB;
-    --red:#EF4444; --red-bg:#FEF2F2; --code-bg:#E6FBF8;
-    --shadow:0 1px 3px rgba(15,31,58,.08),0 4px 16px rgba(15,31,58,.06);
-  }
-  /* 🚧 v0.6 未建能力统一标记 */
-  .wip{display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:#92400E;
-    background:#FEF3C7;border:1px solid #fde68a;padding:1px 7px;border-radius:6px;letter-spacing:.2px;line-height:1.6}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
-    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
-  code,.mono{font-family:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace}
-
-  /* layout */
-  .app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
-  .side{background:var(--navy);color:#cdd9ec;padding:0;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
-  .brand{padding:20px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
-  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--teal),#22d3c5);
-    display:grid;place-items:center;font-weight:800;color:var(--navy);font-size:16px}
-  .brand b{color:#fff;font-size:15px;letter-spacing:.3px}
-  .brand small{display:block;color:#7e93b8;font-size:11px;font-weight:400}
-  nav{padding:12px 10px;flex:1}
-  .nav-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;cursor:pointer;
-    color:#aebfda;font-size:13.5px;margin-bottom:3px;transition:.15s;user-select:none}
-  .nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
-  .nav-item.active{background:var(--teal);color:#fff;font-weight:600;box-shadow:0 4px 12px rgba(15,181,166,.35)}
-  .nav-item .ico{font-size:16px;width:20px;text-align:center}
-  .nav-item.disabled{opacity:.4;cursor:not-allowed}
-  .nav-item.disabled:hover{background:none;color:#aebfda}
-  .side-foot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#6b80a8}
-
-  /* topbar */
-  .main{display:flex;flex-direction:column;min-width:0}
-  .topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
-    justify-content:space-between;padding:0 26px;position:sticky;top:0;z-index:20}
-  .topbar h1{font-size:17px;font-weight:700}
-  .topbar h1 small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
-  .top-right{display:flex;align-items:center;gap:14px}
-  .phi-badge{display:flex;align-items:center;gap:7px;background:var(--green-bg);color:#15803D;
-    border:1px solid #bbf7d0;padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600}
-  .phi-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px #bbf7d0}
-  .role-select{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px}
-  .role-select button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;
-    font-size:12.5px;color:var(--muted);font-weight:600}
-  .role-select button.on{background:#fff;color:var(--navy);box-shadow:var(--shadow)}
-
-  .content{padding:26px;overflow:auto}
-  .view{display:none;animation:fade .35s ease}
-  .view.show{display:block}
-  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-  /* cards */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
-  .grid{display:grid;gap:18px}
-  .section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:6px 2px 12px}
-
-  /* health score */
-  .hero{display:grid;grid-template-columns:300px 1fr;gap:22px;margin-bottom:18px}
-  .score-card{padding:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-  .ring-wrap{position:relative;width:184px;height:184px}
-  .ring-wrap svg{transform:rotate(-90deg)}
-  .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .ring-center .big{font-size:58px;font-weight:800;line-height:1;color:var(--navy)}
-  .ring-center .den{font-size:14px;color:var(--muted)}
-  .badge-status{margin-top:14px;display:inline-flex;align-items:center;gap:7px;background:var(--green-bg);
-    color:#15803D;padding:7px 16px;border-radius:20px;font-weight:700;font-size:14px}
-  .score-meta{margin-top:12px;color:var(--muted);font-size:12.5px}
-  .score-meta b{color:var(--green)}
-
-  .gates{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;align-content:start}
-  .gate{padding:18px;display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
-  .gate .tag{font-size:11px;color:var(--muted);font-weight:600}
-  .gate .name{font-size:15px;font-weight:700}
-  .gate .metric{font-size:26px;font-weight:800;color:var(--navy)}
-  .gate .desc{font-size:12px;color:var(--muted)}
-  .gate .pill{position:absolute;top:16px;right:16px;width:11px;height:11px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px var(--green-bg)}
-
-  /* 综合分下钻：合规分 + 安全分 */
-  .subscores{margin-top:16px;width:100%;display:flex;flex-direction:column;gap:10px}
-  .ss{display:flex;align-items:center;gap:10px;font-size:12.5px}
-  .ss .ss-l{width:60px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:5px}
-  .ss .ss-bar{flex:1;height:8px;border-radius:5px;background:#EDF1F7;overflow:hidden}
-  .ss .ss-bar i{display:block;height:100%;border-radius:5px}
-  .ss b{font-variant-numeric:tabular-nums;width:26px;text-align:right;font-weight:800;color:var(--navy)}
-  .dot-c{width:8px;height:8px;border-radius:50%;background:var(--teal)}
-  .dot-s{width:8px;height:8px;border-radius:50%;background:var(--violet)}
-
-  /* 闸门两组（合规闸门 / 安全防线） */
-  .gates-wrap{display:flex;flex-direction:column;gap:14px;align-content:start}
-  .ggroup-h{font-size:12px;font-weight:800;margin:0 2px 9px;display:flex;align-items:center;gap:7px}
-  .ggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .gate2{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);
-    padding:14px;position:relative;display:flex;flex-direction:column;gap:3px}
-  .gate2 .tag{font-size:10.5px;color:var(--muted);font-weight:700}
-  .gate2 .name{font-size:13px;font-weight:700}
-  .gate2 .metric{font-size:21px;font-weight:800;color:var(--navy);margin-top:4px}
-  .gate2 .desc{font-size:11px;color:var(--muted)}
-  .gate2 .pill{position:absolute;top:13px;right:13px;width:9px;height:9px;border-radius:50%}
-  .gate2 .pill.g{background:var(--green);box-shadow:0 0 0 3px var(--green-bg)}
-  .gate2 .pill.y{background:var(--yellow);box-shadow:0 0 0 3px var(--yellow-bg)}
-  .gate2.wip-card{border-style:dashed;border-color:#cbb9f5;background:#FbFaFF}
-  .gate2.wip-card .metric{font-size:14px;color:var(--violet-d)}
-
-  /* alerts */
-  .alerts{margin-top:6px}
-  .alert{display:flex;align-items:center;gap:13px;padding:15px 18px;border-radius:12px;margin-bottom:10px;border:1px solid}
-  .alert.warn{background:var(--yellow-bg);border-color:#fde68a}
-  .alert.ok{background:var(--green-bg);border-color:#bbf7d0}
-  .alert .ai{font-size:20px}
-  .alert .txt{flex:1}
-  .alert .txt b{display:block;font-size:13.5px}
-  .alert .txt span{font-size:12.5px;color:var(--muted)}
-  .fix-btn{background:#fff;border:1px solid var(--line);padding:7px 14px;border-radius:8px;cursor:pointer;
-    font-size:12.5px;font-weight:600;color:var(--navy);white-space:nowrap}
-  .fix-btn:hover{border-color:var(--teal);color:var(--teal-d)}
-
-  /* traffic / sankey */
-  .traffic-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-  .filter{display:flex;gap:4px;background:var(--card);border:1px solid var(--line);padding:4px;border-radius:10px}
-  .filter button{border:0;background:none;padding:7px 16px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted);font-weight:600}
-  .filter button.on{background:var(--navy);color:#fff}
-  .live{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12.5px;font-weight:600}
-  .live .dot{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.5)}70%{box-shadow:0 0 0 7px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
-
-  .sankey-card{padding:18px 18px 8px}
-  .sankey-cols{display:flex;justify-content:space-between;padding:0 8px 8px;font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.5px}
-  .flow-path{fill:none;stroke-linecap:round}
-  .flow-anim{stroke-dasharray:7 13;animation:flow 1s linear infinite}
-  @keyframes flow{to{stroke-dashoffset:-40}}
-  .node-rect{rx:9}
-  .node-label{font-size:12px;font-weight:700;fill:#fff}
-  .node-sub{font-size:10.5px;fill:#cdd9ec}
-  .gate-box{fill:#fff;stroke:var(--teal);stroke-width:2;rx:11}
-  .gate-t{font-size:12.5px;font-weight:800;fill:var(--navy)}
-  .gate-s{font-size:10.5px;fill:var(--muted)}
-  .blocked-t{font-size:11px;font-weight:700;fill:var(--red)}
-  /* 出站方向（安全 · 紫罗兰 · 规划中） */
-  .band-h{display:flex;align-items:center;gap:9px;padding:2px 6px 12px;font-size:12.5px;font-weight:800}
-  .band-h .ln{flex:1;height:1px;background:var(--line)}
-  .sankey-card.outbound{border:1.5px dashed #cbb9f5;background:linear-gradient(180deg,#FbFaFF, #fff)}
-  .gate-box.sec{stroke:var(--violet);stroke-dasharray:5 5}
-  .gate-t.sec{fill:var(--violet-d)}
-  .flow-wip{opacity:.4!important}
-
-  /* event stream */
-  .stream{padding:8px}
-  .stream-row{display:grid;grid-template-columns:18px 86px 110px 1fr 120px;gap:10px;align-items:center;
-    padding:11px 14px;border-bottom:1px solid #f1f5f9;font-size:13px;animation:slideIn .4s ease}
-  @keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
-  .stream-row .t{color:var(--muted);font-size:12px}
-  .stream-row .up{font-weight:700}
-  .stream-row .act{color:var(--ink)}
-  .stream-row .ref{color:var(--muted);text-align:right;font-size:12px}
-  .stream-row{border-left:3px solid transparent}
-  .stream-row.comp{border-left-color:var(--teal)}
-  .stream-row.sec{border-left-color:var(--violet)}
-  .stream-row.blocked{background:var(--red-bg);animation:slideIn .4s ease,shake .5s ease .1s}
-  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-  .st{width:9px;height:9px;border-radius:50%}
-  .st.g{background:var(--green)} .st.y{background:var(--yellow)} .st.r{background:var(--red)}
-  .tag-l{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px}
-  .tag-l.l2{background:#E0F2FE;color:#0369A1} .tag-l.l3{background:#FEF3C7;color:#92400E} .tag-l.l4{background:#FEE2E2;color:#991B1B}
-  /* 双色分类标（合规青绿 / 安全紫罗兰） */
-  .cat{font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;white-space:nowrap;margin-right:5px}
-  .cat.comp{background:var(--code-bg);color:var(--teal-d)}
-  .cat.sec{background:var(--violet-code);color:var(--violet-d)}
-  .legend{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);font-weight:600}
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-  .cat-filter button.on{background:var(--violet);color:#fff}
-
-  /* audit lineage */
-  .lineage{display:flex;align-items:stretch;gap:0;padding:24px 18px;overflow-x:auto}
-  .ln-node{min-width:150px;flex:1;text-align:center;position:relative;padding:0 6px}
-  .ln-node .circle{width:46px;height:46px;border-radius:50%;margin:0 auto 10px;display:grid;place-items:center;
-    font-size:20px;background:var(--teal);color:#fff;box-shadow:0 4px 12px rgba(15,181,166,.3)}
-  .ln-node .circle.sec{background:var(--violet);box-shadow:0 4px 12px rgba(124,58,237,.3)}
-  .ln-node .circle.wip{background:#fff;border:2px dashed var(--violet);color:var(--violet)}
-  .ln-node .ln-t{font-weight:700;font-size:13px}
-  .ln-node .ln-s{font-size:11.5px;color:var(--muted);margin-top:3px}
-  .ln-node:not(:last-child)::after{content:"→";position:absolute;right:-6px;top:14px;color:var(--teal);font-size:20px;font-weight:700}
-  .ln-node.sec:not(:last-child)::after{color:var(--violet)}
-  .hashbar{margin:6px 18px 18px;padding:12px 16px;background:var(--green-bg);border:1px solid #bbf7d0;border-radius:10px;
-    display:flex;align-items:center;gap:10px;font-size:13px;color:#15803D;font-weight:600}
-  .detail-list{padding:6px 18px 18px}
-  .detail-list .dl{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #f1f5f9;font-size:13px}
-  .detail-list .dl .k{width:120px;color:var(--muted);font-weight:600}
-  .detail-list .dl .v{flex:1}
-  .ph{background:var(--code-bg);color:var(--teal-d);padding:1px 7px;border-radius:5px;font-weight:600}
-
-  /* config */
-  .cfg{display:grid;grid-template-columns:200px 1fr;gap:18px}
-  .cfg-nav .cfg-item{display:flex;align-items:center;padding:10px 14px;border-radius:9px;cursor:pointer;font-size:13.5px;color:var(--muted);font-weight:600;margin-bottom:2px}
-  .cfg-nav .cfg-item:hover{background:var(--bg)}
-  .cfg-nav .cfg-item.active{background:var(--navy);color:#fff}
-  .cfg-nav .cfg-item .wip{margin-left:auto}
-  .cfg-cat{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:12px 14px 6px}
-  .cfg-cat:first-child{padding-top:6px}
-  .cfg-cat.comp{color:var(--teal-d)} .cfg-cat.sec{color:var(--violet-d)} .cfg-cat.gov{color:var(--muted)}
-  .cfg-sec-divider{display:flex;align-items:center;gap:9px;margin:6px 0 14px;font-size:12.5px;font-weight:800}
-  .cfg-sec-divider.comp{color:var(--teal-d)} .cfg-sec-divider.sec{color:var(--violet-d)}
-  .cfg-sec-divider .ln{flex:1;height:1px;background:var(--line)}
-  .opt.dis{opacity:.5;cursor:not-allowed;border-style:dashed}
-  .opt.dis:hover{border-color:var(--line)}
-  .wip-note{font-size:11.5px;color:var(--violet-d);background:var(--violet-bg);border:1px solid #ddd6fe;
-    border-radius:8px;padding:8px 12px;margin-top:8px}
-  .cfg-body{padding:22px}
-  .cfg-group{margin-bottom:24px}
-  .cfg-group h4{font-size:14px;margin-bottom:12px}
-  .opt-row{display:flex;gap:10px;flex-wrap:wrap}
-  .opt{display:flex;align-items:center;gap:8px;padding:10px 16px;border:1.5px solid var(--line);border-radius:10px;
-    cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s;user-select:none}
-  .opt:hover{border-color:#cbd5e1}
-  .opt.sel{border-color:var(--teal);background:var(--code-bg);color:var(--teal-d)}
-  .opt .mk{width:16px;height:16px;border-radius:50%;border:2px solid #cbd5e1}
-  .opt.sel .mk{border-color:var(--teal);background:var(--teal);box-shadow:inset 0 0 0 3px #fff}
-  .opt.chk .mk{border-radius:5px}
-  .impact{margin-top:8px;padding:13px 16px;background:var(--yellow-bg);border:1px solid #fde68a;border-radius:10px;
-    font-size:13px;color:#92400E;display:flex;align-items:center;justify-content:space-between;gap:14px}
-  .impact.hidden{display:none}
-  .approve-btn{background:var(--navy);color:#fff;border:0;padding:9px 18px;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px;white-space:nowrap}
-  .approve-btn.save{background:var(--teal)}
-  .diff-box{margin-top:14px;background:#0d1b30;border-radius:11px;padding:14px 16px;font-size:12.5px}
-  .diff-box .dh{color:#7e93b8;font-size:11px;margin-bottom:8px;font-weight:700;letter-spacing:.5px}
-  .diff-box .dl{font-family:"SF Mono",monospace;padding:2px 0}
-  .diff-box .del{color:#fca5a5} .diff-box .add{color:#86efac} .diff-box .none{color:#64748b}
-
-  /* upstream table */
-  table{width:100%;border-collapse:collapse}
-  thead th{text-align:left;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;
-    padding:12px 16px;border-bottom:1px solid var(--line);font-weight:700}
-  tbody td{padding:14px 16px;border-bottom:1px solid #f1f5f9;font-size:13.5px}
-  tbody tr:hover{background:var(--bg)}
-  .stat{display:inline-flex;align-items:center;gap:6px;font-weight:600}
-  .stat .d{width:8px;height:8px;border-radius:50%}
-  .ctx{font-size:11px;font-weight:700;padding:2px 9px;border-radius:6px}
-  .ctx.prod{background:#EEF2FF;color:#4338CA} .ctx.dev{background:#F0FDF4;color:#15803D}
-  .btn-primary{background:var(--teal);color:#fff;border:0;padding:9px 16px;border-radius:9px;cursor:pointer;font-weight:700;font-size:13px}
-
-  .placeholder-view{padding:60px 30px;text-align:center;color:var(--muted)}
-  .placeholder-view .pi{font-size:44px;opacity:.4}
-  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--navy);
-    color:#fff;padding:14px 22px;border-radius:11px;box-shadow:0 8px 30px rgba(0,0,0,.25);font-size:13.5px;
-    font-weight:600;opacity:0;transition:.3s;z-index:50;display:flex;align-items:center;gap:10px}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  .demo-note{font-size:11px;color:var(--muted);background:var(--bg);border:1px dashed var(--line);
-    border-radius:8px;padding:8px 12px;margin-top:14px;text-align:center}
-
-  /* config panels（左导航切换） */
-  .cfg-panel{display:none}
-  .cfg-panel.show{display:block;animation:fade .25s ease}
-  .cfg-h{font-size:15px;font-weight:700;margin-bottom:4px}
-  .cfg-desc{color:var(--muted);font-size:12.5px;margin-bottom:18px}
-  .cfg-kv{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid #f1f5f9;font-size:13.5px}
-  .cfg-kv .k{color:var(--muted);font-weight:600}
-  .cfg-kv .v{font-weight:700;font-variant-numeric:tabular-nums}
-  .cfg-kv .v small{color:var(--muted);font-weight:500;margin-left:6px}
-  .chip-grid{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border:1.5px solid var(--line);border-radius:9px;
-    font-size:12.5px;font-weight:600;cursor:pointer;user-select:none;transition:.15s}
-  .chip:hover{border-color:#cbd5e1}
-  .chip.on{border-color:var(--teal);background:var(--code-bg);color:var(--teal-d)}
-  .chip .x{width:7px;height:7px;border-radius:50%;background:#cbd5e1}
-  .chip.on .x{background:var(--teal)}
-  .gov-note{font-size:11.5px;color:var(--muted);background:var(--bg);border:1px solid var(--line);
-    border-radius:8px;padding:9px 13px;margin-top:14px}
-  .pill-on{font-size:11px;font-weight:800;color:#15803D;background:var(--green-bg);border:1px solid #bbf7d0;padding:2px 9px;border-radius:6px}
-  .pill-off{font-size:11px;font-weight:800;color:var(--muted);background:var(--bg);border:1px solid var(--line);padding:2px 9px;border-radius:6px}
-
-  /* pipeline 12 步看板 */
-  .pipe-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
-  .pipe-prog{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);font-weight:600}
-  .pipe-bar{width:160px;height:8px;border-radius:5px;background:#EDF1F7;overflow:hidden}
-  .pipe-bar i{display:block;height:100%;background:var(--teal);border-radius:5px}
-  .pipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px}
-  .pstep{border:1px solid var(--line);border-radius:11px;padding:13px;position:relative;background:#fff}
-  .pstep .pn{font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.5px}
-  .pstep .pt{font-size:13px;font-weight:700;margin-top:3px}
-  .pstep .pd{font-size:11px;margin-top:7px;display:flex;align-items:center;gap:6px;font-weight:600}
-  .pstep.done{background:var(--green-bg);border-color:#bbf7d0}
-  .pstep.done .pd{color:#15803D}
-  .pstep.active{border-color:var(--yellow);box-shadow:0 0 0 3px var(--yellow-bg)}
-  .pstep.active .pd{color:#92400E}
-  .pstep.pending{opacity:.6}
-  .pstep.pending .pd{color:var(--muted)}
-  .pstep .gb{position:absolute;top:11px;right:11px;font-size:9px;font-weight:800;color:var(--teal-d);background:var(--code-bg);padding:1px 6px;border-radius:5px}
-
-  /* reports 报表中心 */
-  .rep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:16px}
-  .rep{padding:18px;display:flex;flex-direction:column;gap:7px}
-  .rep .ri{font-size:24px}
-  .rep .rt{font-size:14px;font-weight:700}
-  .rep .rs{font-size:12px;color:var(--muted);flex:1}
-  .rep .rb{margin-top:6px;align-self:flex-start;background:var(--bg);border:1px solid var(--line);color:var(--navy);
-    padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:700}
-  .rep .rb:hover{border-color:var(--teal);color:var(--teal-d)}
-  .kpi-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:18px}
-  .kpi{padding:16px 18px}
-  .kpi .kn{font-size:24px;font-weight:800;color:var(--navy)}
-  .kpi .kl{font-size:12px;color:var(--muted);font-weight:600;margin-top:2px}
-
-  /* audit quick chips + blocked lineage */
-  .qchips{display:flex;gap:8px;margin:0 2px 12px;flex-wrap:wrap}
-  .qchip{font-size:12px;font-weight:700;padding:6px 12px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:#fff;font-family:"SF Mono",monospace}
-  .qchip:hover{border-color:var(--teal);color:var(--teal-d)}
-  .ln-node .circle.red{background:var(--red);box-shadow:0 4px 12px rgba(239,68,68,.3)}
+:root{
+  --navy:#0B1F3A;--navy-2:#13294d;--teal:#0FB5A6;--teal-d:#0a8c81;--teal-bg:#E6FAF7;
+  --violet:#7C3AED;--violet-d:#6d28d9;--violet-bg:#F2EBFE;
+  --cost:#A16207;--cost-bg:#FEF9C3;
+  --bg:#F4F6FA;--card:#fff;--line:#E2E8F0;--ink:#1E293B;--muted:#64748B;
+  --green:#22C55E;--green-bg:#ECFDF5;--yellow:#F59E0B;--yellow-bg:#FFFBEB;--red:#EF4444;--red-bg:#FEF2F2;
+  --code-bg:#E6FBF8;--shadow:0 1px 3px rgba(15,31,58,.08),0 4px 16px rgba(15,31,58,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.num{font-variant-numeric:tabular-nums}
+code,.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+.wip{display:inline-flex;align-items:center;font-size:10px;font-weight:800;color:#92400E;background:#FEF3C7;border:1px solid #fde68a;padding:1px 7px;border-radius:6px}
+.app{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+.side{background:var(--navy);color:#cdd9ec;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+.brand{padding:18px 18px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+.brand .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--teal),#22d3c5);display:grid;place-items:center;font-weight:800;color:var(--navy);font-size:17px}
+.brand b{color:#fff;font-size:15px;letter-spacing:.3px}
+.brand small{display:block;color:#7e93b8;font-size:11px;font-weight:400}
+nav{padding:10px 10px;flex:1;overflow-y:auto}
+.nav-grp{font-size:10px;color:#5f769c;letter-spacing:.5px;padding:12px 12px 5px;font-weight:700}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:9px;cursor:pointer;color:#aebfda;font-size:13.5px;margin-bottom:2px;user-select:none}
+.nav-item:hover{background:rgba(255,255,255,.06);color:#fff}
+.nav-item.active{background:var(--teal);color:#fff;font-weight:600;box-shadow:0 4px 12px rgba(15,181,166,.35)}
+.nav-item .ico{font-size:16px;width:20px;text-align:center}
+.nav-item.disabled{opacity:.4}
+.side-foot{padding:12px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#6b80a8}
+.main{display:flex;flex-direction:column;min-width:0}
+.topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 26px;position:sticky;top:0;z-index:20}
+.topbar h1{font-size:17px;font-weight:700}.topbar h1 small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
+.top-right{display:flex;align-items:center;gap:14px}
+.env-pill{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);padding:5px 12px;border-radius:20px;font-size:12.5px;color:var(--muted)}
+.phi-badge{display:flex;align-items:center;gap:7px;background:var(--green-bg);color:#15803D;border:1px solid #bbf7d0;padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600}
+.phi-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px #bbf7d0}
+.role-select{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px}
+.role-select button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
+.role-select button.on{background:#fff;color:var(--navy);box-shadow:var(--shadow)}
+.content{padding:24px 26px;overflow:auto}
+.view{display:none}.view.show{display:block;animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.page-sub{color:var(--muted);font-size:13px;margin:-2px 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.section-title{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:22px 2px 12px}
+.pad{padding:18px}
+.ct{font-size:14px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.cap{font-size:12px;color:var(--muted)}
+/* four-goal cards */
+.goal-h{font-size:11px;font-weight:800;letter-spacing:.4px;padding:3px 9px;border-radius:20px;display:inline-block}
+.gh-sec{background:var(--teal-bg);color:var(--teal-d)}.gh-cost{background:var(--cost-bg);color:var(--cost)}.gh-audit{background:#E8EEF7;color:var(--navy)}.gh-stab{background:var(--violet-bg);color:var(--violet-d)}
+.ring{position:relative;width:96px;height:96px;flex:none}.ring svg{transform:rotate(-90deg)}
+.ring .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .big{font-size:30px;font-weight:800;color:var(--navy);line-height:1}.ring .den{font-size:10px;color:var(--muted)}
+.subscore{display:flex;flex-direction:column;gap:7px;font-size:13px;flex:1}
+.bar{height:7px;border-radius:4px;background:#EEF2F6;flex:1;overflow:hidden;min-width:70px}.bar i{display:block;height:100%;border-radius:4px}
+.bigv{font-size:24px;font-weight:800;color:var(--navy)}.bigv small{font-size:13px;color:var(--muted);font-weight:500}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:5px 0}.kv b{color:var(--ink)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.d-ok{background:var(--green)}.d-warn{background:var(--yellow)}.d-bad{background:var(--red)}.d-sec{background:var(--violet)}.d-comp{background:var(--teal)}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px}
+.t-ok{background:var(--green-bg);color:#15803D}.t-warn{background:var(--yellow-bg);color:#B45309}.t-bad{background:var(--red-bg);color:#B91C1C}.t-comp{background:var(--teal-bg);color:var(--teal-d)}.t-sec{background:var(--violet-bg);color:var(--violet-d)}.t-mute{background:#F1F5F9;color:var(--muted)}.t-cost{background:var(--cost-bg);color:var(--cost)}
+.gates{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.gate{padding:16px;position:relative}.gate .gname{font-size:14px;font-weight:700;margin:6px 0 3px}.gate.comp{border-top:3px solid var(--teal)}.gate.sec{border-top:3px solid var(--violet)}
+.banner{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:11px;margin-bottom:16px;font-size:13px}
+.banner.warn{background:var(--yellow-bg);color:#92400E;border:1px solid #FCD34D}
+.banner .lk{margin-left:auto;font-weight:700;cursor:pointer;text-decoration:underline}
+.note{background:var(--teal-bg);border:1px solid #b6ece6;color:var(--teal-d);padding:10px 14px;border-radius:10px;font-size:12.5px;margin-top:14px}
+.note.cost{background:var(--cost-bg);border-color:#fde68a;color:var(--cost)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line)}
+td{padding:11px 14px;border-bottom:1px solid var(--line)}
+tr.click{cursor:pointer}tr.click:hover{background:#FAFBFD}
+.tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--line);padding:4px;border-radius:10px;width:fit-content;margin-bottom:16px}
+.tab{padding:7px 15px;border:0;background:none;border-radius:7px;font-size:13px;color:var(--muted);cursor:pointer}
+.tab.on{background:var(--navy);color:#fff;font-weight:600}
+.chip{padding:5px 12px;border:1px solid var(--line);border-radius:20px;font-size:12.5px;background:#fff;color:var(--muted)}
+.chip.on{background:var(--teal-bg);border-color:#b6ece6;color:var(--teal-d);font-weight:600}
+.events{display:flex;flex-direction:column;gap:8px;max-height:380px;overflow-y:auto}
+.ev{display:flex;gap:10px;padding:10px;border-radius:10px;background:#FAFBFD;border-left:3px solid var(--line)}
+.ev.comp{border-left-color:var(--teal)}.ev.sec{border-left-color:var(--violet)}
+.ev .et{font-size:13px;font-weight:600}.ev .em{font-size:12px;color:var(--muted)}
+.code{font-family:"SF Mono",monospace;font-size:12px;background:var(--code-bg);padding:1px 6px;border-radius:5px;color:var(--teal-d)}
+.sankey{position:relative;width:900px;height:340px;margin:0 auto;overflow:hidden}.sankey svg{position:absolute;inset:0;width:100%;height:100%}
+.snode{position:absolute;width:148px;padding:9px 12px;border-radius:10px;font-size:12.5px;background:#fff;border:1px solid var(--line);box-shadow:var(--shadow);z-index:2}
+.snode .t{font-weight:700;font-size:13px}.snode .s{font-size:11px;color:var(--muted)}
+.snode.gate{background:linear-gradient(135deg,var(--teal-d),var(--teal));color:#fff;border:0}.snode.gate .t,.snode.gate .s{color:#fff}
+.snode.sens{border-color:var(--violet)}.snode.bad{border-color:var(--red)}
+.snode.gateout{background:linear-gradient(135deg,var(--violet-d),var(--violet))}
+.hbar{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:13px}.hbar .l{width:130px;flex:none}.hbar .t{flex:1;height:18px;border-radius:5px;background:#EEF2F6;overflow:hidden}.hbar .t i{display:block;height:100%;border-radius:5px}.hbar .v{width:64px;text-align:right;font-weight:700;flex:none}
+.spark{display:flex;align-items:flex-end;gap:5px;height:60px}.spark i{flex:1;background:#cdeee9;border-radius:3px 3px 0 0}.spark i.on{background:var(--teal)}
+.prow{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--line)}.prow:last-child{border:0}
+.pl{font-size:14px;font-weight:600}.pd{font-size:12px;color:var(--muted)}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg button{padding:6px 14px;border:0;background:#fff;font-size:12.5px;color:var(--muted);border-right:1px solid var(--line);cursor:pointer}.seg button:last-child{border:0}.seg button.on{background:var(--teal);color:#fff;font-weight:600}
+.lock{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#94A3B8}
+.diff{font-family:"SF Mono",monospace;font-size:12.5px;background:var(--navy);color:#cdd9ec;border-radius:10px;padding:14px;margin-top:14px;overflow-x:auto}
+.diff .a{color:#4ADE80}.diff .d{color:#F87171}.diff .c{color:#7e93b8}
+.btn{height:36px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}.btn.warn{background:var(--yellow);border-color:var(--yellow);color:#fff}.btn:disabled{opacity:.5;cursor:not-allowed}
+.scrim{position:fixed;inset:0;background:rgba(11,31,58,.5);z-index:90;display:none}.scrim.show{display:block}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:460px;background:#fff;z-index:100;box-shadow:var(--shadow);transform:translateX(100%);transition:.2s;padding:24px;overflow-y:auto}.drawer.show{transform:none}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-46%);background:#fff;z-index:100;border-radius:14px;width:520px;max-width:92vw;box-shadow:var(--shadow);padding:24px;opacity:0;pointer-events:none;transition:.18s}.modal.show{opacity:1;pointer-events:auto;transform:translate(-50%,-50%)}
+.close-x{position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer;color:var(--muted)}
+.step{display:flex;gap:10px;align-items:center;font-size:13px;padding:5px 0}.step .si{width:22px;height:22px;border-radius:50%;background:var(--teal-bg);color:var(--teal-d);display:grid;place-items:center;font-size:12px;font-weight:700}.step.done .si{background:var(--green);color:#fff}
+.progress{height:8px;background:#EEF2F6;border-radius:4px;overflow:hidden;margin:10px 0}.progress i{display:block;height:100%;background:var(--teal);width:0;transition:.4s}
+.mt{margin-top:14px}.row{display:flex;gap:8px;align-items:center}.hidden{display:none}
+.lineage{display:flex;flex-direction:column;gap:8px}
+.lg-row{font-size:12.5px;background:#FAFBFD;border:1px solid var(--line);border-radius:9px;padding:9px 11px;line-height:1.7}
+.lg-tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;margin-right:6px}
+.lg-tag.comp{background:var(--teal-bg);color:var(--teal-d)}.lg-tag.sec{background:var(--violet-bg);color:var(--violet-d)}
+.hashchain{background:#FAFBFD;border:1px solid var(--line);border-radius:9px;padding:11px}
+.attn{border-left:3px solid var(--yellow);margin-bottom:16px}
+.attn .lk{cursor:pointer;font-weight:700;color:var(--teal-d);white-space:nowrap}
+/* ── 登录页（科技感 · 入口可比 in-app 更有张力） ── */
+.login{position:fixed;inset:0;z-index:500;background:#0a1730;color:#e8eef7;display:grid;grid-template-columns:1.05fr .95fr;overflow:hidden}
+.login.hide{display:none}
+.login .bg{position:absolute;inset:0;z-index:0;overflow:hidden}
+.login .grid-bg{position:absolute;inset:-2px;background-image:linear-gradient(rgba(15,181,166,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(15,181,166,.06) 1px,transparent 1px);background-size:46px 46px;animation:gridpan 18s linear infinite}
+@keyframes gridpan{to{background-position:46px 46px}}
+.login .orb{position:absolute;border-radius:50%;filter:blur(72px);opacity:.5}
+.login .orb.t{width:460px;height:460px;background:radial-gradient(circle,#0FB5A6,transparent 70%);top:-120px;left:-70px;animation:lf1 14s ease-in-out infinite}
+.login .orb.v{width:420px;height:420px;background:radial-gradient(circle,#7C3AED,transparent 70%);bottom:-150px;right:16%;animation:lf2 17s ease-in-out infinite}
+@keyframes lf1{50%{transform:translate(60px,40px)}}
+@keyframes lf2{50%{transform:translate(-50px,-30px)}}
+.login .pt{position:absolute;width:4px;height:4px;border-radius:50%;background:#0FB5A6;box-shadow:0 0 9px #0FB5A6;animation:lrise linear infinite}
+@keyframes lrise{from{transform:translateY(30px);opacity:0}12%{opacity:.75}88%{opacity:.75}to{transform:translateY(-360px);opacity:0}}
+.login .hero{position:relative;z-index:2;padding:64px 60px;display:flex;flex-direction:column;justify-content:center}
+.login .lg-brand{display:flex;align-items:center;gap:14px;margin-bottom:32px}
+.login .lg-logo{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#0FB5A6,#22d3c5);display:grid;place-items:center;font-size:23px;color:#0B1F3A;font-weight:800;box-shadow:0 0 26px rgba(15,181,166,.55)}
+.login h2{font-size:33px;font-weight:800;line-height:1.3;letter-spacing:.3px}
+.login h2 .hl{background:linear-gradient(90deg,#0FB5A6,#8b5cf6);-webkit-background-clip:text;background-clip:text;color:transparent}
+.login .sub{color:#9fb2cf;font-size:14.5px;margin-top:15px;max-width:450px;line-height:1.75}
+.login .goals{display:flex;gap:10px;flex-wrap:wrap;margin-top:26px}
+.login .gchip{display:flex;align-items:center;gap:7px;padding:8px 14px;border-radius:30px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);font-size:13px;font-weight:600}
+.login .badges{margin-top:36px;display:flex;gap:16px;flex-wrap:wrap;color:#7188aa;font-size:12px}
+.login .right{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;padding:30px}
+.login .card{width:384px;max-width:90vw;background:rgba(18,32,58,.62);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.13);border-radius:20px;padding:38px 34px;box-shadow:0 24px 70px rgba(0,0,0,.45)}
+.login .card h3{font-size:21px;font-weight:800}
+.login .card .cs{color:#9fb2cf;font-size:13px;margin:6px 0 26px}
+.lbtn{width:100%;height:50px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#e8eef7;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:.16s;margin-bottom:13px}
+.lbtn:hover{border-color:#0FB5A6;background:rgba(15,181,166,.12)}
+.lbtn.primary{background:linear-gradient(135deg,#0FB5A6,#0a8c81);border:0;color:#fff;box-shadow:0 8px 24px rgba(15,181,166,.4)}
+.lbtn.primary:hover{filter:brightness(1.07)}
+.login .seclist{margin-top:22px;border-top:1px solid rgba(255,255,255,.1);padding-top:16px}
+.login .seclist .si{display:flex;align-items:center;gap:9px;color:#8ba0c0;font-size:12.5px;padding:5px 0}
+.login .foot-note{color:#6f86a8;font-size:11.5px;margin-top:20px;line-height:1.65}
+.login .env{position:absolute;top:24px;right:28px;z-index:3;display:flex;align-items:center;gap:7px;font-size:12px;color:#8097b8;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:6px 13px;border-radius:20px}
+@media(max-width:880px){.login{grid-template-columns:1fr}.login .hero{display:none}}
 </style>
 </head>
 <body>
-<div class="app">
-  <!-- sidebar -->
-  <aside class="side">
-    <div class="brand">
-      <div class="logo">M</div>
-      <div><b>MedHarness</b><small>合规 + 安全网关</small></div>
-    </div>
-    <nav id="nav">
-      <div class="nav-item active" data-view="posture"><span class="ico">🏠</span>合规·安全态势</div>
-      <div class="nav-item" data-view="traffic"><span class="ico">📊</span>流量监控</div>
-      <div class="nav-item" data-view="audit"><span class="ico">🔍</span>审计追溯</div>
-      <div class="nav-item" data-view="pipeline"><span class="ico">🚦</span>研发流水线</div>
-      <div class="nav-item" data-view="config"><span class="ico">⚙️</span>策略配置</div>
-      <div class="nav-item" data-view="upstream"><span class="ico">🔌</span>上游接入</div>
-      <div class="nav-item" data-view="reports"><span class="ico">📋</span>报表中心</div>
-    </nav>
-    <div class="side-foot">v0.6 demo · 合成数据<br>全界面 0 PHI</div>
-  </aside>
-
-  <!-- main -->
-  <div class="main">
-    <header class="topbar">
-      <h1 id="page-title">合规·安全态势 <small id="page-sub">CTO 落点 · 合规分 + 安全分一眼看懂</small></h1>
-      <div class="top-right">
-        <div class="phi-badge"><span class="dot"></span>本页 0 PHI</div>
-        <div class="role-select" id="roles">
-          <button class="on" data-role="cto" data-home="posture">CTO</button>
-          <button data-role="compliance" data-home="audit">合规官</button>
-          <button data-role="engineer" data-home="config">工程师</button>
-        </div>
+<div class="login" id="login">
+  <div class="bg"><div class="grid-bg"></div><div class="orb t"></div><div class="orb v"></div>
+    <div class="pt" style="left:9%;bottom:0;animation-duration:7.5s"></div>
+    <div class="pt" style="left:17%;bottom:0;animation-duration:9s;animation-delay:1.4s"></div>
+    <div class="pt" style="left:31%;bottom:0;animation-duration:6.5s;animation-delay:.7s;background:#7C3AED;box-shadow:0 0 9px #7C3AED"></div>
+    <div class="pt" style="left:42%;bottom:0;animation-duration:8.5s;animation-delay:2.1s"></div>
+    <div class="pt" style="left:54%;bottom:0;animation-duration:7s;animation-delay:.3s"></div>
+    <div class="pt" style="left:63%;bottom:0;animation-duration:10s;animation-delay:1.1s;background:#7C3AED;box-shadow:0 0 9px #7C3AED"></div>
+  </div>
+  <div class="env">环境 <b style="color:#cdd9ec">生产</b> · medharness.local</div>
+  <div class="hero">
+    <div class="lg-brand"><div class="lg-logo">⊕</div><div><div style="font-size:20px;font-weight:800;letter-spacing:.3px">MedHarness</div><div style="color:#7e93b8;font-size:12.5px">医疗大模型流量网关</div></div></div>
+    <h2>让每一次大模型调用<br>都<span class="hl">安全 · 划算 · 审计 · 稳定</span></h2>
+    <div class="sub">把开发态与生产态的所有大模型流量，收口为单一受控入口。脱敏、分级路由、防篡改审计——一套网关，四个目标。</div>
+    <div class="goals"><span class="gchip">🛡 安全</span><span class="gchip">💰 划算</span><span class="gchip">🔍 审计</span><span class="gchip">⚡ 稳定</span></div>
+    <div class="badges"><span>✓ 全程 0 PHI</span><span>✓ HIPAA · PIPL · 数据安全法</span><span>✓ 单主机部署</span></div>
+  </div>
+  <div class="right">
+    <div class="card">
+      <h3>登录控制台</h3>
+      <div class="cs">企业统一身份 · 受控访问 · 全程留痕</div>
+      <button class="lbtn primary" onclick="doLogin()"><span>🏢</span> 用企业 SSO 登录（OIDC）</button>
+      <button class="lbtn" onclick="doLogin()"><span>🔑</span> 用 passkey 登录</button>
+      <div class="seclist">
+        <div class="si">🔒 仅 OIDC / passkey · 已关闭自助注册与社交登录</div>
+        <div class="si">🧭 登录后按角色授权：研发负责人 / 系统管理员</div>
+        <div class="si">📝 每次登录与操作全量落审计</div>
       </div>
-    </header>
-
-    <div class="content">
-
-      <!-- ============ 合规态势 ============ -->
-      <section class="view show" id="view-posture">
-        <div class="hero">
-          <div class="card score-card">
-            <div class="ring-wrap">
-              <svg width="184" height="184" viewBox="0 0 184 184">
-                <circle cx="92" cy="92" r="80" fill="none" stroke="#EDF1F7" stroke-width="14"/>
-                <circle id="score-ring" cx="92" cy="92" r="80" fill="none" stroke="var(--green)" stroke-width="14"
-                  stroke-linecap="round" stroke-dasharray="502" stroke-dashoffset="502"/>
-              </svg>
-              <div class="ring-center">
-                <div class="big num" id="score-num">0</div>
-                <div class="den">综合分 / 100</div>
-              </div>
-            </div>
-            <div class="badge-status">🟢 健康</div>
-            <div class="subscores">
-              <div class="ss"><span class="ss-l"><span class="dot-c"></span>合规</span><span class="ss-bar"><i style="width:96%;background:var(--teal)"></i></span><b>96</b></div>
-              <div class="ss"><span class="ss-l"><span class="dot-s"></span>安全</span><span class="ss-bar"><i style="width:89%;background:var(--violet)"></i></span><b>89</b></div>
-            </div>
-            <div class="score-meta">合规：本周 <b>0</b> 次 PHI 漏出 · 安全：出站/配额能力 <span class="wip">🚧 v0.6</span> 建设中拉低分</div>
-          </div>
-          <div class="gates-wrap">
-            <div>
-              <div class="ggroup-h" style="color:var(--teal-d)"><span class="dot-c"></span>合规闸门 · 已上线</div>
-              <div class="ggrid">
-                <div class="gate2"><span class="pill g"></span><span class="tag">闸门一</span><span class="name">PHI 入站扫描</span><span class="metric num">100%</span><span class="desc">泄漏拦截率 · 220 样本</span></div>
-                <div class="gate2"><span class="pill g"></span><span class="tag">闸门二</span><span class="name">脱敏 + KMS</span><span class="metric num">0.02ms</span><span class="desc">AES-256-GCM p99</span></div>
-                <div class="gate2"><span class="pill g"></span><span class="tag">闸门三</span><span class="name">模型路由</span><span class="metric num">11/11</span><span class="desc">越权全拦 · &lt;5ms</span></div>
-              </div>
-            </div>
-            <div>
-              <div class="ggroup-h" style="color:var(--violet-d)"><span class="dot-s"></span>安全防线</div>
-              <div class="ggrid">
-                <div class="gate2"><span class="pill g"></span><span class="tag">第四层 · 已上线</span><span class="name">注入防御</span><span class="metric num">100%</span><span class="desc">恶意指令阻断 · 25 case</span></div>
-                <div class="gate2 wip-card"><span class="tag">出站方向 <span class="wip">🚧 v0.6</span></span><span class="name">输出安全</span><span class="metric">规划中</span><span class="desc">PHI 回流 / 有害内容 / 幻觉医嘱</span></div>
-                <div class="gate2 wip-card"><span class="tag">横切 <span class="wip">🚧 v0.6</span></span><span class="name">配额限流</span><span class="metric">规划中</span><span class="desc">防滥用刷量 / 成本护栏</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="section-title">需要注意</div>
-        <div class="alerts">
-          <div class="alert warn">
-            <div class="ai">🟣</div>
-            <div class="txt"><b><span class="cat sec">安全·注入</span> prod-dify 今日拦截 3 次 prompt 注入尝试</b><span>检索内容携带可疑指令 · 已隔离并告警 · 仅显示分类与处置，不回显 payload 原文（防二次传播）</span></div>
-            <button class="fix-btn" onclick="toast('跳转 runbook · prompt-injection-scan：查看隔离区分类与处置记录（不含原文）')">查看处置</button>
-          </div>
-          <div class="alert ok">
-            <div class="ai">🟢</div>
-            <div class="txt"><b><span class="cat comp">合规</span> 哈希链完整 · 审计链未断裂</b><span>最新 block #18,432 · daily verify 通过 · 6 年可重放</span></div>
-            <button class="fix-btn" onclick="go('audit')">查看审计链</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ 流量监控 ============ -->
-      <section class="view" id="view-traffic">
-        <div class="traffic-head">
-          <div class="filter" id="traffic-filter">
-            <button class="on" data-f="all">全部</button>
-            <button data-f="dev">开发期</button>
-            <button data-f="prod">生产期</button>
-          </div>
-          <div class="live"><span class="dot"></span>实时 · 最近 1 小时</div>
-        </div>
-
-        <div class="band-h" style="color:var(--teal-d)"><span class="dot-c"></span>① 入站方向 · 合规闸门 · 已上线<span class="ln"></span></div>
-        <div class="card sankey-card" style="margin-bottom:20px">
-          <div class="sankey-cols"><span>上游（谁在调 LLM）</span><span>入站闸门（PHI 扫描 + 脱敏 + 路由）</span><span>下游模型</span></div>
-          <svg width="100%" viewBox="0 0 880 320" preserveAspectRatio="xMidYMid meet">
-            <!-- flows upstream -> gate -->
-            <path class="flow-path flow-anim" d="M170,70 C300,70 300,150 380,150" stroke="#0FB5A6" stroke-width="14" opacity=".55"/>
-            <path class="flow-path flow-anim" d="M170,160 C300,160 300,150 380,150" stroke="#0FB5A6" stroke-width="9" opacity=".5"/>
-            <path class="flow-path flow-anim" d="M170,250 C300,250 300,160 380,160" stroke="#0FB5A6" stroke-width="5" opacity=".45"/>
-            <!-- flows gate -> downstream (green = ok) -->
-            <path class="flow-path flow-anim" d="M620,140 C700,140 700,90 770,90" stroke="#22C55E" stroke-width="13" opacity=".55"/>
-            <path class="flow-path flow-anim" d="M620,150 C700,150 700,190 770,190" stroke="#22C55E" stroke-width="6" opacity=".5"/>
-            <!-- blocked flow (red) -->
-            <path class="flow-path flow-anim" d="M620,168 C690,168 700,250 760,250" stroke="#EF4444" stroke-width="5" opacity=".7"/>
-
-            <!-- upstream nodes -->
-            <g><rect class="node-rect" x="30" y="48" width="140" height="44" fill="#13294d"/>
-              <text class="node-label" x="44" y="70">Dify RAG</text><text class="node-sub" x="44" y="84">生产 · 1.2k/h</text></g>
-            <g><rect class="node-rect" x="30" y="138" width="140" height="44" fill="#13294d"/>
-              <text class="node-label" x="44" y="160">ComfyUI</text><text class="node-sub" x="44" y="174">生产 · 380/h</text></g>
-            <g><rect class="node-rect" x="30" y="228" width="140" height="44" fill="#13294d"/>
-              <text class="node-label" x="44" y="250">Codex dev</text><text class="node-sub" x="44" y="264">开发 · 90/h</text></g>
-
-            <!-- gate box -->
-            <rect class="gate-box" x="380" y="96" width="240" height="118"/>
-            <text class="gate-t" x="400" y="124">🛡️ PHI 扫描 + 脱敏</text>
-            <text class="gate-s" x="400" y="146">命中 <tspan font-weight="800" fill="#0a8c81">47</tspan> → 自动脱敏</text>
-            <text class="gate-s" x="400" y="166">拦截 <tspan font-weight="800" fill="#EF4444">3</tspan> → 硬阻断 🔴</text>
-            <text class="gate-s" x="400" y="186">放行 <tspan font-weight="800" fill="#22C55E">1,627</tspan> 条合规流量</text>
-            <text class="gate-s" x="400" y="204" fill="#0a8c81">全程仅占位符流动</text>
-
-            <!-- downstream nodes -->
-            <g><rect class="node-rect" x="770" y="68" width="100" height="44" fill="#13294d"/>
-              <text class="node-label" x="784" y="90">私有 Qwen</text><text class="node-sub" x="784" y="104">脱敏后</text></g>
-            <g><rect class="node-rect" x="770" y="168" width="100" height="44" fill="#13294d"/>
-              <text class="node-label" x="784" y="190">境外 API</text><text class="node-sub" x="784" y="204">已脱敏 12</text></g>
-            <text class="blocked-t" x="760" y="246">✗ 阻断 3</text>
-            <text class="blocked-t" x="760" y="262" font-weight="400" fill="#991B1B">未脱敏 L4 影像</text>
-          </svg>
-          <div class="demo-note">💡 demo 提示：桑基图上你永远看不到"张三"——闸门二在第 ④ 步就把原始 PHI 加密成占位符 <code>__NAME_a1__</code>。Console 只看得到占位符、哈希、聚合数。这是设计，不是疏漏。</div>
-        </div>
-
-        <div class="band-h" style="color:var(--violet-d)"><span class="dot-s"></span>② 出站方向 · 安全闸门 <span class="wip">🚧 v0.6 规划</span><span class="ln"></span></div>
-        <div class="card sankey-card outbound" style="margin-bottom:18px">
-          <div class="sankey-cols"><span>下游模型（响应）</span><span>出站安全闸门（PHI 回流 / 有害内容 / 幻觉医嘱）</span><span>返回上游</span></div>
-          <svg width="100%" viewBox="0 0 880 240" preserveAspectRatio="xMidYMid meet">
-            <!-- model response -> outbound gate (violet, dashed/planned) -->
-            <path class="flow-path flow-anim flow-wip" d="M170,70 C300,70 300,120 380,120" stroke="#7C3AED" stroke-width="12"/>
-            <path class="flow-path flow-anim flow-wip" d="M170,170 C300,170 300,120 380,120" stroke="#7C3AED" stroke-width="8"/>
-            <!-- gate -> upstream (pass) -->
-            <path class="flow-path flow-anim flow-wip" d="M620,110 C700,110 700,80 770,80" stroke="#7C3AED" stroke-width="11"/>
-            <!-- blocked outbound (red) -->
-            <path class="flow-path flow-anim flow-wip" d="M620,135 C690,135 700,180 760,180" stroke="#EF4444" stroke-width="5"/>
-
-            <!-- model response nodes -->
-            <g><rect class="node-rect" x="30" y="48" width="140" height="44" fill="#13294d"/>
-              <text class="node-label" x="44" y="70">私有 Qwen</text><text class="node-sub" x="44" y="84">响应回流</text></g>
-            <g><rect class="node-rect" x="30" y="148" width="140" height="44" fill="#13294d"/>
-              <text class="node-label" x="44" y="170">境外 API</text><text class="node-sub" x="44" y="184">响应回流</text></g>
-
-            <!-- outbound gate box (violet dashed) -->
-            <rect class="gate-box sec" x="380" y="64" width="240" height="112"/>
-            <text class="gate-t sec" x="400" y="92">🛡️ 出站安全 · 🚧 v0.6</text>
-            <text class="gate-s" x="400" y="114">扫 PHI 回流 → 拦截</text>
-            <text class="gate-s" x="400" y="134">有害内容 / 幻觉医嘱 → 拦截</text>
-            <text class="gate-s" x="400" y="154">通过 → 脱敏占位符返回</text>
-
-            <!-- return upstream nodes -->
-            <g><rect class="node-rect" x="770" y="58" width="100" height="44" fill="#13294d"/>
-              <text class="node-label" x="784" y="80">Dify 收到</text><text class="node-sub" x="784" y="94">安全响应</text></g>
-            <text class="blocked-t" x="760" y="176">✗ 拦截</text>
-            <text class="blocked-t" x="760" y="192" font-weight="400" fill="#991B1B">PHI 回流 / 有害</text>
-          </svg>
-          <div class="demo-note" style="background:var(--violet-bg);border-color:#ddd6fe;color:var(--violet-d)">🚧 v0.6 规划 · 示意数据：开源 v0.5.0-edge 只扫入站请求；生产网关把闸门做成<b>双向</b>——响应回来再扫一遍，挡住模型把 PHI 带回、输出有害内容或幻觉医嘱。出站段同样 0 PHI（只显示分类与聚合）。</div>
-        </div>
-
-        <div class="traffic-head" style="margin-top:4px">
-          <div class="section-title" style="margin:0">实时事件流 · 双色（<span style="color:var(--teal-d)">合规</span> / <span style="color:var(--violet-d)">安全</span>）</div>
-          <div class="filter cat-filter" id="cat-filter">
-            <button class="on" data-c="all">全部</button>
-            <button data-c="comp">合规</button>
-            <button data-c="sec">安全</button>
-          </div>
-        </div>
-        <div class="legend" style="margin:0 2px 10px"><span><i style="background:var(--teal)"></i>合规事件（PHI/路由/分级）</span><span><i style="background:var(--violet)"></i>安全事件（注入/滥用/输出）</span></div>
-        <div class="card stream" id="stream"></div>
-      </section>
-
-      <!-- ============ 审计追溯 ============ -->
-      <section class="view" id="view-audit">
-        <div class="traffic-head">
-          <div style="display:flex;align-items:center;gap:10px">
-            <input id="audit-search" placeholder="搜索 routing#a1b2 / 阻断#c3d4 / 时间区间"
-              style="width:340px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;font-size:13.5px">
-          </div>
-          <button class="btn-primary" onclick="exportBundle(this)">📦 导出监管包（AUDIT_BUNDLE）</button>
-        </div>
-        <div class="qchips" id="audit-chips">
-          <span style="color:var(--muted);font-weight:600;font-size:12px;align-self:center">快速定位：</span>
-          <button class="qchip" data-ref="routing#a1b2">routing#a1b2</button>
-          <button class="qchip" data-ref="阻断#c3d4">阻断#c3d4</button>
-          <button class="qchip" data-ref="desens#e5f6">desens#e5f6</button>
-        </div>
-        <div class="section-title" id="audit-title"></div>
-        <div class="card">
-          <div class="lineage" id="lineage"></div>
-          <div class="hashbar" id="hashbar"></div>
-          <div class="detail-list" id="audit-detail"></div>
-        </div>
-        <div class="demo-note" style="margin-top:14px">🛡️ 注意：prompt 显示的是占位符版本。原始 PHI 反查需在受控环境单独授权，<b>不在 Console 界面内</b>——审计追溯本身也 0 PHI。</div>
-      </section>
-
-      <!-- ============ 策略配置 ============ -->
-      <section class="view" id="view-config">
-        <div class="cfg">
-          <div class="card cfg-nav" id="cfg-nav" style="padding:8px">
-            <div class="cfg-cat comp">合规策略</div>
-            <div class="cfg-item active" data-cfg="scene">场景策略</div>
-            <div class="cfg-item" data-cfg="models">模型白名单</div>
-            <div class="cfg-item" data-cfg="fields">PHI 字段</div>
-            <div class="cfg-item" data-cfg="thresholds">闸门阈值</div>
-            <div class="cfg-item" data-cfg="retention">保留策略</div>
-            <div class="cfg-cat sec">安全策略</div>
-            <div class="cfg-item" data-cfg="injection">注入防御</div>
-            <div class="cfg-item" data-cfg="output">输出安全 <span class="wip">🚧 v0.6</span></div>
-            <div class="cfg-item" data-cfg="quota">配额限流 <span class="wip">🚧 v0.6</span></div>
-            <div class="cfg-cat gov">治理</div>
-            <div class="cfg-item" data-cfg="upstream">上游接入</div>
-            <div class="cfg-item" data-cfg="approval">审批流</div>
-          </div>
-          <div class="card cfg-body">
-
-            <!-- 场景策略 -->
-            <div class="cfg-panel show" id="cfg-scene">
-              <div class="cfg-h">生产环境策略 <span class="ctx prod">context = prod</span></div>
-              <div class="cfg-desc">影响所有 prod 上游（dify / comfyui）· 合规与安全分组管理，互不混淆</div>
-              <div class="cfg-sec-divider comp"><span class="dot-c"></span>合规策略<span class="ln"></span></div>
-              <div class="cfg-group">
-                <h4>PHI 命中处理</h4>
-                <div class="opt-row" data-radio="phi">
-                  <div class="opt" data-v="warn"><span class="mk"></span>仅警告</div>
-                  <div class="opt sel" data-v="block"><span class="mk"></span>硬阻断</div>
-                  <div class="opt" data-v="desens"><span class="mk"></span>警告 + 脱敏</div>
-                </div>
-              </div>
-              <div class="cfg-group">
-                <h4>数据分级强制检查</h4>
-                <div class="opt-row" data-check="level">
-                  <div class="opt chk sel" data-v="L3"><span class="mk"></span>L3</div>
-                  <div class="opt chk sel" data-v="L4"><span class="mk"></span>L4</div>
-                  <div class="opt chk" data-v="L2"><span class="mk"></span>L2</div>
-                </div>
-              </div>
-              <div class="cfg-sec-divider sec"><span class="dot-s"></span>安全策略<span class="ln"></span></div>
-              <div class="cfg-group">
-                <h4>注入防御 <span style="font-size:11px;color:var(--green);font-weight:700">· 已上线</span></h4>
-                <div class="opt-row" data-radio="inj">
-                  <div class="opt sel" data-v="block"><span class="mk"></span>阻断</div>
-                  <div class="opt" data-v="warn"><span class="mk"></span>警告</div>
-                </div>
-              </div>
-              <div class="impact hidden" id="impact">
-                <span id="impact-txt">⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签</span>
-                <button class="approve-btn" id="approve-btn" onclick="submitConfig(this)">提交审批</button>
-              </div>
-              <div class="diff-box">
-                <div class="dh">变更预览 (DIFF) — policies.yaml · prod</div>
-                <div id="diff-content"><div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div></div>
-              </div>
-            </div>
-
-            <!-- 模型白名单 -->
-            <div class="cfg-panel" id="cfg-models">
-              <div class="cfg-h">模型白名单 <span class="ctx prod">allowlist.yaml</span></div>
-              <div class="cfg-desc">按数据分级路由 · 越权调用 11/11 全部拦截（&lt;5ms 开销）· 境外模型仅接收已脱敏占位符</div>
-              <table>
-                <thead><tr><th>模型</th><th>分级上限</th><th>部署</th><th>异构组</th><th>状态</th></tr></thead>
-                <tbody>
-                  <tr><td><b>qwen-max-2026-01</b></td><td><span class="tag-l l4">L4</span></td><td>私有部署</td><td>A</td><td><span class="pill-on">启用</span></td></tr>
-                  <tr><td><b>qwen-vl-2026</b></td><td><span class="tag-l l4">L4</span></td><td>私有部署</td><td>A</td><td><span class="pill-on">启用</span></td></tr>
-                  <tr><td><b>deepseek-v4-pro</b></td><td><span class="tag-l l3">L3</span></td><td>私有部署</td><td>B</td><td><span class="pill-on">启用</span></td></tr>
-                  <tr><td><b>claude-sonnet</b> <small style="color:var(--muted)">境外</small></td><td><span class="tag-l l2">L2</span></td><td>境外·仅脱敏</td><td>B</td><td><span class="pill-on">启用</span></td></tr>
-                  <tr><td><b>gpt-4o</b> <small style="color:var(--muted)">境外</small></td><td><span class="tag-l l2">L2</span></td><td>境外·仅脱敏</td><td>C</td><td><span class="pill-off">停用</span></td></tr>
-                </tbody>
-              </table>
-              <div class="gov-note">🔒 名单增删 / 分级上限调整需 <b>技委 + 合规委会签</b>；Compliance-Agent 必须与 coder 主线异构（不同厂商）。</div>
-            </div>
-
-            <!-- PHI 字段 -->
-            <div class="cfg-panel" id="cfg-fields">
-              <div class="cfg-h">PHI 字段 <span class="ctx prod">fields.yaml · 共 31 字段</span></div>
-              <div class="cfg-desc">命中即脱敏为占位符（如 <code>__NAME_a1__</code>）· 点击可启停（demo 仅视觉）</div>
-              <div class="chip-grid" id="phi-fields">
-                <div class="chip on"><span class="x"></span>姓名 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>身份证号 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>手机号 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>病案号 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>完整出生日期 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>银行卡号 <span class="tag-l l4">L4</span></div>
-                <div class="chip on"><span class="x"></span>住址 <span class="tag-l l3">L3</span></div>
-                <div class="chip on"><span class="x"></span>邮箱 <span class="tag-l l3">L3</span></div>
-                <div class="chip on"><span class="x"></span>诊断编码 <span class="tag-l l3">L3</span></div>
-                <div class="chip on"><span class="x"></span>影像元数据 <span class="tag-l l3">L3</span></div>
-                <div class="chip"><span class="x"></span>科室 <span class="tag-l l2">L2</span></div>
-                <div class="chip"><span class="x"></span>就诊日期(年月) <span class="tag-l l2">L2</span></div>
-              </div>
-              <div class="gov-note">显示 12 / 31 常用字段 · 新增字段须走 <b>test-data-generation</b> 合成 + 指纹核验，禁止从生产采样脱敏。</div>
-            </div>
-
-            <!-- 闸门阈值 -->
-            <div class="cfg-panel" id="cfg-thresholds">
-              <div class="cfg-h">闸门阈值</div>
-              <div class="cfg-desc">内核经红队验证的运行参数 · 调整需技委会签 + 红队回归</div>
-              <div class="cfg-kv"><span class="k">PHI 检测召回阈值</span><span class="v">0.85 <small>实测 recall 1.0 / FP 0.09</small></span></div>
-              <div class="cfg-kv"><span class="k">路由延迟预算</span><span class="v">5 ms <small>p99 实测 &lt;5ms</small></span></div>
-              <div class="cfg-kv"><span class="k">脱敏加密 p99</span><span class="v">0.02 ms <small>AES-256-GCM + AAD</small></span></div>
-              <div class="cfg-kv"><span class="k">注入阻断率目标</span><span class="v">≥ 0.99 <small>实测 1.0 / 25 case</small></span></div>
-              <div class="cfg-kv"><span class="k">流式 SSE 边扫边转发</span><span class="v"><span class="wip">🚧 v0.6</span></span></div>
-              <button class="approve-btn" style="margin-top:14px" onclick="toast('阈值调整需技委会签 + 红队回归 · 变更落 audit-log，审批前不生效')">申请调整</button>
-            </div>
-
-            <!-- 保留策略 -->
-            <div class="cfg-panel" id="cfg-retention">
-              <div class="cfg-h">保留策略</div>
-              <div class="cfg-desc">满足 HIPAA / PIPL 监管可重放要求 · 缩短保留期需合规委审批</div>
-              <div class="cfg-group">
-                <h4>审计日志保留</h4>
-                <div class="opt-row" data-radio2="audit_keep">
-                  <div class="opt sel" data-v="6y"><span class="mk"></span>6 年（HIPAA）</div>
-                  <div class="opt" data-v="10y"><span class="mk"></span>10 年</div>
-                  <div class="opt" data-v="forever"><span class="mk"></span>永久</div>
-                </div>
-              </div>
-              <div class="cfg-group">
-                <h4>prompt history（脱敏）保留</h4>
-                <div class="opt-row" data-radio2="prompt_keep">
-                  <div class="opt" data-v="1y"><span class="mk"></span>1 年</div>
-                  <div class="opt sel" data-v="3y"><span class="mk"></span>3 年</div>
-                </div>
-              </div>
-              <div class="cfg-kv"><span class="k">WORM 不可篡改 + 哈希链</span><span class="v"><span class="pill-on">已锁定</span></span></div>
-              <div class="gov-note">🔒 WORM 与哈希链为合规硬约束，不可在 Console 关闭；缩短保留期为高危变更，需合规委 + 法务会签。</div>
-            </div>
-
-            <!-- 注入防御 -->
-            <div class="cfg-panel" id="cfg-injection">
-              <div class="cfg-h">注入防御 <span class="pill-on">已上线</span></div>
-              <div class="cfg-desc">prompt-injection-scan 内核 · 阻断率 1.0 · 仅记录分类与处置，不留存 payload 原文（防二次传播）</div>
-              <div class="cfg-group">
-                <h4>启用扫描类别</h4>
-                <div class="chip-grid">
-                  <div class="chip on"><span class="x"></span>越权指令</div>
-                  <div class="chip on"><span class="x"></span>数据外泄诱导</div>
-                  <div class="chip on"><span class="x"></span>角色劫持</div>
-                  <div class="chip on"><span class="x"></span>RAG 检索污染</div>
-                </div>
-              </div>
-              <div class="cfg-group">
-                <h4>命中处置</h4>
-                <div class="opt-row" data-radio2="inj_action">
-                  <div class="opt sel" data-v="isolate"><span class="mk"></span>隔离 + 告警</div>
-                  <div class="opt" data-v="warn"><span class="mk"></span>仅告警</div>
-                </div>
-              </div>
-              <div class="gov-note">隔离区只保留<strong>分类标签与处置记录</strong>，原始 payload 不回显、不外发——避免恶意指令二次传播。</div>
-            </div>
-
-            <!-- 输出安全 🚧 -->
-            <div class="cfg-panel" id="cfg-output">
-              <div class="cfg-h">出站输出安全 <span class="wip">🚧 v0.6</span></div>
-              <div class="cfg-desc">响应回来再扫一遍——挡住模型把 PHI 带回、输出有害内容或幻觉医嘱。出站方向同样 0 PHI。</div>
-              <div class="cfg-group">
-                <h4>出站扫描项（预览）</h4>
-                <div class="opt-row">
-                  <div class="opt chk dis"><span class="mk"></span>PHI 回流拦截</div>
-                  <div class="opt chk dis"><span class="mk"></span>有害内容拦截</div>
-                  <div class="opt chk dis"><span class="mk"></span>幻觉医嘱告警</div>
-                </div>
-              </div>
-              <div class="wip-note">🚧 v0.6 规划中：开源 v0.5.0-edge 只扫入站请求，出站方向尚未建成。控件上线前为预览态，不可保存。</div>
-            </div>
-
-            <!-- 配额限流 🚧 -->
-            <div class="cfg-panel" id="cfg-quota">
-              <div class="cfg-h">调用配额 / 限流 <span class="wip">🚧 v0.6</span></div>
-              <div class="cfg-desc">防滥用刷量 + 成本护栏 · 生产被打爆 / 越权高频调用时自动限流。</div>
-              <div class="cfg-group">
-                <h4>限流策略（预览）</h4>
-                <div class="opt-row">
-                  <div class="opt dis"><span class="mk"></span>关闭</div>
-                  <div class="opt dis"><span class="mk"></span>按上游限流</div>
-                  <div class="opt dis"><span class="mk"></span>按 role 限流</div>
-                </div>
-              </div>
-              <div class="cfg-kv"><span class="k">日成本上限（预览）</span><span class="v" style="color:var(--violet-d)">未启用</span></div>
-              <div class="wip-note">🚧 v0.6 规划中：配额与成本护栏尚未建成。控件上线前为预览态，不可保存。</div>
-            </div>
-
-            <!-- 上游接入 -->
-            <div class="cfg-panel" id="cfg-upstream">
-              <div class="cfg-h">上游接入</div>
-              <div class="cfg-desc">已接入 4 个上游 · 生产 2（dify / comfyui）/ 开发 2（claude-code / codex）</div>
-              <div class="cfg-kv"><span class="k">接入方式</span><span class="v">base_url 指向 gateway · 零代码改造</span></div>
-              <div class="cfg-kv"><span class="k">协议兼容</span><span class="v">OpenAI · Anthropic <small>流式 SSE 🚧 v0.6</small></span></div>
-              <button class="btn-primary" style="margin-top:14px" onclick="go('upstream')">查看上游列表 →</button>
-            </div>
-
-            <!-- 审批流 -->
-            <div class="cfg-panel" id="cfg-approval">
-              <div class="cfg-h">审批流 · 配置治理矩阵</div>
-              <div class="cfg-desc">变更按风险分级走不同审批 · 全程落 audit-log（谁 / 何时 / 改了什么 / 谁批）· 审批前不生效、可回滚</div>
-              <table>
-                <thead><tr><th>变更类型</th><th>审批级别</th><th>审批人</th></tr></thead>
-                <tbody>
-                  <tr><td>PHI 字段增删</td><td><span class="tag-l l4">三签</span></td><td>合规委 + 技委 + 法务</td></tr>
-                  <tr><td>模型白名单变更</td><td><span class="tag-l l3">会签</span></td><td>技委 + 合规委</td></tr>
-                  <tr><td>闸门阈值调整</td><td><span class="tag-l l3">会签</span></td><td>技委 + 红队回归</td></tr>
-                  <tr><td>保留期缩短</td><td><span class="tag-l l4">三签</span></td><td>合规委 + 法务 + CTO</td></tr>
-                  <tr><td>dev 上游限流参数</td><td><span class="tag-l l2">单签</span></td><td>工程师</td></tr>
-                </tbody>
-              </table>
-              <div class="gov-note">高危变更（PHI 字段 / 保留期）即使 Console 可点，也必须走会签——按钮文案随风险级自动切换为「提交审批」。</div>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-      <!-- ============ 上游接入 ============ -->
-      <section class="view" id="view-upstream">
-        <div class="traffic-head">
-          <div class="section-title" style="margin:0">已接入上游 · 4</div>
-          <button class="btn-primary" onclick="toast('接入向导：① 选协议 openai/anthropic → ② 选场景 dev/prod → ③ 生成 base_url + API key → 复制给 Dify/ComfyUI/IDE')">+ 接入新上游</button>
-        </div>
-        <div class="card">
-          <table>
-            <thead><tr><th>名称</th><th>场景</th><th>协议</th><th>状态</th><th>今日流量</th><th>PHI 拦截</th></tr></thead>
-            <tbody>
-              <tr><td><b>prod-dify-rag</b></td><td><span class="ctx prod">prod</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">8,247</td><td>命中 312 / 拦 5</td></tr>
-              <tr><td><b>prod-comfyui</b></td><td><span class="ctx prod">prod</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">2,103</td><td>命中 88 / 拦 2</td></tr>
-              <tr><td><b>dev-claude-code</b></td><td><span class="ctx dev">dev</span></td><td>anthropic</td><td><span class="stat"><span class="d" style="background:var(--green)"></span>健康</span></td><td class="num">340</td><td>命中 12 / 拦 0</td></tr>
-              <tr><td><b>dev-codex</b></td><td><span class="ctx dev">dev</span></td><td>openai</td><td><span class="stat"><span class="d" style="background:var(--yellow)"></span>限流</span></td><td class="num">892</td><td>命中 30 / 拦 0</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="demo-note" style="margin-top:14px">🔌 零代码改造：上游只需把 base_url 指向 gateway。开发期（Claude Code/Codex）与生产期（Dify/ComfyUI）同一个合规 + 安全强制点——入站扫 PHI 与注入，出站扫 PHI 回流与有害输出（出站 <span class="wip">🚧 v0.6</span>）。</div>
-      </section>
-
-      <!-- ============ 研发流水线 · 12 步 SOP 看板 ============ -->
-      <section class="view" id="view-pipeline">
-        <div class="pipe-head">
-          <div>
-            <div class="section-title" style="margin:0 2px 4px">活跃 change · 示例-患者匹配最小可行版 <span class="ctx dev">dev</span></div>
-            <div style="font-size:12.5px;color:var(--muted)">12 步 SOP · <span style="color:var(--teal-d);font-weight:700">合规闸门 Step 0 / 10 / 12 不可跳过</span></div>
-          </div>
-          <div class="pipe-prog">
-            <span>进度 7 / 13</span>
-            <span class="pipe-bar"><i style="width:54%"></i></span>
-            <span style="color:var(--yellow);font-weight:700">Step 7 进行中</span>
-          </div>
-        </div>
-        <div class="pipe-grid" id="pipe-grid"></div>
-        <div class="card" style="margin-top:18px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px">
-          <div>
-            <div style="font-weight:700;font-size:13.5px">🔴 红队演练 · PHI 渗透 drill</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:3px">最近一次：2026-05-26 · 合成 PHI 注入 40 例 · 脱敏/路由/审计全部阻断 · 漏出 <b style="color:var(--green)">0</b></div>
-          </div>
-          <button class="fix-btn" onclick="toast('红队 drill 由合规委员会每月发起 · 用合成 PHI 测脱敏/路由/审计是否阻断 · 结果落 audit-log + 季度报表')">查看 drill 记录</button>
-        </div>
-        <div class="demo-note" style="margin-top:14px">🚦 研发流水线是<b>开发期</b>落点：每个 change 走完 12 步才能归档。合规闸门（Step 0 预检 / Step 10 Gate / Step 12 审计冻结）由 Compliance-Agent 异构模型独立裁决，工程师不可绕过。</div>
-      </section>
-
-      <!-- ============ 报表中心 ============ -->
-      <section class="view" id="view-reports">
-        <div class="section-title">关键指标 · 本季度</div>
-        <div class="kpi-strip">
-          <div class="card kpi"><div class="kn num">78%</div><div class="kl">Verify 一次通过率</div></div>
-          <div class="card kpi"><div class="kn num" style="color:var(--green)">0</div><div class="kl">PHI 漏出</div></div>
-          <div class="card kpi"><div class="kn num">100%</div><div class="kl">审计可重放</div></div>
-          <div class="card kpi"><div class="kn num">100%</div><div class="kl">注入阻断率</div></div>
-          <div class="card kpi"><div class="kn num">↓34%</div><div class="kl">单 change 周期</div></div>
-        </div>
-        <div class="section-title">报表与监管材料 · 一键生成（合成 demo）</div>
-        <div class="rep-grid" id="rep-grid"></div>
-        <div class="demo-note" style="margin-top:16px">📋 报表全部基于<b>聚合统计与哈希</b>生成，0 PHI。监管应对包（AUDIT_BUNDLE）汇编脱敏 prompt history / 模型版本 / 路由决策 / 哈希链，模拟 4 小时交付监管。</div>
-      </section>
-
+      <div class="foot-note">需要账号？联系系统管理员开通。工程师调用网关只需 base_url + 个人令牌，<b>无需登录控制台</b>。</div>
     </div>
   </div>
 </div>
-
-<div class="toast" id="toast"></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">⊕</div><div><b>MedHarness</b><small>医疗大模型流量网关</small></div></div>
+    <nav id="nav"></nav>
+    <div class="side-foot">v0.7 重设计 demo · 合成数据<br>四目标：安全·划算·审计·稳定</div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <h1 id="pageTitle">总览</h1>
+      <div class="top-right">
+        <div class="env-pill">环境 <b style="color:var(--navy)">生产</b> ▾</div>
+        <div class="phi-badge"><span class="dot"></span> 全程 0 PHI</div>
+        <div class="role-select" id="roleSel">
+          <button class="on" onclick="setRole('rdlead',this)">研发负责人</button>
+          <button onclick="setRole('sysadmin',this)">系统管理员</button>
+        </div>
+        <button class="btn" style="height:34px;padding:0 13px" onclick="lock()" title="锁定 / 退出登录">🔒 锁定</button>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="scrim" id="scrim" onclick="closeAll()"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="modal" id="modal"></div>
 
 <script>
-/* ============ view + role switching ============ */
-const titles = {
-  posture:["合规·安全态势","CTO 落点 · 合规分 + 安全分一眼看懂"],
-  traffic:["流量监控","杀手锏 · 双向看见 PHI / 注入被一层层拦下"],
-  audit:["审计追溯","合规官落点 · 4 小时交监管包"],
-  pipeline:["研发流水线","工程师落点 · 开发期 12 步 SOP · Step 0/10/12 合规闸门"],
-  config:["策略配置","配置中心 · 合规 / 安全 / 治理分组改策略"],
-  upstream:["上游接入","3 步接入 · 零代码改造"],
-  reports:["报表中心","合规官落点 · KPI + 监管材料一键生成"]
+const D={
+  sec:{overall:86,comp:92,safe:78},
+  cost:{month:'¥3,240',save:'41%',saved:'¥2,240',normal:'73%',cache:'28%',cacheSaved:'¥420',capDay:'¥200',capUsed:'¥124',capLeft:'62%'},
+  byLane:[['常规通道（低成本池）','var(--teal)',36,'¥1,180'],['敏感通道（私有）','var(--violet)',64,'¥2,060']],
+  byModel:[['qwen-max-2026','var(--teal-d)',43,'¥1,400'],['claude-sonnet','#2563EB',28,'¥900'],['deepseek-v4-pro','var(--green)',17,'¥540'],['qwen-vl-2026','var(--cost)',12,'¥400']],
+  trend:[58,62,55,70,64,61,52],
+  gates:[
+    {c:'comp',i:'🔎',n:'患者隐私(PHI)扫描',s:'拦截率 100% · 220 样本',on:1},
+    {c:'comp',i:'🔐',n:'脱敏加密',s:'p99 0.02ms',on:1},
+    {c:'comp',i:'🧭',n:'模型准入',s:'越权全拦 · <5ms',on:1},
+    {c:'sec',i:'🛡',n:'注入攻击防御',s:'阻断率 100% · 25 例',on:1},
+    {c:'sec',i:'↩️',n:'响应安全检查',s:'PHI 回流 / 有害 / 幻觉医嘱',on:0},
+    {c:'sec',i:'⏱',n:'用量与成本护栏',s:'防滥用 · 成本上限',on:1},
+  ],
+  events:[
+    {k:'comp',t:'命中患者隐私 → 自动脱敏（常规通道）',m:'已替换为占位符',c:'desens#e5f6'},
+    {k:'sec',t:'注入尝试 → 已隔离告警',m:'prod-dify 检索内容含可疑指令',c:'inject#c3d4'},
+    {k:'comp',t:'未脱敏影像 → 拒绝出境',m:'目标 gpt-4o 越权，已阻断',c:'routing#a1b2'},
+    {k:'comp',t:'数据分级检查通过',m:'低敏请求放行常规通道',c:'lane#9f3e'},
+    {k:'sec',t:'疑似幻觉医嘱 → 标记复核',m:'响应安全检查（开通中）',c:'output#g7h8'},
+    {k:'sec',t:'调用突发 → 滥用熔断',m:'prod-comfyui 超日成本上限，已限流',c:'rate#7c01'},
+  ],
+  audit:[
+    {ts:'14:32:07',u:'__USER_a1__',m:'qwen-max-2026',lane:'敏感',ev:'脱敏',c:'desens#e5f6',blk:18432,hc:'9f3a…c4d2',hp:'7b1e…a8f0',resp:'…建议复查，未检出隐私回流',inj:'无可疑指令'},
+    {ts:'14:31:55',u:'__USER_b2__',m:'claude-sonnet',lane:'常规',ev:'放行',c:'routing#a1b2',blk:18431,hc:'7b1e…a8f0',hp:'33c0…1d77',resp:'…已脱敏后返回，无有害内容',inj:'无可疑指令'},
+    {ts:'14:31:40',u:'__USER_a1__',m:'gpt-4o',lane:'敏感',ev:'拒绝出境',c:'阻断#c3d4',blk:18430,hc:'33c0…1d77',hp:'0a9b…42ee',resp:'（请求被拒，无模型响应）',inj:'命中越权指令 → 已隔离'},
+    {ts:'14:30:12',u:'__USER_c3__',m:'deepseek-v4-pro',lane:'常规',ev:'放行',c:'routing#5512',blk:18429,hc:'0a9b…42ee',hp:'5d6f…7c01',resp:'…正常返回，未检出幻觉医嘱',inj:'无可疑指令'},
+  ],
+  upstreams:[
+    {n:'prod-dify-rag',sc:'生产',p:'OpenAI',f:'1.2k/h',phi:'命中312/拦5',st:'ok'},
+    {n:'prod-comfyui',sc:'生产',p:'OpenAI',f:'380/h',phi:'命中88/拦2',st:'ok'},
+    {n:'dev-claude-code',sc:'开发',p:'Anthropic',f:'90/h',phi:'命中12/拦0',st:'ok'},
+    {n:'dev-codex',sc:'开发',p:'OpenAI',f:'30/h',phi:'命中30/拦0',st:'warn'},
+  ],
+  channels:[
+    {n:'火山-DeepSeek',m:'deepseek-v4-pro',w:'权重70',pr:'¥0.8/万tok',p95:'320ms',reg:'境内',pick:1,st:'ok'},
+    {n:'官方-DeepSeek',m:'deepseek-v4-pro',w:'权重30',pr:'¥1.2/万tok',p95:'280ms',reg:'境内',pick:0,st:'ok'},
+    {n:'阿里-Qwen',m:'qwen-max-2026',w:'权重100',pr:'¥2.4/万tok',p95:'360ms',reg:'境内',pick:1,st:'ok'},
+    {n:'Anthropic',m:'claude-sonnet',w:'权重100',pr:'¥18/万tok',p95:'620ms',reg:'境外·仅脱敏',pick:1,st:'ok'},
+  ],
+  tokens:[
+    {n:'tk-dify-prod',q:'¥150/日',u:'¥124（83%）',lv:'L1-L3',st:'warn'},
+    {n:'tk-claude-code',q:'¥50/日',u:'¥18（36%）',lv:'L1-L2',st:'ok'},
+    {n:'tk-codex',q:'¥30/日',u:'¥30（100%）',lv:'L1-L2',st:'bad'},
+  ],
+  users:[
+    {n:'lead@med.co',g:'管理',r:'研发负责人',lv:'L1-L4',login:'OIDC',st:'ok'},
+    {n:'ops@med.co',g:'管理',r:'系统管理员',lv:'L1-L3',login:'passkey',st:'ok'},
+    {n:'eng-a@med.co',g:'生产',r:'',lv:'L1-L3',login:'OIDC',st:'ok'},
+    {n:'eng-b@med.co',g:'开发',r:'',lv:'L1-L2',login:'OIDC',st:'ok'},
+    {n:'svc-dify-rag',g:'生产',r:'',lv:'L1-L3',login:'令牌',st:'ok'},
+    {n:'svc-codex',g:'开发',r:'',lv:'L1-L2',login:'令牌',st:'off'},
+  ],
+  allowlist:[
+    {m:'qwen-max-2026',lv:'L3',dep:'私有部署',reg:'境内',on:1},
+    {m:'qwen-vl-2026',lv:'L3',dep:'私有部署',reg:'境内',on:1},
+    {m:'deepseek-v4-pro',lv:'L2',dep:'私有部署',reg:'境内',on:1},
+    {m:'claude-sonnet',lv:'L2',dep:'公共 API',reg:'境外·仅脱敏',on:1},
+    {m:'gpt-4o',lv:'—',dep:'公共 API',reg:'境外',on:0},
+  ],
+  optimize:[
+    {t:'开发期简单补全占 38%，建议默认走 deepseek（更省的小模型）',s:'省 ¥18/天'},
+    {t:'常规通道缓存命中 28%，规范 prompt 可提到 ~40%',s:'省 ¥260/月'},
+    {t:'claude-sonnet 28% 调用可降级到 qwen-max（境内）',s:'省 ¥420/月'},
+  ],
+  approval:[
+    {t:'患者隐私(PHI)字段增删',r:'最高',w:'研发负责人 +（外部）合规/法务会签'},
+    {t:'模型准入名单变更',r:'高',w:'研发负责人审批'},
+    {t:'安全检查阈值调整',r:'高+回归',w:'研发负责人 + 红队回归'},
+    {t:'审计保留期缩短',r:'最高',w:'研发负责人 +（外部）法务'},
+    {t:'成本上限 / 开发期限流',r:'低',w:'系统管理员单签'},
+  ],
 };
-function go(view){
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('show'));
-  document.getElementById('view-'+view).classList.add('show');
-  document.getElementById('page-title').firstChild.textContent = titles[view][0]+' ';
-  document.getElementById('page-sub').textContent = titles[view][1];
-  document.querySelector('.content').scrollTop = 0;
-  if(view==='posture') animateScore();
-}
-document.getElementById('nav').addEventListener('click',e=>{
-  const item=e.target.closest('.nav-item'); if(!item||item.classList.contains('disabled'))return;
-  go(item.dataset.view);
-});
-document.getElementById('roles').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  document.querySelectorAll('#roles button').forEach(x=>x.classList.toggle('on',x===b));
-  go(b.dataset.home);
-  toast('已切换到「'+b.textContent+'」视图 · 默认落到 '+titles[b.dataset.home][0]);
-});
-
-/* ============ health score ring ============ */
-function animateScore(){
-  const ring=document.getElementById('score-ring'), num=document.getElementById('score-num');
-  const target=92, circ=502, off=circ-(circ*target/100);
-  ring.style.transition='none'; ring.style.strokeDashoffset=circ; num.textContent='0';
-  setTimeout(()=>{ring.style.transition='stroke-dashoffset 1.2s ease'; ring.style.strokeDashoffset=off;},60);
-  let cur=0; const iv=setInterval(()=>{cur+=2; if(cur>=target){cur=target;clearInterval(iv);} num.textContent=cur;},22);
-}
-animateScore();
-
-/* ============ live event stream ============ */
-const samples=[
-  // 合规事件（青绿）
-  {cat:'comp',st:'g',up:'dify-rag',ctx:'prod',lv:'l2',act:'脱敏后路由 qwen-max',ref:'routing#'},
-  {cat:'comp',st:'g',up:'dify-rag',ctx:'prod',lv:'l3',act:'脱敏后路由 qwen-max',ref:'routing#'},
-  {cat:'comp',st:'r',up:'comfyui',ctx:'prod',lv:'l4',act:'未脱敏 L4 影像 → 阻断',ref:'阻断#'},
-  {cat:'comp',st:'g',up:'codex-dev',ctx:'dev',lv:'l2',act:'无 PHI · 直接路由',ref:'routing#'},
-  {cat:'comp',st:'y',up:'dify-rag',ctx:'prod',lv:'l3',act:'命中 PHI → 自动脱敏',ref:'desens#'},
-  {cat:'comp',st:'g',up:'claude-code',ctx:'dev',lv:'l2',act:'无 PHI · 直接路由',ref:'routing#'},
-  {cat:'comp',st:'r',up:'codex-dev',ctx:'dev',lv:'l4',act:'尝试直连境外 → 阻断',ref:'阻断#'},
-  {cat:'comp',st:'g',up:'comfyui',ctx:'prod',lv:'l2',act:'脱敏后路由 qwen-vl',ref:'routing#'},
-  // 安全事件（紫罗兰）· 注入=已上线 · 滥用/输出=🚧 v0.6 示意
-  {cat:'sec',st:'r',up:'dify-rag',ctx:'prod',type:'注入',act:'检索内容含可疑指令 → 隔离（仅记分类，不回显原文）',ref:'inj#'},
-  {cat:'sec',st:'g',up:'claude-code',ctx:'dev',type:'注入',act:'扫描通过 · 无注入',ref:'inj#'},
-  {cat:'sec',st:'y',up:'codex-dev',ctx:'dev',type:'滥用',act:'🚧 配额超限 → 限流（v0.6 示意）',ref:'quota#'},
-  {cat:'sec',st:'r',up:'dify-rag',ctx:'prod',type:'输出',act:'🚧 出站检出 PHI 回流 → 拦截（v0.6 示意）',ref:'out#'},
-  {cat:'sec',st:'y',up:'comfyui',ctx:'prod',type:'输出',act:'🚧 疑似幻觉医嘱 → 告警（v0.6 示意）',ref:'out#'}
+let role='rdlead';
+const NAV=[
+  {v:'overview',i:'🏠',t:'总览'},
+  {grp:'安全'},{v:'traffic',i:'📊',t:'流量监控'},{v:'audit',i:'🔍',t:'审计与报表'},
+  {grp:'划算'},{v:'cost',i:'💰',t:'用量与成本'},{v:'access',i:'🔌',t:'接入'},
+  {grp:'治理 / 运维'},{v:'policy',i:'⚙️',t:'策略'},{v:'system',i:'🛠',t:'系统'},
 ];
-let curFilter='all', curCat='all';
-function hex(){return Math.random().toString(16).slice(2,6);}
-function pad(n){return n<10?'0'+n:n;}
-function nowStr(){const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());}
-function addEvent(){
-  let pool=samples.filter(s=>(curFilter==='all'||s.ctx===curFilter)&&(curCat==='all'||s.cat===curCat));
-  if(!pool.length) return;
-  const s=pool[Math.floor(Math.random()*pool.length)];
-  const stream=document.getElementById('stream');
-  const row=document.createElement('div');
-  row.className='stream-row '+s.cat+(s.st==='r'?' blocked':'');
-  const dot=s.st==='g'?'g':s.st==='y'?'y':'r';
-  const chip = s.cat==='comp'
-    ? `<span class="cat comp">合规</span><span class="tag-l ${s.lv}">${s.lv.toUpperCase()}</span>`
-    : `<span class="cat sec">安全·${s.type}</span>`;
-  row.innerHTML=`<span class="st ${dot}"></span><span class="t num">${nowStr()}</span>
-    <span class="up">${s.up}</span>
-    <span class="act">${chip} ${s.act}</span>
-    <span class="ref mono">${s.ref}${hex()}</span>`;
-  stream.prepend(row);
-  while(stream.children.length>9) stream.removeChild(stream.lastChild);
-}
-for(let i=0;i<6;i++) addEvent();
-setInterval(addEvent, 2400);
-document.getElementById('traffic-filter').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  document.querySelectorAll('#traffic-filter button').forEach(x=>x.classList.toggle('on',x===b));
-  curFilter=b.dataset.f;
-});
-document.getElementById('cat-filter').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  document.querySelectorAll('#cat-filter button').forEach(x=>x.classList.toggle('on',x===b));
-  curCat=b.dataset.c;
-});
+const ROLE={rdlead:{nav:['overview','traffic','audit','cost','access','policy','system'],land:'overview'},
+  sysadmin:{nav:['overview','cost','access','system'],land:'access'}};
+function renderNav(cur){let h='';NAV.forEach(n=>{if(n.grp){h+=`<div class="nav-grp">${n.grp}</div>`;return;}
+  const ok=ROLE[role].nav.includes(n.v);
+  h+=`<div class="nav-item ${n.v===cur?'active':''} ${ok?'':'disabled'}" onclick="${ok?`go('${n.v}')`:`toast('该角色无此权限，需研发负责人')`}"><span class="ico">${n.i}</span> ${n.t}${ok?'':' 🔒'}</div>`;});
+  document.getElementById('nav').innerHTML=h;}
+const TITLE={overview:'总览',traffic:'流量监控',audit:'审计与报表',cost:'用量与成本',access:'接入',policy:'策略',system:'系统'};
+const V={};
 
-/* ============ config diff + approval ============ */
-const baseline={phi:'block',inj:'block',level:['L3','L4']};
-const state={phi:'block',inj:'block',level:['L3','L4']};
-const labels={phi:{warn:'warn',block:'hard_block',desens:'warn_and_desensitize'},inj:{block:'block',warn:'warn'}};
-document.querySelectorAll('[data-radio]').forEach(grp=>{
-  grp.addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;
-    grp.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel',x===o));
-    state[grp.dataset.radio]=o.dataset.v; renderDiff();});
-});
-document.querySelector('[data-check]').addEventListener('click',e=>{
-  const o=e.target.closest('.opt');if(!o)return; o.classList.toggle('sel');
-  state.level=[...document.querySelectorAll('[data-check] .opt.sel')].map(x=>x.dataset.v).sort();
-  renderDiff();
-});
-function renderDiff(){
-  const lines=[]; let highRisk=false;
-  if(state.phi!==baseline.phi){lines.push(['phi_on_hit',labels.phi[baseline.phi],labels.phi[state.phi]]);highRisk=true;}
-  if(state.inj!==baseline.inj){lines.push(['block_on_injection',labels.inj[baseline.inj],labels.inj[state.inj]]);highRisk=true;}
-  if(state.level.join()!==baseline.level.join()){lines.push(['data_level_required','['+baseline.level.join(', ')+']','['+state.level.join(', ')+']']);highRisk=true;}
-  const box=document.getElementById('diff-content'), impact=document.getElementById('impact');
-  if(lines.length===0){box.innerHTML='<div class="dl none">尚无改动 · 修改上方任一开关后这里显示 diff（像 code review）</div>';
-    impact.classList.add('hidden'); return;}
-  box.innerHTML=lines.map(l=>`<div class="dl del">- ${l[0]}: ${l[1]}</div><div class="dl add">+ ${l[0]}: ${l[2]}</div>`).join('');
-  impact.classList.remove('hidden');
-  const btn=document.getElementById('approve-btn');
-  if(highRisk){btn.className='approve-btn';btn.textContent='提交审批';
-    document.getElementById('impact-txt').textContent='⚠️ 此变更影响 2 个生产上游 (dify / comfyui) · 高危变更需合规委员会会签';}
-}
-function submitConfig(btn){
-  toast('✅ 已提交合规委员会会签 · 审批前不生效 · 变更已落 audit-log（谁/何时/改了什么/谁批）· 可回滚');
-  btn.textContent='已进入审批队列'; btn.disabled=true; btn.style.opacity=.6;
-}
+V.overview=()=>`<div class="page-sub">四目标一屏看懂 · 全程 0 PHI · 合成数据</div>
+<div class="card pad attn"><div class="ct">⚠️ 需要注意（2）</div>
+<div class="prow"><span>🟡 响应安全检查正在开通中，暂未启用（其余检查正常）</span><span class="lk" onclick="go('traffic')">查看怎么修 →</span></div>
+<div class="prow"><span>🟡 令牌 tk-codex 今日配额用满，已触发限流</span><span class="lk" onclick="go('access')">查看怎么修 →</span></div></div>
+<div class="grid g4">
+  <div class="card pad"><span class="goal-h gh-sec">安全</span>
+    <div class="row mt" style="gap:16px"><div class="ring">${ringSvg(D.sec.overall,'var(--teal)')}<div class="c"><div class="big">${D.sec.overall}</div><div class="den">综合 /100</div></div></div>
+    <div class="subscore"><div class="row" style="gap:8px">合规 <span class="bar"><i style="width:${D.sec.comp}%;background:var(--teal)"></i></span><b>${D.sec.comp}</b></div>
+    <div class="row" style="gap:8px">安全 <span class="bar"><i style="width:${D.sec.safe}%;background:var(--violet)"></i></span><b>${D.sec.safe}</b></div>
+    <div class="cap">本周 0 次隐私泄露</div></div></div></div>
+  <div class="card pad" onclick="go('cost')" style="cursor:pointer"><span class="goal-h gh-cost">划算</span>
+    <div class="bigv mt">${D.cost.month} <small>本月</small></div><div class="cap">较直连省 <b style="color:var(--green)">${D.cost.save}</b>（${D.cost.saved}）</div>
+    <div class="mt"><div class="kv">常规通道占比 <b>${D.cost.normal}</b></div><div class="kv">缓存命中 <b>${D.cost.cache}</b></div><div class="kv">日成本余量 <b>${D.cost.capLeft}</b></div></div></div>
+  <div class="card pad" onclick="go('audit')" style="cursor:pointer"><span class="goal-h gh-audit">审计</span>
+    <div class="bigv mt">链完整 ✓</div><div class="cap">最新 <span class="code">#18,432</span></div>
+    <div class="mt"><div class="kv">每日校验 <span class="tag t-ok"><span class="dot d-ok"></span>通过</span></div><div class="kv">可重放 <b>6 年</b></div><div class="kv"><span class="lock">🔒 不可删改</span></div></div></div>
+  <div class="card pad"><span class="goal-h gh-stab">稳定</span>
+    <div class="bigv mt">62ms <small>/ 预算 80</small></div><div class="cap" title="p95 口径 · 预算 ≤80ms">网关附加延迟（响应延迟）</div>
+    <div class="mt"><div class="kv">上游健康 <b>4/4</b></div><div class="kv">故障切换 <span class="tag t-ok">就绪</span></div><div class="kv">审计不丢 <span class="tag t-ok">fallback 就绪</span></div></div></div>
+</div>
+<div class="section-title">安全检查能力</div>
+<div class="gates">${D.gates.map(g=>`<div class="card gate ${g.c}"><div class="row" style="justify-content:space-between"><span style="font-size:22px">${g.i}</span>${g.on?'<span class="tag '+(g.c==='comp'?'t-comp':'t-sec')+'">已上线</span>':'<span class="wip">🚧 规划</span>'}</div><div class="gname">${g.n}</div><div class="cap">${g.s}</div></div>`).join('')}</div>
+<div class="grid g2 mt"><div class="card pad"><div class="ct">本月安全小结</div><div class="cap">拦截隐私外泄 <b style="color:var(--ink)">5</b> 次 · 阻断注入 <b style="color:var(--ink)">3</b> 次 · 数据出境违规 <b style="color:var(--ink)">0</b> 次 · 留痕 <b style="color:var(--ink)">1.2 万</b> 条</div></div>
+<div class="card pad"><div class="ct">本月成本小结</div><div class="cap">节省 <b style="color:var(--green)">¥2,240（41%）</b> · 缓存省 <b style="color:var(--ink)">¥420</b> · 常规通道承载 <b style="color:var(--ink)">73%</b> 调用</div></div></div>`;
 
-/* ============ misc ============ */
-function exportBundle(btn){
-  const orig=btn.textContent; btn.textContent='⏳ 打包中…'; btn.disabled=true;
-  setTimeout(()=>{btn.textContent='✅ 已生成 AUDIT_BUNDLE.tar.gz';
-    toast('监管包已生成：prompt history（脱敏）/ model versions / routing decisions / 哈希链 · 模拟 4h 应对流程');
-    setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},2600);},1100);
-}
-let tt;
-function toast(msg){const t=document.getElementById('toast');t.innerHTML='💬 '+msg;t.classList.add('show');
-  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),3800);}
+V.traffic=()=>`<div class="page-sub">实时查看大模型调用的去向与处置 · 仅显示脱敏后占位符</div>
+<div class="tabs"><button class="tab on" onclick="dir('in',this)">调用请求</button><button class="tab" onclick="dir('out',this)">模型响应 <span class="wip">🚧</span></button></div>
+<div class="row" style="gap:8px;margin-bottom:14px"><span class="chip on" onclick="tflt(this)">全部</span><span class="chip" onclick="tflt(this)">开发期</span><span class="chip" onclick="tflt(this)">生产期</span><span style="margin-left:auto;color:var(--muted);font-size:12px">实时 · 最近 1 小时</span></div>
+<div class="card pad" style="overflow-x:auto"><div id="sankey">${sankIn()}</div></div>
+<div class="card pad mt"><div class="row" style="justify-content:space-between;margin-bottom:10px"><div class="ct">实时事件流 · 双色</div><div class="cap"><span class="dot d-comp"></span> 合规 &nbsp; <span class="dot d-sec"></span> 安全</div></div>
+<div class="events">${D.events.map(e=>`<div class="ev ${e.k}"><div><div class="et">${e.t}</div><div class="em">${e.m} · <span class="code">${e.c}</span></div></div></div>`).join('')}</div></div>
+<div class="note">仅显示脱敏后的占位符 <span class="code">__NAME_a1__</span> 与统计数据，不含原始信息。</div>`;
+function sankIn(){return `<div class="sankey"><svg viewBox="0 0 900 340" preserveAspectRatio="none">
+${flow(160,61,365,170,'var(--teal)',12,{n:4})}${flow(160,151,365,170,'var(--teal)',7,{n:3})}${flow(160,241,365,170,'var(--green)',4,{n:2})}${flow(535,170,740,81,'var(--violet)',9,{n:3})}${flow(535,170,740,235,'var(--yellow)',5,{n:2})}</svg>
+<div class="snode" style="left:10px;top:38px"><div class="t">Dify RAG</div><div class="s">生产 · 1.2k/h</div></div>
+<div class="snode" style="left:10px;top:128px"><div class="t">ComfyUI</div><div class="s">生产 · 380/h</div></div>
+<div class="snode" style="left:10px;top:218px"><div class="t">Codex（开发）</div><div class="s">开发 · 90/h</div></div>
+<div class="snode gate" style="left:365px;top:144px;width:170px"><div class="t">🛡 安全检查</div><div class="s">隐私扫描 + 脱敏 + 准入</div></div>
+<div class="snode sens" style="left:740px;top:58px"><div class="t">私有模型 <span class="dot d-sec"></span></div><div class="s">敏感通道 · 脱敏后</div></div>
+<div class="snode bad" style="left:740px;top:212px"><div class="t">境外模型</div><div class="s">已脱敏 12 · ✗ 阻断 3</div></div></div>`;}
+function sankOut(){return `<div class="sankey"><svg viewBox="0 0 900 340" preserveAspectRatio="none">
+${flow(160,170,365,170,'var(--violet)',9,{n:3})}${flow(540,170,740,111,'var(--green)',6,{n:3})}${flow(540,170,740,251,'var(--red)',4,{blocked:1})}</svg>
+<div class="snode" style="left:10px;top:146px"><div class="t">模型响应</div><div class="s">待检查</div></div>
+<div class="snode gate gateout" style="left:365px;top:142px;width:175px"><div class="t">↩️ 响应安全检查</div><div class="s">🚧 隐私回流 / 有害 / 幻觉</div></div>
+<div class="snode" style="left:740px;top:88px"><div class="t">返回应用 ✓</div><div class="s">安全响应 · 占位符</div></div>
+<div class="snode bad" style="left:740px;top:228px"><div class="t">✗ 拦截</div><div class="s">隐私回流 / 有害</div></div></div>`;}
+function flow(x1,y1,x2,y2,c,w,opt){opt=opt||{};const mx=(x1+x2)/2;const d=`M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+if(opt.blocked)return `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" opacity=".45" stroke-dasharray="3 6"/>`;
+let p='';const n=opt.n||3,dur=opt.dur||2.6,r=Math.max(2.2,w/3);
+for(let i=0;i<n;i++){p+=`<circle r="${r}" fill="${c}"><animateMotion dur="${dur}s" begin="-${(i*dur/n).toFixed(2)}s" repeatCount="indefinite" path="${d}"/></circle>`;}
+return `<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" opacity=".22"/>${p}`;}
 
-/* ============ config left-nav panel switch ============ */
-document.getElementById('cfg-nav').addEventListener('click',e=>{
-  const item=e.target.closest('.cfg-item'); if(!item)return;
-  const key=item.dataset.cfg;
-  document.querySelectorAll('#cfg-nav .cfg-item').forEach(x=>x.classList.toggle('active',x===item));
-  document.querySelectorAll('.cfg-panel').forEach(p=>p.classList.toggle('show',p.id==='cfg-'+key));
-});
+V.audit=()=>`<div class="page-sub">查得清 · 改不了 · 交得出 · 全程 0 PHI</div>
+<div class="row" style="justify-content:space-between;margin-bottom:14px"><span class="tag t-ok"><span class="dot d-ok"></span> 防篡改链完整 · 区块 #18,432 · 每日校验通过</span><button class="btn primary" onclick="exportBundle()">📦 导出监管应对包</button></div>
+<div class="grid" style="grid-template-columns:300px 1fr">
+<div class="card pad"><div class="ct">实时事件 · 双色</div><div class="cap" style="margin-bottom:8px"><span class="dot d-comp"></span> 合规 &nbsp; <span class="dot d-sec"></span> 安全</div>
+<div class="events">${D.events.map(e=>`<div class="ev ${e.k}"><div><div class="et">${e.t}</div><div class="em">${e.m} · <span class="code">${e.c}</span></div></div></div>`).join('')}</div></div>
+<div><div class="row" style="gap:8px;margin-bottom:12px"><span class="chip on">全部</span><span class="chip">脱敏</span><span class="chip">拒绝</span><span class="chip">注入</span><span class="chip">敏感通道</span></div>
+<div class="card"><table><thead><tr><th>时间</th><th>用户(脱敏)</th><th>模型</th><th>通道</th><th>处置</th><th>事件编号</th></tr></thead>
+<tbody>${D.audit.map((r,i)=>`<tr class="click" onclick="detail(${i})"><td class="mono">${r.ts}</td><td class="mono">${r.u}</td><td>${r.m}</td><td>${r.lane==='敏感'?'<span class="tag t-sec"><span class="dot d-sec"></span>敏感</span>':'<span class="tag t-comp"><span class="dot d-comp"></span>常规</span>'}</td><td>${r.ev}</td><td><span class="code">${r.c}</span></td></tr>`).join('')}</tbody></table></div>
+<div class="note">明细仅显示脱敏后的占位符；原始信息需在受控环境单独授权查看，<b>不在 Console 内</b>。</div></div></div>`;
 
-/* ============ secondary radio groups (retention / injection action) ============ */
-const radio2Msg={
-  audit_keep:'审计保留期为合规硬约束 · 缩短需合规委 + 法务会签 · 变更落 audit-log',
-  prompt_keep:'prompt history（脱敏）保留期变更已记录 · 提交后落 audit-log',
-  inj_action:'注入命中处置已记录 · 提交后落 audit-log（审批前不生效）'
-};
-document.querySelectorAll('[data-radio2]').forEach(grp=>{
-  grp.addEventListener('click',e=>{const o=e.target.closest('.opt');if(!o)return;
-    grp.querySelectorAll('.opt').forEach(x=>x.classList.toggle('sel',x===o));
-    toast('✏️ '+(radio2Msg[grp.dataset.radio2]||'变更已记录 · 提交后落 audit-log'));});
-});
+V.cost=()=>`<div class="page-sub">用量、开销、降本一目了然</div>
+<div class="grid g4" style="margin-bottom:16px">
+<div class="card pad"><div class="bigv">${D.cost.month}</div><div class="cap">本月调用成本</div></div>
+<div class="card pad"><div class="bigv" style="color:var(--green)">省 ${D.cost.save}</div><div class="cap">较直连（${D.cost.saved}）</div></div>
+<div class="card pad"><div class="bigv">${D.cost.cache}</div><div class="cap">缓存命中 · 省 ${D.cost.cacheSaved}</div></div>
+<div class="card pad"><div class="bigv">${D.cost.capUsed}/${D.cost.capDay}</div><div class="cap">今日 · 余量 ${D.cost.capLeft}</div><div class="progress"><i style="width:38%"></i></div></div></div>
+<div class="grid g2"><div class="card pad"><div class="ct">成本构成 · 按通道</div>${D.byLane.map(x=>hbar(x)).join('')}<div class="cap mt">常规通道承载 73% 流量、仅占 36% 成本——降本主力。</div></div>
+<div class="card pad"><div class="ct">成本构成 · 按模型</div>${D.byModel.map(x=>hbar(x)).join('')}</div></div>
+<div class="card pad mt"><div class="ct">智能选路 · 同模型多渠道自动选更省的</div><div class="cap" style="margin-bottom:8px">按单价 + 延迟 + 健康加权择优；上游故障自动切换（仍限准入名单内）。</div>
+<table><thead><tr><th>渠道</th><th>模型</th><th>权重</th><th>单价</th><th>延迟</th><th>区域</th><th>状态</th></tr></thead>
+<tbody>${D.channels.map(c=>`<tr><td><b>${c.n}</b> ${c.pick?'<span class="tag t-cost">最优</span>':''}</td><td class="mono">${c.m}</td><td>${c.w}</td><td class="mono">${c.pr}</td><td class="mono">${c.p95}</td><td>${c.reg.includes('境外')?'<span class="tag t-warn">'+c.reg+'</span>':'<span class="tag t-comp">'+c.reg+'</span>'}</td><td><span class="tag t-ok"><span class="dot d-ok"></span>健康</span></td></tr>`).join('')}</tbody></table></div>
+<div class="grid g2 mt"><div class="card pad"><div class="ct">近 7 日成本</div><div class="spark">${D.trend.map((v,i)=>`<i class="${i===6?'on':''}" style="height:${v}%"></i>`).join('')}</div><div class="cap mt">日均 ¥108 · 今日 ¥124</div></div>
+<div class="card pad"><div class="ct">省钱建议</div>${D.optimize.map(o=>`<div class="prow"><span style="font-size:13px">${o.t}</span><span class="tag t-cost">${o.s}</span></div>`).join('')}</div></div>
+<div class="note cost">敏感数据走专属通道，不因降本出境。</div>`;
+function hbar(x){return `<div class="hbar"><span class="l">${x[0]}</span><span class="t"><i style="width:${x[2]}%;background:${x[1]}"></i></span><span class="v">${x[3]}</span></div>`;}
 
-/* ============ chip visual toggle (PHI fields / injection categories) ============ */
-document.querySelectorAll('.cfg-panel .chip-grid').forEach(grid=>{
-  grid.addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;
-    c.classList.toggle('on');});
-});
+V.access=()=>`<div class="page-sub">零改造接入 · 把 base_url 指向网关</div>
+<div class="tabs"><button class="tab on" onclick="acc('up',this)">接入应用</button><button class="tab" onclick="acc('ch',this)">模型与渠道</button><button class="tab" onclick="acc('tk',this)">令牌与配额</button><button class="tab" onclick="acc('us',this)">用户</button></div>
+<div id="accBody">${accUp()}</div>`;
+function accUp(){return `<div class="card"><table><thead><tr><th>应用</th><th>场景</th><th>协议</th><th>今日流量</th><th>隐私拦截</th><th>状态</th></tr></thead>
+<tbody>${D.upstreams.map(u=>`<tr><td><b>${u.n}</b></td><td>${u.sc==='生产'?'<span class="tag t-sec">生产</span>':'<span class="tag t-mute">开发</span>'}</td><td>${u.p}</td><td class="mono">${u.f}</td><td>${u.phi}</td><td>${u.st==='ok'?'<span class="tag t-ok"><span class="dot d-ok"></span>健康</span>':'<span class="tag t-warn"><span class="dot d-warn"></span>限流</span>'}</td></tr>`).join('')}</tbody></table></div>
+<div class="card pad mt"><div class="ct">零改造接入</div><div class="diff"><span class="c"># Claude Code</span>
+<span class="a">ANTHROPIC_BASE_URL=https://medharness.local/v1</span>
+<span class="c"># Codex / Dify / ComfyUI（OpenAI 兼容）</span>
+<span class="a">OPENAI_BASE_URL=https://medharness.local/v1</span></div></div>`;}
+function accCh(){return `<div class="card pad"><div class="ct">模型与渠道</div><div class="cap" style="margin-bottom:8px">同一模型可配多渠道，自动按价格/延迟/健康择优；越权/超等级请求拒绝。</div>
+<table><thead><tr><th>渠道</th><th>模型</th><th>权重</th><th>单价</th><th>延迟</th><th>区域</th></tr></thead>
+<tbody>${D.channels.map(c=>`<tr><td><b>${c.n}</b> ${c.pick?'<span class="tag t-cost">最优</span>':''}</td><td class="mono">${c.m}</td><td>${c.w}</td><td class="mono">${c.pr}</td><td class="mono">${c.p95}</td><td>${c.reg.includes('境外')?'<span class="tag t-warn">'+c.reg+'</span>':'<span class="tag t-comp">'+c.reg+'</span>'}</td></tr>`).join('')}</tbody></table></div>`;}
+function accTk(){return `<div class="card"><table><thead><tr><th>令牌</th><th>配额</th><th>已用</th><th>允许数据等级</th><th>状态</th></tr></thead>
+<tbody>${D.tokens.map(t=>`<tr><td class="mono">${t.n}</td><td>${t.q}</td><td>${t.u}</td><td>${t.lv}</td><td>${t.st==='ok'?'<span class="tag t-ok">正常</span>':t.st==='warn'?'<span class="tag t-warn">接近上限</span>':'<span class="tag t-bad">已限流</span>'}</td></tr>`).join('')}</tbody></table></div>
+<div class="note">令牌绑定「允许数据等级」——既控成本（配额）又控合规（等级）。</div>`;}
+function accUs(){return `<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:6px"><div class="ct">用户与分组 · 复用 new-api 用户体系</div><button class="btn">+ 新增用户</button></div>
+<div class="cap" style="margin-bottom:10px">企业统一登录（OIDC / passkey）· 已关闭自助注册与社交登录 · 工程师 / 服务仅用令牌、不进 Console</div>
+<table><thead><tr><th>用户</th><th>分组</th><th>Console 角色</th><th>允许数据等级</th><th>登录</th><th>状态</th></tr></thead>
+<tbody>${D.users.map(u=>`<tr><td class="mono">${u.n}</td><td>${u.g}</td><td>${u.r?'<span class="tag t-sec">'+u.r+'</span>':'<span class="tag t-mute">—（仅用令牌）</span>'}</td><td>${u.lv}</td><td>${u.login==='令牌'?'<span class="tag t-mute">令牌</span>':'<span class="tag t-comp">'+u.login+'</span>'}</td><td>${u.st==='ok'?'<span class="tag t-ok"><span class="dot d-ok"></span>启用</span>':'<span class="tag t-mute">停用</span>'}</td></tr>`).join('')}</tbody></table></div>
+<div class="grid g3 mt">
+<div class="card pad"><div class="ct">分组</div><div class="prow"><span>生产</span><b>4</b></div><div class="prow"><span>开发</span><b>5</b></div><div class="prow"><span>管理</span><b>2</b></div></div>
+<div class="card pad"><div class="ct">登录方式（认证收敛）</div><div class="prow"><span>OIDC（企业 SSO）</span><span class="tag t-ok"><span class="dot d-ok"></span>已启用</span></div><div class="prow"><span>passkey</span><span class="tag t-ok"><span class="dot d-ok"></span>已启用</span></div><div class="prow"><span>自助注册 / 社交登录</span><span class="tag t-mute">已关闭</span></div></div>
+<div class="card pad"><div class="ct">Console 操作者（2 角色）</div><div class="prow"><span>研发负责人</span><b>1</b></div><div class="prow"><span>系统管理员</span><b>1</b></div><div class="cap mt">其余 9 人为工程师 / 服务，仅令牌、无 Console</div></div>
+</div>`;}
 
-/* ============ audit lineage records + search ============ */
-const auditRecords={
-  'routing#a1b2':{
-    title:'routing#a1b2 · 脱敏后路由（prod-dify-rag）',
-    cls:'',
-    nodes:[
-      {ico:'📥',t:'入站请求',s:'prod-dify-rag'},
-      {ico:'🔍',t:'PHI 扫描',s:'命中 3 字段'},
-      {ico:'🔐',t:'脱敏',s:'AES-256-GCM'},
-      {ico:'🧭',t:'路由决策',s:'qwen-max · L3'},
-      {ico:'🤖',t:'模型响应',s:'脱敏态'},
-      {ico:'🔒',t:'审计上链',s:'WORM'}
-    ],
-    hash:'✓ 哈希链完整 · block #18,420 · daily verify 通过 · 6 年可重放',
-    details:[
-      ['时间','2026-05-29 14:22:07'],
-      ['上游','prod-dify-rag <span class="ctx prod">prod</span>'],
-      ['数据分级','<span class="tag-l l3">L3</span>'],
-      ['命中字段','姓名 / 病案号 / 手机号 → 占位符'],
-      ['占位符样例','<span class="ph">__NAME_a1__</span> <span class="ph">__MRN_b2__</span>'],
-      ['路由模型','qwen-max-2026-01（私有部署 · 异构组 A）'],
-      ['决策依据','allowlist · L3 ≤ 私有部署 · 越权拦截 11/11'],
-      ['哈希','routing#a1b2 → sha256:9f3c…e7']
-    ]
-  },
-  '阻断#c3d4':{
-    title:'阻断#c3d4 · 未脱敏 L4 影像硬阻断（prod-comfyui）',
-    cls:'blocked',
-    nodes:[
-      {ico:'📥',t:'入站请求',s:'prod-comfyui'},
-      {ico:'🔍',t:'PHI 扫描',s:'命中 L4 影像'},
-      {ico:'🚫',t:'硬阻断',s:'未脱敏 L4',circle:'red'}
-    ],
-    hash:'✓ 阻断事件已落账 · 哈希链完整 · block #18,425 · 审计链未断裂',
-    details:[
-      ['时间','2026-05-29 14:24:51'],
-      ['上游','prod-comfyui <span class="ctx prod">prod</span>'],
-      ['数据分级','<span class="tag-l l4">L4</span>（影像元数据）'],
-      ['拦截原因','未脱敏 L4 影像尝试直发 → 硬阻断'],
-      ['处置','退回上游 · 提示先经 phi-desensitize'],
-      ['模型','未路由（阻断发生在路由前）'],
-      ['哈希','阻断#c3d4 → sha256:1ab8…c0']
-    ]
-  },
-  'desens#e5f6':{
-    title:'desens#e5f6 · 命中脱敏后路由（prod-dify-rag）',
-    cls:'',
-    nodes:[
-      {ico:'📥',t:'入站请求',s:'prod-dify-rag'},
-      {ico:'🔍',t:'PHI 扫描',s:'命中 5 字段'},
-      {ico:'🔐',t:'脱敏',s:'AES-256-GCM + AAD'},
-      {ico:'🧭',t:'路由决策',s:'deepseek-v4-pro'},
-      {ico:'🔒',t:'审计上链',s:'WORM'}
-    ],
-    hash:'✓ 哈希链完整 · block #18,431 · 反向映射表存于受控 KMS（不在 Console）',
-    details:[
-      ['时间','2026-05-29 14:30:12'],
-      ['上游','prod-dify-rag <span class="ctx prod">prod</span>'],
-      ['数据分级','<span class="tag-l l3">L3</span>'],
-      ['命中字段','姓名 / 住址 / 邮箱 / 诊断编码 / 就诊日期 → 占位符'],
-      ['占位符样例','<span class="ph">__NAME_a1__</span> <span class="ph">__ADDR_d4__</span>'],
-      ['路由模型','deepseek-v4-pro（私有部署 · 异构组 B）'],
-      ['反查','需受控环境单独授权 · 不在 Console 界面内'],
-      ['哈希','desens#e5f6 → sha256:7c20…9d']
-    ]
-  }
-};
-function renderAudit(ref){
-  const r=auditRecords[ref]; if(!r)return false;
-  document.getElementById('audit-title').textContent='调用血缘 · '+r.title;
-  document.getElementById('lineage').innerHTML=r.nodes.map(n=>
-    `<div class="ln-node"><div class="circle${n.circle?' '+n.circle:''}">${n.ico}</div>`+
-    `<div class="ln-t">${n.t}</div><div class="ln-s">${n.s}</div></div>`).join('');
-  const hb=document.getElementById('hashbar');
-  hb.textContent=r.hash; hb.style.cssText='';
-  document.getElementById('audit-detail').innerHTML=r.details.map(d=>
-    `<div class="dl"><span class="k">${d[0]}</span><span class="v">${d[1]}</span></div>`).join('');
-  return true;
-}
-document.getElementById('audit-chips').addEventListener('click',e=>{
-  const c=e.target.closest('.qchip'); if(!c)return;
-  const ref=c.dataset.ref;
-  document.getElementById('audit-search').value=ref; renderAudit(ref);
-  toast('🔍 已定位 '+ref);
-});
-document.getElementById('audit-search').addEventListener('keydown',e=>{
-  if(e.key!=='Enter')return;
-  const q=e.target.value.trim();
-  if(renderAudit(q)) toast('🔍 已定位 '+q);
-  else toast('未找到「'+q+'」· 试试 routing#a1b2 / 阻断#c3d4 / desens#e5f6');
-});
-renderAudit('routing#a1b2');
+V.policy=()=>`<div class="page-sub">改动走 DIFF 预览 + 审批 · 像 code review</div>
+<div class="tabs"><button class="tab on" onclick="pol('c',this)">合规</button><button class="tab" onclick="pol('s',this)">安全</button><button class="tab" onclick="pol('m',this)">成本护栏</button><button class="tab" onclick="pol('g',this)">治理审批</button></div>
+<div id="polBody">${polC()}</div>`;
+function polC(){return `<div class="card pad"><div class="row" style="justify-content:space-between;margin-bottom:8px"><div class="ct">生产环境策略</div><span class="cap">影响所有生产应用</span></div>
+<div class="prow"><div><div class="pl">患者隐私命中处理</div><div class="pd">命中敏感字段时的处置</div></div><div class="seg"><button onclick="polChange(this,'仅警告')">仅警告</button><button class="on" onclick="polChange(this,'警告+脱敏')">警告+脱敏</button><button onclick="polChange(this,'拒绝')">拒绝</button></div></div>
+<div class="prow"><div><div class="pl">数据分级强制检查 <span class="tag t-ok">已上线</span></div></div><div class="seg"><button class="on">拒绝</button><button>警告</button></div></div>
+<div class="prow"><div><div class="pl">审计保留期</div><div class="pd">🔒 缩短为最高危变更</div></div><div class="seg"><button class="on">6 年</button><button>10 年</button><button>永久</button></div></div>
+<div class="prow"><div class="pl">防篡改 · 不可删改</div><span class="lock">🔒 合规硬约束 · 不可关闭</span></div>
+<div id="diffBox"></div><div class="mt" id="polAct"></div></div>
+<div class="card pad mt"><div class="ct">模型准入名单</div><div class="cap" style="margin-bottom:8px">越权全拦 · 境外模型仅接收脱敏占位符 · 增删需研发负责人审批</div>
+<table><thead><tr><th>模型</th><th>数据等级上限</th><th>部署</th><th>区域</th><th>状态</th></tr></thead>
+<tbody>${D.allowlist.map(a=>`<tr><td class="mono">${a.m}</td><td>${a.lv}</td><td>${a.dep}</td><td>${a.reg.includes('境外')?'<span class="tag t-warn">'+a.reg+'</span>':'<span class="tag t-sec">'+a.reg+'</span>'}</td><td>${a.on?'<span class="tag t-ok"><span class="dot d-ok"></span>启用</span>':'<span class="tag t-mute">停用</span>'}</td></tr>`).join('')}</tbody></table></div>`;}
+function polS(){return `<div class="card pad"><div class="ct">注入攻击防御 <span class="tag t-ok">已上线 · 阻断率 100%</span></div><div class="cap" style="margin-bottom:8px">仅记录分类与处置，不留存原始内容</div>
+<div class="prow"><div class="pl">启用检测类别</div><div class="row" style="gap:8px;flex-wrap:wrap"><span class="chip on">越权指令</span><span class="chip on">数据外泄诱导</span><span class="chip on">角色劫持</span><span class="chip on">检索内容污染</span></div></div>
+<div class="prow"><div class="pl">命中处置</div><div class="seg"><button class="on">隔离+告警</button><button>仅告警</button></div></div></div>
+<div class="card pad mt" style="opacity:.7"><div class="ct">响应安全检查 <span class="wip">🚧 规划</span></div><div class="cap" style="margin-bottom:8px">响应回扫：隐私回流 / 有害内容 / 幻觉医嘱。预览态不可保存。</div>
+<div class="row" style="gap:8px"><span class="chip">隐私回流拦截</span><span class="chip">有害内容拦截</span><span class="chip">幻觉医嘱告警</span></div></div>`;}
+function polM(){return `<div class="card pad"><div class="ct">成本护栏 <span class="tag t-ok">已上线</span></div><div class="cap" style="margin-bottom:8px">防滥用刷量 + 成本失控</div>
+<div class="prow"><div><div class="pl">日成本上限</div><div class="pd">超限自动限流并告警</div></div><div class="seg"><button>关闭</button><button class="on">¥200/日</button><button>自定义</button></div></div>
+<div class="prow"><div class="pl">限流维度</div><div class="seg"><button>关闭</button><button>按应用</button><button class="on">按用户+模型</button></div></div>
+<div class="prow"><div class="pl">超额告警阈值</div><div class="seg"><button>70%</button><button class="on">80%</button><button>90%</button></div></div>
+<div class="prow"><div><div class="pl">缓存降本</div></div><span class="tag t-ok"><span class="dot d-ok"></span>开启 · 命中 28%</span></div>
+<div class="prow"><div><div class="pl">低成本池优先（常规通道）</div></div><div class="seg"><button class="on">开启</button><button>关闭</button></div></div></div>`;}
+function polG(){return `<div class="card pad"><div class="ct">审批 · 配置治理矩阵（2 角色）</div><div class="cap" style="margin-bottom:8px">变更按风险走审批 · 全程落审计 · 审批前不生效、可回滚</div>
+<table><thead><tr><th>变更类型</th><th>风险</th><th>审批人</th></tr></thead>
+<tbody>${D.approval.map(a=>`<tr><td>${a.t}</td><td>${a.r==='低'?'<span class="tag t-ok">'+a.r+'</span>':a.r==='最高'?'<span class="tag t-bad">'+a.r+'</span>':'<span class="tag t-warn">'+a.r+'</span>'}</td><td style="color:var(--muted)">${a.w}</td></tr>`).join('')}</tbody></table>
+<div class="note">最高危变更即使可点，也需研发负责人 +（外部）合规/法务会签——按钮文案随风险级自动切换为「提交审批」。</div></div>`;}
 
-/* ============ pipeline 12-step SOP board ============ */
-const steps=[
-  ['Step 0','合规预检','compliance-precheck','done','gate'],
-  ['Step 1','PRD 预检','prd-impl-precheck','done',''],
-  ['Step 2','TDD 对齐','tdd-alignment','done',''],
-  ['Step 3','OpenSpec','openspec-new-change','done',''],
-  ['Step 4','任务拆解','task-decomposition','done',''],
-  ['Step 5','Mock 数据','test-data-generation','done',''],
-  ['Step 6','实现','openspec-apply-change','done',''],
-  ['Step 7','Verify','openspec-verify-change','active',''],
-  ['Step 8','Review+Debug','requesting-code-review','pending',''],
-  ['Step 9','Mocking 测试','mocking-stubbing','pending',''],
-  ['Step 10','合规 Gate','compliance-review','pending','gate'],
-  ['Step 11','合规整改','条件触发','pending',''],
-  ['Step 12','归档审计','audit-snapshot','pending','gate']
-];
-const stMark={done:'✓ 完成',active:'◗ 进行中',pending:'○ 待执行'};
-(function(){const g=document.getElementById('pipe-grid'); if(!g)return;
-  g.innerHTML=steps.map(s=>
-    `<div class="pstep ${s[3]}">${s[4]==='gate'?'<span class="gb">合规闸门</span>':''}`+
-    `<div class="pn">${s[0]}</div><div class="pt">${s[1]}</div>`+
-    `<div class="pd"><span>${stMark[s[3]]}</span></div>`+
-    `<div style="font-size:10.5px;color:var(--muted);margin-top:6px;font-family:'SF Mono',monospace">${s[2]}</div></div>`).join('');
-})();
+V.system=()=>`<div class="page-sub">单主机部署 · 自管，无需 SRE</div>
+<div class="grid g2"><div class="card pad"><div class="ct">部署健康</div>
+${[['核心网关服务','ok'],['审计存储（ClickHouse）','ok'],['缓存服务（Redis）','ok'],['密钥服务（KMS）','ok'],['隐私检测服务','ok'],['响应安全检查','plan']].map(([n,s])=>`<div class="prow"><span>${n}</span>${s==='ok'?'<span class="tag t-ok"><span class="dot d-ok"></span>运行中</span>':'<span class="wip">🚧 未上线</span>'}</div>`).join('')}</div>
+<div class="card pad"><div class="ct">备份 / 升级</div>
+<div class="prow"><span>上次备份</span><b>2026-05-29 03:00 ✓</b></div><div class="prow"><span>版本</span><b>v0.7.0-edge</b></div><div class="prow"><span>密钥服务</span><span class="tag t-ok"><span class="dot d-ok"></span>正常</span></div>
+<div class="row mt"><button class="btn">一键备份</button><button class="btn">检查升级</button><button class="btn" onclick="exportBundle()">导出监管应对包</button></div></div></div>`;
 
-/* ============ reports center ============ */
-const reports=[
-  ['📊','季度合规报表','PHI 漏出 / 阻断 / 路由决策聚合 · 提交合规委月度回顾'],
-  ['🔎','月度审计抽查','按 5% 抽样人工复核脱敏 prompt history · 出具抽查结论'],
-  ['🩺','Skill 健康周报','Memory-Curator 输出触发命中率 / 失败案例 / 误触发率'],
-  ['🔴','红队演练报告','合成 PHI 渗透 drill 结果 · 脱敏/路由/审计阻断率'],
-  ['📦','监管应对包','AUDIT_BUNDLE 汇编 · 模拟 4 小时交付监管（0 PHI）']
-];
-(function(){const g=document.getElementById('rep-grid'); if(!g)return;
-  g.innerHTML=reports.map(r=>
-    `<div class="card rep"><div class="ri">${r[0]}</div><div class="rt">${r[1]}</div>`+
-    `<div class="rs">${r[2]}</div><button class="rb">生成报表</button></div>`).join('');
-  g.addEventListener('click',e=>{const b=e.target.closest('.rb');if(!b)return;
-    const name=b.parentNode.querySelector('.rt').textContent;
-    toast('📄 已生成「'+name+'」（合成 demo · 基于聚合统计与哈希 · 0 PHI）');});
-})();
+function ringSvg(v,col){const r=42,c=2*Math.PI*r,off=c*(1-v/100);return `<svg width="96" height="96"><circle cx="48" cy="48" r="${r}" fill="none" stroke="#EEF2F6" stroke-width="9"/><circle cx="48" cy="48" r="${r}" fill="none" stroke="${col}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/></svg>`;}
+function go(v){const t=ROLE[role].nav.includes(v)?v:ROLE[role].land;renderNav(t);document.getElementById('pageTitle').textContent=TITLE[t];document.getElementById('content').innerHTML=`<div class="view show">${V[t]()}</div>`;document.querySelector('.content').scrollTop=0;}
+function setRole(r,el){role=r;document.querySelectorAll('#roleSel button').forEach(b=>b.classList.remove('on'));el.classList.add('on');go(ROLE[r].land);}
+function dir(d,el){document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('on'));el.classList.add('on');document.getElementById('sankey').innerHTML=d==='in'?sankIn():sankOut();}
+function tflt(el){el.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));el.classList.add('on');}
+function acc(t,el){document.querySelectorAll('#content .tab').forEach(x=>x.classList.remove('on'));el.classList.add('on');document.getElementById('accBody').innerHTML=t==='up'?accUp():t==='ch'?accCh():t==='tk'?accTk():accUs();}
+function pol(t,el){document.querySelectorAll('#content .tab').forEach(x=>x.classList.remove('on'));el.classList.add('on');document.getElementById('polBody').innerHTML=t==='c'?polC():t==='s'?polS():t==='m'?polM():polG();}
+function polChange(b,val){b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+document.getElementById('diffBox').innerHTML=`<div class="diff"><span class="c">policies.yaml · 生产</span>
+<span class="d">- 隐私命中处理: 警告+脱敏</span>
+<span class="a">+ 隐私命中处理: ${val}</span></div>`;
+const canA=role==='rdlead';document.getElementById('polAct').innerHTML=`<div class="row"><button class="btn warn" onclick="${canA?'approve()':`toast('系统管理员无权审批高危合规变更，需研发负责人')`}">提交审批（高危）</button><button class="btn" onclick="pol('c',document.querySelector('#content .tab'))">放弃</button></div>`;}
+function detail(i){const r=D.audit[i];const blocked=r.ev.includes('拒绝')||r.ev.includes('阻断');openDrawer(`<button class="close-x" onclick="closeAll()">×</button><h1 style="font-size:18px">审计明细</h1><div class="cap" style="margin-bottom:12px">占位符化 · 0 PHI · 可重放 6 年</div>
+<div class="kv">时间<b class="mono">${r.ts}</b></div><div class="kv">用户(脱敏)<b class="mono">${r.u}</b></div><div class="kv">模型<b>${r.m}</b></div><div class="kv">通道<b>${r.lane==='敏感'?'敏感通道（私有）':'常规通道（低成本池）'}</b></div><div class="kv">处置<b>${r.ev}</b></div><div class="kv">事件编号<span class="code">${r.c}</span></div>
+<div class="ct mt">血缘图（一条流量走完全程 · 双向）</div>
+<div class="lineage">
+<div class="lg-row"><span class="lg-tag comp">入站</span>上游请求 → 隐私扫描 → 脱敏加密 → 模型准入 → ${blocked?'<b style="color:var(--red)">✗ 拒绝出境</b>':'下游模型'}</div>
+<div class="lg-row"><span class="lg-tag sec">出站 <span class="wip">🚧</span></span>模型响应 → 响应安全检查（隐私回流 / 有害 / 幻觉医嘱）→ 返回应用</div>
+<div class="lg-row"><span class="lg-tag sec">安全</span>RAG 来源注入扫描 · ${r.inj}</div></div>
+<div class="ct mt">防篡改哈希链</div>
+<div class="hashchain"><div class="kv">区块<b class="mono">#${r.blk}</b></div><div class="kv">当前哈希<span class="code">${r.hc}</span></div><div class="kv">上一条<span class="code">${r.hp}</span></div><div class="cap mt"><span class="dot d-ok"></span> 链完整 · 每日校验通过 · <span class="lock">🔒 不可删改</span></div></div>
+<div class="ct mt">请求内容（脱敏版）</div><div class="diff"><span class="c">// 原文已脱敏，仅显示占位符</span>
+核对患者 <span class="a">__NAME_a1__</span>（病案号 <span class="a">__MRN_b2__</span>）
+的 <span class="a">__DATE_c3__</span> 检查结果……</div>
+<div class="ct mt">模型响应（脱敏 + 响应安全检查 <span class="wip">🚧</span>）</div><div class="diff"><span class="c">// 响应已过安全检查</span>
+${r.resp}</div>
+<div class="note">原始信息反查需在受控环境单独授权，不在 Console 内。</div>`);}
+function approve(){openModal(`<button class="close-x" onclick="closeAll()">×</button><h2 style="font-size:18px">提交审批 · 高危变更</h2><div class="cap">隐私处置策略变更 · 影响生产应用</div>
+<div class="kv mt">风险级<b style="color:var(--red)">高危</b></div>
+<div class="mt"><div class="step done"><div class="si">✓</div> 生成 DIFF</div><div class="step"><div class="si">2</div> 研发负责人审批</div><div class="step"><div class="si">3</div>（隐私字段/保留期）外部合规·法务会签</div><div class="step"><div class="si">4</div> 生效 + 落审计</div></div>
+<div class="note">审批前不生效、可回滚；不可删改项不可在 Console 关闭。</div>
+<div class="row mt"><button class="btn primary" onclick="closeAll();toast('已提交研发负责人审批')">确认提交</button><button class="btn" onclick="closeAll()">取消</button></div>`);}
+function exportBundle(){openModal(`<button class="close-x" onclick="closeAll()">×</button><h2 style="font-size:18px">📦 导出监管应对包</h2><div class="cap">基于聚合统计 + 哈希生成 · 全程 0 PHI</div>
+<div class="progress mt"><i id="pb"></i></div><div class="cap" id="ps">准备中…</div><div id="pd" class="hidden"></div>`);
+const steps=['采集审计明细（占位符）','脱敏二次校验','防篡改链校验','签名 + 打包'];let k=0;const bar=()=>document.getElementById('pb'),st=()=>document.getElementById('ps');
+const tick=()=>{k++;if(bar())bar().style.width=(k/steps.length*100)+'%';if(st())st().textContent=steps[k-1]||'';if(k<steps.length)setTimeout(tick,480);else setTimeout(()=>{const d=document.getElementById('pd');if(d){d.classList.remove('hidden');d.innerHTML=`<div class="note mt">✓ 已生成监管应对包 · 模拟 4 小时交付监管</div><div class="kv">校验码<span class="code">a1b2…e5f6</span></div><div class="row mt"><button class="btn primary" onclick="closeAll();toast('（原型）已下载')">下载</button></div>`;}},480);};setTimeout(tick,400);}
+function openDrawer(h){document.getElementById('drawer').innerHTML=h;document.getElementById('drawer').classList.add('show');document.getElementById('scrim').classList.add('show');}
+function openModal(h){document.getElementById('modal').innerHTML=h;document.getElementById('modal').classList.add('show');document.getElementById('scrim').classList.add('show');}
+function closeAll(){document.getElementById('drawer').classList.remove('show');document.getElementById('modal').classList.remove('show');document.getElementById('scrim').classList.remove('show');}
+function toast(m){const t=document.createElement('div');t.textContent=m;t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 20px;border-radius:10px;z-index:200;box-shadow:var(--shadow);font-size:13px';document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
+function doLogin(){document.getElementById('login').classList.add('hide');}
+function lock(){closeAll();document.getElementById('login').classList.remove('hide');}
+go('overview');
 </script>
 </body>
 </html>
