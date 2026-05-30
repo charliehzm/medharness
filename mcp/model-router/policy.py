@@ -21,7 +21,7 @@
 ...     agent_role="coder",
 ...     data_level="L2",
 ...     change_id="change-001",
-...     metadata={"desensitized": True},
+...     metadata={"tier_trusted": True, "desensitized": True},
 ... ))
 >>> decision.decision
 'allow'
@@ -32,7 +32,7 @@
 ...     agent_role="coder",
 ...     data_level="L2",
 ...     change_id="change-001",
-...     metadata={},
+...     metadata={"tier_trusted": True},
 ... ))
 >>> denied.decision, denied.layer_failed
 ('deny', 'marker')
@@ -48,7 +48,7 @@ from typing import Literal
 from allowlist import Allowlist, AllowlistEntry
 
 Decision = Literal["allow", "deny"]
-Layer = Literal["allowlist", "heterogeneity", "data_level", "marker"]
+Layer = Literal["tier", "allowlist", "heterogeneity", "data_level", "marker"]
 
 
 @dataclass(frozen=True)
@@ -81,6 +81,13 @@ class PolicyCore:
 
     def evaluate(self, request: RouteRequest) -> RouteDecision:
         start = time.perf_counter_ns()
+        if not request.metadata.get("tier_trusted", False):
+            return self._deny(
+                request,
+                "tier fields not attested by gate middleware (caller-asserted tier rejected)",
+                "tier",
+                start,
+            )
         if not self._has_desensitized_marker(request):
             return self._deny(
                 request,

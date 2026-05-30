@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
+import tier_trust  # noqa: E402
 from allowlist import AllowlistError, HotAllowlist  # noqa: E402
 from heterogeneity import HeterogeneityPolicy  # noqa: E402
 from limits import CircuitBreaker, RateLimiter  # noqa: E402
@@ -183,8 +184,12 @@ def _build_request(payload: dict[str, Any]) -> RouteRequest:
     if missing:
         raise ValueError(f"missing required field(s): {', '.join(missing)}")
 
+    # Tier fields are only trusted when signed by the gate middleware (B1 / ADR-18 §3).
+    # Fail-closed: no secret or no/invalid signature => tier_trusted False => PolicyCore deny.
+    secret = tier_trust.load_secret()
     metadata: dict[str, object] = {
         "desensitized": bool(payload.get("desensitized", False)),
+        "tier_trusted": tier_trust.verify_tier(payload, payload.get("tier_sig"), secret),  # type: ignore[arg-type]
     }
     if "caller_vendor_family" in payload and payload["caller_vendor_family"] is not None:
         metadata["caller_vendor_family"] = str(payload["caller_vendor_family"])
@@ -219,6 +224,22 @@ def _base_response(
     }
 
 
+# H2: external error responses must NOT leak the internal policy reason / traces
+# (model_id, agent_role, change_id, data_level values, circuit detail). The caller
+# gets a stable code + generic message; the detailed reason stays only in the audit record.
+_GENERIC_ERROR_MESSAGE = {
+    "PolicyDenyError": "request denied by routing policy",
+    "InvalidRequestError": "invalid routing request",
+    "CircuitOpenError": "model temporarily unavailable",
+    "RateLimitError": "rate limit exceeded",
+    "AllowlistError": "request denied by routing policy",
+}
+
+
+def _external_message(error_type: str) -> str:
+    return _GENERIC_ERROR_MESSAGE.get(error_type, "request denied")
+
+
 def _error_response(
     *,
     decision: str,
@@ -229,7 +250,7 @@ def _error_response(
     policy_version: str,
     duration_ms: float,
     error_type: str,
-    message: str,
+    message: str,  # retained for the audit record / caller intent; NOT sent to the client (H2)
     layer_failed: str,
     severity: str | None = None,
 ) -> dict[str, Any]:
@@ -242,7 +263,11 @@ def _error_response(
         policy_version=policy_version,
         duration_ms=duration_ms,
     )
-    error = {"type": error_type, "message": message, "layer_failed": layer_failed}
+    error = {
+        "type": error_type,
+        "message": _external_message(error_type),
+        "layer_failed": layer_failed,
+    }
     if severity is not None:
         error["severity"] = severity
     response["error"] = error

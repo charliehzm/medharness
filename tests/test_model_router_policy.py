@@ -45,6 +45,9 @@ def _request(**overrides: object) -> RouteRequest:
         "metadata": {"desensitized": True},
     }
     payload.update(overrides)
+    meta = dict(payload["metadata"])  # type: ignore[arg-type]
+    meta.setdefault("tier_trusted", True)  # B1: tier attested unless a test drives the tier layer
+    payload["metadata"] = meta
     return RouteRequest(**payload)  # type: ignore[arg-type]
 
 
