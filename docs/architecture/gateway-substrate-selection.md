@@ -36,6 +36,8 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 
 ## 3. §A 分层：复用 vs 自研（核心）
 
+> ⚠️ **读者须知（r2 M2 收口）**：本节为 **r4/r5 前**的候选分层权衡（one-api / LiteLLM / new-api 并列评估），**结论已被顶部 r4（锁 new-api 深度 fork · 商业授权兜底）与 r5（单 SKU）覆盖**。保留作推理血缘，**勿据本节实现**——底座/路由一切以顶部 r4/r5 + [ADR-18](ADR-18-gateway-control-plane.md) 为准。
+
 | 层 | 最佳 OSS（实时星数 2026-05） | license*（SPDX 已核） | 决策 |
 |---|---|---|---|
 | 网关底座（协议归一/扇出/failover/计费/SSE） | **one-api** 34k · **LiteLLM** 48.7k · Portkey 11.9k · Higress 8.5k | one-api=**MIT** · LiteLLM=**见注¹** · Portkey=MIT · Higress=Apache | **复用（架在其上）· 候选权衡见 §E** |
@@ -138,6 +140,8 @@ unified-gateway.md §7 把新增工作量定为"**新增 HTTP proxy 协议兼容
 ---
 
 ## 7. §E license 兼容性（关乎 R5 永久 Apache 2.0 / CC BY-SA 4.0）
+
+> ⚠️ **读者须知（r2 M2 收口）**：本节 one-api / LiteLLM / new-api 的 license 权衡是 **r4 前**分析；**底座已由 r4 锁定 new-api（商业授权兜底）**，下文「one-api 默认」结论作废，保留作血缘。
 
 > **修正（阻断项 #1）**：上一稿把 `one-api/new-api` 笼统记作 MIT，错。已逐仓 `gh api repos/<r>/license` 复核（2026-05），**逐项拆开**如下。
 
