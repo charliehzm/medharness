@@ -15,6 +15,7 @@
 4. **allowlist 增 `region`/`egress_zone`**（§2.3），PolicyCore 校验 `lane × region`。
 5. **new-api 禁用清单**（§5）：关掉一切会绕过 §D.1 的底座能力 + 「deny → provider 0 连接」集成测试。
 6. **控制面 HTTP 契约**（§4）：C3–C8 对中间件暴露稳定接口 + 超时/重试/熔断 + fail-closed。
+7. **inline 检测覆盖 = Option B**（§3.1 · B4 定论 2026-05-31）：inline 仅 rule-first（实测 p95 0.22ms）；重 NLP（CN_NAME/MRN）**异步**；clean lane 需**正向低敏证据**，含临床信号 / L3+ / 姓名·MRN 嫌疑一律**默认敏感通道**（保守 fail-closed）。
 
 ---
 
@@ -70,6 +71,18 @@ PolicyCore 新增**层⑥ lane×region 校验**：`lane==sensitive ⇒ egress_zo
 > ✅ **已实现（2026-05-31 · B1 闭环）**：原 v0.5 代码信任客户端自报分级（漏洞）；现已落代码——`mcp/model-router/tier_trust.py`（HMAC 签 tier）+ `server_v2._build_request` 验签 → `metadata.tier_trusted` + `policy.py` **layer-0「未签即 `deny(tier)`」**（fail-closed）。回归测试 `test_unsigned_tier_denied` / `test_forged_tier_denied` 验证未签 / 伪造分级被拒；367 全量测试 + api-phi-exfil drill 绿。**注**：v0.5 签发方是受信测试/部署方；Phase A 由 new-api 内置 Go 中间件签发（phi-detect + 脱敏定级后）。见 [REVIEW-r2 B1](../system-design/REVIEW-r2-codecheck.md)。
 
 ---
+
+### 3.1 inline 检测覆盖与 fail-closed（B4 定论 · Option B · 2026-05-31）
+
+**实测**：phi-detector v3 inline = `RegexOnlyNlpEngine`（不装 spaCy），`detect_v3` **p95 0.22ms**、全 pre-call 链 <6ms（远低 §G.2 的 35ms）。**但 regex-only 漏检 CN_NAME / MRN / 生物标识**（需 NLP 模型）。
+
+**裁定（Option B；否决 inline 装 NLP 的 Option A）**：
+1. **inline 仅 rule-first**（保延迟预算）；**重 NLP 异步/抽样**跑（catch 漏检 → 审计 + 事后纠偏），**不进**首字节阻塞路径。
+2. **clean lane = 特权，需正向低敏证据**：仅当「② 脱敏已产 `map_id`」**且**「无临床信号」（rule-first 未命中诊断码/drug/disease/MRN 形态，且非 L3+ 声明上下文）才放行常规通道（境内低成本池 / 境外仅脱敏）。
+3. **保守 fail-closed**：含**姓名/MRN 嫌疑、临床信号、或 L3+ 上下文 → 默认敏感通道**（私有·不出境），即便 inline 没 regex-命中具体名字。「regex 没匹配到名字」**不等于**干净。
+4. **0-PHI 出境的真正保证** = 脱敏 + 后端字段白名单 + clean-lane 限境内 + 出站二次扫描，**不是** inline regex 全检（呼应 H3 口径收窄）。
+
+**Phase A 硬验收**：① 一条「含中文姓名 + 诊断码、inline regex 未命中名字」的样本 → **落敏感通道、不出境**（集成测试）；② 异步 NLP 命中漏检 → 审计留痕 + 告警；③ pre-call 仍 p95≤35ms（含 rule-first 临床信号判定）。
 
 ## 4. 控制面 HTTP 契约（开放项② · C3–C8 对中间件）
 

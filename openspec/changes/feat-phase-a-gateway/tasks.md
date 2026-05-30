@@ -10,7 +10,7 @@
 
 ## 0. 外部门禁（开工前 / 交付前必须，非 Codex 可解）
 - **B6** ✅ **已满足**：new-api **完全授权已获**（2026-05-31）——fork / 入仓 / 对外交付**不再受阻**，关键路径解压；仅留 SBOM 记账（BE-0 顺手）。
-- **B4** fork 上 pre-call 延迟 POC（p50/p95/p99）——**BE-7 后立即跑**，未达标收紧 lane 或降级 SLO 文案。
+- **B4** ✅ 延迟实测 de-risk（phi inline p95 0.22ms · 全链 <6ms）+ **覆盖取舍已定 Option B**（[ADR-18 §3.1](../../../docs/architecture/ADR-18-gateway-control-plane.md)）；fork POC 仅确认端到端 p95≤80ms。
 - **B5** 核 new-api 用户/令牌/渠道 **精确字段集**（定 admin 代理白名单粒度）——**BE-6b 前**由 Claude+BE 核。
 
 ---
@@ -27,9 +27,9 @@
 | **BE-5** | A0 后端骨架（FastAPI）+ `/posture` `/traffic` `/events` | `mcp/a0-api/app.py` · `mcp/a0-api/serializers.py` | BE-2,BE-4 | 读 CH/router 聚合；**字段白名单序列化**；安全事件 `payload:null`；过 `assertNoPhi` 等价 |
 | **BE-6** | A0 `/audit/{ref}` `/upstreams` `/config` `/cost` `/channels` + `/audit/export` `/config/propose` | `mcp/a0-api/routes_*.py`（拆 2 子任务）| BE-5 | 血缘/哈希链；propose 只产 approval_id 不改配置；cost/channels 聚合 0-PHI |
 | **BE-6b** | **B5 admin 只读代理** `/admin/{users\|tokens\|channels}` + 字段白名单 | `mcp/a0-api/routes_admin.py` · `web/src/api/contract/*`(Claude bump v0.7.1) | BE-5 · B5 核字段 | 只回 id 哈希/角色/配额/等级/区域，**禁 email/phone/display_name/备注**；红队 `admin-phi-exfil` 0 命中 |
-| **BE-7** | **内置 Go 合规中间件**焊 §D.1 + tier_sig 签发（fork 已在 BE-0 入仓）| new-api fork `relay/middleware_compliance.go`(+1) | **BE-0 · BE-4** | 全 `/v1/*` 必经中间件；pre①②③④→base→post⑥；中间件签 tier（model-router 已验签 B1）；非流式 |
+| **BE-7** | **内置 Go 合规中间件**焊 §D.1 + tier_sig 签发（fork 已在 BE-0 入仓）| new-api fork `relay/middleware_compliance.go`(+1) | **BE-0 · BE-4** | 全 `/v1/*` 必经中间件；pre①②③④→base→post⑥；中间件签 tier（model-router 已验签 B1）；非流式；**Option B lane（ADR-18 §3.1）**：clean lane 需正向低敏证据，含姓名/MRN/临床信号/L3+ **默认敏感通道**——硬验收：「中文名+诊断码、inline 未命中名字」样本 → 落敏感、不出境 |
 | **BE-8** | 底座禁用清单 + 杀裸 `/api/route` + egress allowlist（ADR-18 §5）| `deploy/nginx/medharness.conf` · new-api fork config | BE-7 | 对外仅 fork `/v1/*` + A0 `/api/v1/*`；裸 MCP 内网封死；**集成测试「deny→provider 0 连接」** |
-| **BE-9** | 出站 B1 最小集成（phi_scan 注入 outbound-safety）焊入 ⑥ | `mcp/outbound-safety/classifier.py` · 中间件 hook | BE-7 | post-call 扫 PHI 回流；PHI-lane 缓冲后放；H7 |
+| **BE-9** | 出站 B1 最小集成（phi_scan 注入 outbound-safety）焊入 ⑥ + **异步 NLP catch inline 漏检** | `mcp/outbound-safety/classifier.py` · 中间件 hook | BE-7 | post-call 扫 PHI 回流；PHI-lane 缓冲后放；H7；**异步 NLP**（CN_NAME/MRN）命中 inline regex 漏检 → 审计 + 纠偏（Option B / ADR-18 §3.1）|
 
 > BE-4/BE-6 标「拆 N 子任务」=Codex 每次只做一个服务/一组端点，仍 ≤2 文件。
 
