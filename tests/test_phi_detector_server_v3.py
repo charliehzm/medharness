@@ -3,8 +3,13 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+from urllib import error
+from urllib import request as urllib_request
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PHI_DIR = ROOT / "mcp" / "phi-detector"
@@ -115,3 +120,90 @@ def test_1k_chars_p99_under_100ms_cpu() -> None:
     p99_ms = sorted(durations)[-1]
 
     assert p99_ms < 100
+
+
+def test_http_health_and_scan_endpoint() -> None:
+    server_v3._RUNTIME = None
+    raw = f"身份证 {SYNTHETIC_ID} 手机 {SYNTHETIC_PHONE}"
+    payload = json.dumps({"text": raw}, ensure_ascii=False).encode("utf-8")
+
+    server = server_v3._PhiDetectorHTTPServer(("127.0.0.1", 0), server_v3._PhiDetectorHTTPHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+
+    for _ in range(50):
+        try:
+            with urllib_request.urlopen(f"{base_url}/health", timeout=0.5) as resp:
+                json.loads(resp.read().decode("utf-8"))
+            break
+        except Exception:
+            time.sleep(0.05)
+
+    try:
+        with urllib_request.urlopen(f"{base_url}/health", timeout=1) as resp:
+            health = json.loads(resp.read().decode("utf-8"))
+        assert health["status"] == "ok-v3"
+
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib_request.urlopen(req, timeout=2) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert result["summary"]["total_hits"] >= 1
+    assert "text_sha256" in result["spans"][0]
+    assert SYNTHETIC_ID not in json.dumps(result, ensure_ascii=False)
+
+
+def test_http_rejects_bad_json_without_echo() -> None:
+    server = server_v3._PhiDetectorHTTPServer(("127.0.0.1", 0), server_v3._PhiDetectorHTTPHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=b'{"text": "broken"',
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(req, timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 400
+    assert json.loads(body)["error"]["code"] == "bad_request"
+    assert "broken" not in body
+
+
+def test_http_health_only_exposes_generic_error_route() -> None:
+    server = server_v3._PhiDetectorHTTPServer(("127.0.0.1", 0), server_v3._PhiDetectorHTTPHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(f"{base_url}/reverse", timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 404
+    assert json.loads(body)["error"]["code"] == "not_found"
