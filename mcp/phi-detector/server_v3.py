@@ -14,14 +14,20 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 BASE_DIR = Path(__file__).resolve().parent
 FIELDS_PATH = BASE_DIR / "fields.yml"
 MAX_TEXT_CHARS = 8192
 DEFAULT_LANGUAGE = "zh"
 DEFAULT_SCORE_THRESHOLD = 0.6
+DEFAULT_HTTP_HOST = "0.0.0.0"
+DEFAULT_HTTP_PORT = 9000
+DEFAULT_HTTP_MAX_BODY_BYTES = 1_048_576
 
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
@@ -366,6 +372,163 @@ def detect(text: str, context: dict | None = None) -> list[dict[str, Any]]:
     return detect_v3(text, context)["spans"]
 
 
+def health() -> dict[str, Any]:
+    runtime = _runtime()
+    return {
+        "status": "ok-v3",
+        "backend": "presidio",
+        "regex_only": runtime.regex_only,
+        "skipped_entities": list(runtime.skipped_entities),
+        "warning": runtime.init_warning,
+    }
+
+
+class _PhiDetectorHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+
+class _PhiDetectorHTTPHandler(BaseHTTPRequestHandler):
+    server_version = "MedHarnessPhiDetectorHTTP"
+    sys_version = ""
+    protocol_version = "HTTP/1.1"
+
+    def version_string(self) -> str:
+        return self.server_version
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _send_json(self, status: HTTPStatus, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(self, status: HTTPStatus, code: str, message: str) -> None:
+        self._send_json(status, {"error": {"code": code, "msg": message}})
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length_header = self.headers.get("Content-Length")
+        if length_header is None:
+            raise ValueError("missing content length")
+        try:
+            content_length = int(length_header)
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if content_length < 0 or content_length > DEFAULT_HTTP_MAX_BODY_BYTES:
+            raise ValueError("request body too large")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("request body truncated")
+        payload = json.loads(body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        return payload
+
+    def _context_from_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+        context = dict(context)
+        for key in ("language", "score_threshold", "entities"):
+            if key in payload and key not in context:
+                context[key] = payload[key]
+        return context
+
+    def _handle_health(self) -> None:
+        self._send_json(HTTPStatus.OK, health())
+
+    def _handle_scan(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except Exception:
+            self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
+            return
+
+        try:
+            text = payload.get("text", payload.get("payload", ""))
+            result = detect_v3(text, self._context_from_payload(payload))
+        except Exception:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "phi_detector_failed_closed",
+                "phi detector failed closed",
+            )
+            return
+
+        self._send_json(HTTPStatus.OK, result)
+
+    def do_GET(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self._handle_health()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_POST(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/scan":
+            self._handle_scan()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_HEAD(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def _parse_serve_args(argv: list[str]) -> tuple[str, str, int]:
+    mode = "stdio"
+    host = DEFAULT_HTTP_HOST
+    port = DEFAULT_HTTP_PORT
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--stdio":
+            mode = "stdio"
+            index += 1
+            continue
+        if arg == "--http":
+            mode = "http"
+            index += 1
+            continue
+        if arg == "--host":
+            if index + 1 >= len(argv):
+                raise ValueError("--host requires a value")
+            host = argv[index + 1]
+            index += 2
+            continue
+        if arg == "--port":
+            if index + 1 >= len(argv):
+                raise ValueError("--port requires a value")
+            try:
+                port = int(argv[index + 1])
+            except ValueError as exc:
+                raise ValueError("invalid --port value") from exc
+            index += 2
+            continue
+        raise ValueError(f"unknown serve option: {arg}")
+    return mode, host, port
+
+
+def _serve_http(host: str, port: int) -> int:
+    server = _PhiDetectorHTTPServer((host, port), _PhiDetectorHTTPHandler)
+    try:
+        server.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        server.server_close()
+    return 0
+
+
 def _serve_stdio() -> int:
     for line in sys.stdin:
         line = line.strip()
@@ -381,17 +544,7 @@ def _serve_stdio() -> int:
             result = detect_v3(params.get("text", ""), params.get("context"))
             resp = {"id": req.get("id"), "result": result}
         elif method == "health":
-            runtime = _runtime()
-            resp = {
-                "id": req.get("id"),
-                "result": {
-                    "status": "ok-v3",
-                    "backend": "presidio",
-                    "regex_only": runtime.regex_only,
-                    "skipped_entities": list(runtime.skipped_entities),
-                    "warning": runtime.init_warning,
-                },
-            }
+            resp = {"id": req.get("id"), "result": health()}
         else:
             resp = {"id": req.get("id"), "error": {"code": -32601, "message": "Method not found"}}
         sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
@@ -400,23 +553,18 @@ def _serve_stdio() -> int:
 
 
 def main() -> int:
-    if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        try:
+            mode, host, port = _parse_serve_args(sys.argv[2:])
+        except ValueError as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 2
+        if mode == "http":
+            return _serve_http(host, port)
         return _serve_stdio()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "detect"
     if cmd == "health":
-        runtime = _runtime()
-        print(
-            json.dumps(
-                {
-                    "status": "ok-v3",
-                    "backend": "presidio",
-                    "regex_only": runtime.regex_only,
-                    "skipped_entities": list(runtime.skipped_entities),
-                    "warning": runtime.init_warning,
-                },
-                ensure_ascii=False,
-            )
-        )
+        print(json.dumps(health(), ensure_ascii=False))
         return 0
     if cmd == "detect":
         try:
