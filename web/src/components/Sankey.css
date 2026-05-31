@@ -1,0 +1,79 @@
+.sankey-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.sankey-wip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-d);
+  font-size: 11px;
+  font-weight: 800;
+  width: fit-content;
+}
+
+.sankey {
+  position: relative;
+  width: 100%;
+  min-height: 340px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.sankey svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.snode {
+  position: absolute;
+  width: 148px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  z-index: 2;
+}
+
+.snode .t {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.snode .s {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.snode.gate {
+  background: linear-gradient(135deg, var(--teal-d), var(--teal));
+  border: 0;
+  color: var(--surface);
+}
+
+.snode.gate .t,
+.snode.gate .s {
+  color: var(--surface);
+}
+
+.snode.sens {
+  border-color: var(--violet);
+}
+
+.snode.bad {
+  border-color: var(--bad);
+}
+
+.snode.gateout {
+  background: linear-gradient(135deg, var(--violet-d), var(--violet));
+}
