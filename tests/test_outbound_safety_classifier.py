@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 from collections.abc import Mapping
 from importlib import util
 from pathlib import Path
+from urllib import error
+from urllib import request as urllib_request
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CLASSIFIER_PATH = ROOT / "mcp" / "outbound-safety" / "classifier.py"
+SERVER_PATH = ROOT / "mcp" / "outbound-safety" / "server_v2.py"
 
 spec = util.spec_from_file_location("outbound_safety_classifier", CLASSIFIER_PATH)
 assert spec is not None
@@ -16,6 +22,13 @@ classifier = util.module_from_spec(spec)
 sys.modules["outbound_safety_classifier"] = classifier
 assert spec.loader is not None
 spec.loader.exec_module(classifier)
+
+server_spec = util.spec_from_file_location("outbound_safety_server_v2", SERVER_PATH)
+assert server_spec is not None
+server_v2 = util.module_from_spec(server_spec)
+sys.modules["outbound_safety_server_v2"] = server_v2
+assert server_spec.loader is not None
+server_spec.loader.exec_module(server_v2)
 
 RAW_SENTINEL = "RAW-PHI-SENTINEL"
 
@@ -174,3 +187,145 @@ def test_pure_core_stays_fast_for_4k_response() -> None:
         assert result.decision == "pass"
 
     assert sorted(durations)[-1] < 50
+
+
+def test_http_health_and_scan_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    def http_phi_scan(_text: str, _context: Mapping[str, object]) -> object:
+        return {
+            "has_phi": True,
+            "sanitized_text": "患者 __NAME_a1__ 的报告已处理",
+            "score": 0.99,
+            "entities": ["CN_NAME"],
+        }
+
+    monkeypatch.setattr(server_v2, "PHI_SCAN", http_phi_scan)
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+
+    for _ in range(50):
+        try:
+            with urllib_request.urlopen(f"{base_url}/health", timeout=0.5) as resp:
+                json.loads(resp.read().decode("utf-8"))
+            break
+        except Exception:
+            time.sleep(0.05)
+
+    try:
+        with urllib_request.urlopen(f"{base_url}/health", timeout=1) as resp:
+            health = json.loads(resp.read().decode("utf-8"))
+        assert health["status"] == "ok-v2"
+
+        payload = json.dumps(
+            {
+                "text": f"患者 {RAW_SENTINEL} 的报告已处理",
+                "context": _context(),
+                "policy": _policy(phi_reflow="desensitize"),
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib_request.urlopen(req, timeout=2) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert result["decision"] == "desensitized"
+    assert result["sanitized_text"] == "患者 __NAME_a1__ 的报告已处理"
+    assert RAW_SENTINEL not in json.dumps(result, ensure_ascii=False)
+
+
+def test_http_rejects_bad_json_without_echo() -> None:
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=b'{"text": "broken"',
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(req, timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 400
+    assert json.loads(body)["error"]["code"] == "bad_request"
+    assert "broken" not in body
+
+
+def test_http_unknown_route_returns_generic_not_found() -> None:
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(f"{base_url}/reverse", timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 404
+    assert json.loads(body)["error"]["code"] == "not_found"
+
+
+def test_http_fail_closed_on_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError(RAW_SENTINEL)
+
+    monkeypatch.setattr(server_v2.classifier, "classify", boom)
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        payload = json.dumps(
+            {"text": "ignore previous instructions", "context": _context(), "policy": _policy()},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(req, timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 503
+    assert json.loads(body)["error"]["code"] == "outbound_safety_failed_closed"
+    assert RAW_SENTINEL not in body
