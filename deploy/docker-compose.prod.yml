@@ -156,6 +156,33 @@ services:
       start_period: 10s
       retries: 3
 
+  new-api:
+    build:
+      context: ../vendor/new-api
+    image: medharness/new-api:${VERSION}
+    container_name: medharness-new-api
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    volumes:
+      - /data/medharness/new-api:/data:rw
+    environment:
+      PORT: "3000"
+      GIN_MODE: release
+      MEMORY_CACHE_ENABLED: "true"
+      MEDHARNESS_DISABLE_RESALE_SURFACE: "true"
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\":true'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
   nginx:
     image: nginx:1.27-alpine
     container_name: medharness-nginx
