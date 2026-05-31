@@ -9,24 +9,33 @@
 
   --compliance: #0fb5a6;
   --compliance-bg: #e6faf7;
+  --compliance-border: #b6ece6;
   --teal: #0fb5a6;
   --teal-d: #0a8c81;
   --teal-bg: #e6faf7;
 
   --security: #7c3aed;
   --security-bg: #f2ebfe;
+  --security-border: #e3d8fe;
   --violet: #7c3aed;
   --violet-d: #6d28d9;
   --violet-bg: #f2ebfe;
 
   --ok: #22c55e;
   --ok-bg: #dcfce7;
+  --ok-d: #15803d;
+  --ok-border: #bbf7d0;
   --warn: #f59e0b;
   --warn-bg: #fef3c7;
+  --warn-d: #b45309;
+  --warn-border: #fde68a;
   --bad: #ef4444;
   --bad-bg: #fee2e2;
+  --bad-d: #b91c1c;
+  --bad-border: #fecaca;
   --cost: #a16207;
   --cost-bg: #fef9c3;
+  --cost-border: #fde68a;
 
   --lane-normal: #0fb5a6;
   --lane-sensitive: #7c3aed;
