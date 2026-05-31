@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import AppShell from "./AppShell";
 import "./App.css";
+import Overview from "@/views/Overview";
 import {
   NAV_BY_ID,
   NAV_GROUP_LABEL,
@@ -67,22 +68,26 @@ function Screen({
       role={role}
       title={nav.label}
     >
-      <div className="screen-shell">
-        <section className="screen-card">
-          <div className="screen-kicker">{groupLabel}</div>
-          <h2>{nav.label}</h2>
-          <p className="screen-desc">🚧 规划中 · 仅展示占位符、哈希与聚合数。</p>
-          <div className="screen-chip-row" aria-label="页面状态">
-            <span className="screen-chip primary">0 PHI</span>
-            <span className="screen-chip warn">built:false</span>
-            <span className="screen-chip neutral">{roleLabel(role)}</span>
-          </div>
-        </section>
-        <section className="screen-note">
-          <b>状态</b>
-          <span>{SCREEN_COPY[id].note}</span>
-        </section>
-      </div>
+      {id === "overview" ? (
+        <Overview />
+      ) : (
+        <div className="screen-shell">
+          <section className="screen-card">
+            <div className="screen-kicker">{groupLabel}</div>
+            <h2>{nav.label}</h2>
+            <p className="screen-desc">🚧 规划中 · 仅展示占位符、哈希与聚合数。</p>
+            <div className="screen-chip-row" aria-label="页面状态">
+              <span className="screen-chip primary">0 PHI</span>
+              <span className="screen-chip warn">built:false</span>
+              <span className="screen-chip neutral">{roleLabel(role)}</span>
+            </div>
+          </section>
+          <section className="screen-note">
+            <b>状态</b>
+            <span>{SCREEN_COPY[id].note}</span>
+          </section>
+        </div>
+      )}
     </AppShell>
   );
 }
