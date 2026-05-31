@@ -58,10 +58,6 @@ function makeApiError(code: ApiClientErrorCode): ApiError {
   return { error: { code, msg: GENERIC_MSG } };
 }
 
-function sanitizeResponse<T>(value: unknown, where: string): Sanitized<T> {
-  return assertNoPhi(value, where) as Sanitized<T>;
-}
-
 function buildQuery(query?: Record<string, unknown>): string {
   if (!query) return "";
   const params = new URLSearchParams();
@@ -87,10 +83,14 @@ function resolveRequestPath<K extends EndpointKey>(key: K, options: ApiRequestOp
   }
 }
 
-function tryParseJson(text: string): unknown | undefined {
+function cloneContractShape<T>(value: unknown): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function tryParseJson<T>(text: string): T | undefined {
   if (!text.trim()) return undefined;
   try {
-    return JSON.parse(text) as unknown;
+    return JSON.parse(text);
   } catch {
     return undefined;
   }
@@ -120,7 +120,7 @@ export async function requestEndpoint<K extends EndpointKey>(
   if (mode === "mock") {
     const result = resolveMock(def.method, `${API_BASE}${path}`);
     if (!result.ok) throw makeApiError("api_http_error");
-    return sanitizeResponse<ResponseByEndpoint[K]>(result.data, where);
+    return assertNoPhi(cloneContractShape<ResponseByEndpoint[K]>(result.data), where);
   }
 
   const headers = new Headers(options.headers);
@@ -139,7 +139,7 @@ export async function requestEndpoint<K extends EndpointKey>(
   }
 
   const bodyText = await readBody(response);
-  const parsed = tryParseJson(bodyText);
+  const parsed = tryParseJson<ResponseByEndpoint[K]>(bodyText);
 
   if (!response.ok) {
     throw makeApiError("api_http_error");
@@ -148,5 +148,5 @@ export async function requestEndpoint<K extends EndpointKey>(
     throw makeApiError("api_invalid_json");
   }
 
-  return sanitizeResponse<ResponseByEndpoint[K]>(parsed, where);
+  return assertNoPhi(parsed, where);
 }
