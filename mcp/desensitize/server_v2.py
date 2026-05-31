@@ -5,15 +5,19 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import sys
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib import error, parse, request
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -35,6 +39,9 @@ DEFAULT_REVERSE_TOKEN_ENV = "COMPLIANCE_REVERSE_TOKEN"
 PLACEHOLDER_PREFIX = "PHI"
 DEFAULT_CLICKHOUSE_HTTP_PORT = 8123
 DEFAULT_CLICKHOUSE_DATABASE = "medharness"
+DEFAULT_HTTP_HOST = "0.0.0.0"
+DEFAULT_HTTP_PORT = 9000
+DEFAULT_HTTP_MAX_BODY_BYTES = 1_048_576
 DEFAULT_PHI_LOOKUP_SCHEMA_PATH = Path(__file__).with_name("sql") / "phi_lookup.sql"
 
 
@@ -562,7 +569,12 @@ def _reverse_allowed(request: dict[str, Any]) -> bool:
     context = request.get("context")
     if token is None and isinstance(context, dict):
         token = context.get("kms_token")
-    return bool(expected) and token == expected
+    return (
+        isinstance(token, str)
+        and isinstance(expected, str)
+        and bool(expected)
+        and hmac.compare_digest(token, expected)
+    )
 
 
 def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) -> dict[str, Any]:
@@ -601,6 +613,160 @@ def health() -> dict[str, str]:
     return {"status": "ok-v2", "crypto": "AES-256-GCM", "key_provider": "FileKeyProvider"}
 
 
+class _DesensitizeHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(
+        self, server_address: tuple[str, int], RequestHandlerClass: type[BaseHTTPRequestHandler]
+    ) -> None:
+        super().__init__(server_address, RequestHandlerClass)
+        self.provider_factory = _provider
+
+
+class _DesensitizeHTTPHandler(BaseHTTPRequestHandler):
+    server_version = "MedHarnessDesensitizeHTTP/1.0"
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _send_json(
+        self,
+        status: HTTPStatus,
+        payload: dict[str, Any],
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        for header, value in (extra_headers or {}).items():
+            self.send_header(header, value)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(
+        self,
+        status: HTTPStatus,
+        code: str,
+        message: str,
+    ) -> None:
+        self._send_json(status, {"error": {"code": code, "msg": message}})
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length_header = self.headers.get("Content-Length")
+        if length_header is None:
+            raise ValueError("missing content length")
+        try:
+            content_length = int(length_header)
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if content_length < 0 or content_length > DEFAULT_HTTP_MAX_BODY_BYTES:
+            raise ValueError("request body too large")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("request body truncated")
+        payload = json.loads(body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        return payload
+
+    def _handle_health(self) -> None:
+        self._send_json(HTTPStatus.OK, health())
+
+    def _handle_encrypt(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except Exception:
+            self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
+            return
+
+        try:
+            provider_factory = getattr(self.server, "provider_factory", _provider)
+            provider = provider_factory()
+            result = desensitize(payload, provider)
+        except Exception:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "desensitize_failed_closed",
+                "desensitize failed closed",
+            )
+            return
+
+        self._send_json(HTTPStatus.OK, result)
+
+    def do_GET(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self._handle_health()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_POST(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/encrypt":
+            self._handle_encrypt()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_HEAD(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def _parse_serve_args(argv: list[str]) -> tuple[str, str, int]:
+    mode = "stdio"
+    host = DEFAULT_HTTP_HOST
+    port = DEFAULT_HTTP_PORT
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--stdio":
+            mode = "stdio"
+            index += 1
+            continue
+        if arg == "--http":
+            mode = "http"
+            index += 1
+            continue
+        if arg == "--host":
+            if index + 1 >= len(argv):
+                raise ValueError("--host requires a value")
+            host = argv[index + 1]
+            index += 2
+            continue
+        if arg == "--port":
+            if index + 1 >= len(argv):
+                raise ValueError("--port requires a value")
+            try:
+                port = int(argv[index + 1])
+            except ValueError as exc:
+                raise ValueError("invalid --port value") from exc
+            index += 2
+            continue
+        raise ValueError(f"unknown serve option: {arg}")
+    return mode, host, port
+
+
+def _serve_http(host: str, port: int) -> int:
+    server = _DesensitizeHTTPServer((host, port), _DesensitizeHTTPHandler)
+    try:
+        server.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        server.server_close()
+    return 0
+
+
 def _response_for_request(
     req: dict[str, Any], provider: FileKeyProvider | None = None
 ) -> dict[str, Any]:
@@ -618,7 +784,14 @@ def _response_for_request(
 
 
 def main() -> int:
-    if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        try:
+            mode, host, port = _parse_serve_args(sys.argv[2:])
+        except ValueError as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 2
+        if mode == "http":
+            return _serve_http(host, port)
         for line in sys.stdin:
             line = line.strip()
             if not line:
