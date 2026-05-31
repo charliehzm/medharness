@@ -18,10 +18,22 @@ ALL_SERVICES = (
     "internal-kb",
     "pm-bridge",
     "vector-db",
+    "new-api",
+    "clickhouse",
+    "redis",
     "nginx",
 )
 
-MCP_SERVICES = ALL_SERVICES[:-1]
+MCP_SERVICES = (
+    "phi-detector",
+    "desensitize",
+    "model-router",
+    "audit-log",
+    "ci-trigger",
+    "internal-kb",
+    "pm-bridge",
+    "vector-db",
+)
 PRODUCTION_SERVICES = ("phi-detector", "desensitize", "model-router", "audit-log")
 STUB_SERVICES = ("ci-trigger", "internal-kb", "pm-bridge", "vector-db")
 
@@ -34,6 +46,9 @@ LIMITS = {
     "internal-kb": {"memory": "256M", "cpus": "0.25"},
     "pm-bridge": {"memory": "256M", "cpus": "0.25"},
     "vector-db": {"memory": "256M", "cpus": "0.25"},
+    "new-api": {"memory": "1024M", "cpus": "1.0"},
+    "clickhouse": {"memory": "2048M", "cpus": "1.0"},
+    "redis": {"memory": "512M", "cpus": "0.5"},
     "nginx": {"memory": "128M", "cpus": "0.25"},
 }
 
@@ -58,7 +73,7 @@ def test_no_version_top_level_field() -> None:
     assert "version" not in data
 
 
-def test_has_9_services() -> None:
+def test_has_phase_a_services() -> None:
     data = _compose()
     assert list(data["services"].keys()) == list(ALL_SERVICES)
 
@@ -119,8 +134,14 @@ def test_nginx_depends_on_model_router_and_audit_log() -> None:
     assert depends_on["audit-log"]["condition"] == "service_healthy"
 
 
-def test_audit_log_has_no_depends_on() -> None:
-    assert "depends_on" not in _service("audit-log")
+def test_storage_dependent_services_wait_for_storage_health() -> None:
+    audit_depends_on = _service("audit-log").get("depends_on", {})
+    desensitize_depends_on = _service("desensitize").get("depends_on", {})
+    new_api_depends_on = _service("new-api").get("depends_on", {})
+
+    assert audit_depends_on["clickhouse"]["condition"] == "service_healthy"
+    assert desensitize_depends_on["clickhouse"]["condition"] == "service_healthy"
+    assert new_api_depends_on["redis"]["condition"] == "service_healthy"
 
 
 def test_host_volume_paths_under_data_medharness() -> None:
@@ -136,10 +157,11 @@ def test_host_volume_paths_under_data_medharness() -> None:
 
 def test_all_services_use_version_env_var() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
-    for name in ALL_SERVICES:
-        if name == "nginx":
-            continue
+    for name in MCP_SERVICES:
         assert f"image: medharness/mcp-{name}:${{VERSION}}" in text
+    assert "image: medharness/new-api:${VERSION}" in text
+    assert "image: clickhouse/clickhouse-server:24" in text
+    assert "image: redis:7-alpine" in text
 
 
 def test_resource_limits_match_adr_09() -> None:
