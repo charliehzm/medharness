@@ -1,0 +1,29 @@
+.app-shell{min-height:100vh;display:grid;grid-template-columns:238px 1fr;background:var(--bg)}
+.app-shell .side{background:var(--navy);display:flex;flex-direction:column;min-height:100vh}
+.app-shell .brand{padding:18px 18px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid color-mix(in srgb,var(--surface) 8%,transparent)}
+.app-shell .brand .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--teal),color-mix(in srgb,var(--teal) 84%,var(--surface)));display:grid;place-items:center;font-weight:800;color:var(--navy);font-size:17px}
+.app-shell .brand b{color:var(--surface);font-size:15px;letter-spacing:.3px}
+.app-shell .brand small{display:block;color:color-mix(in srgb,var(--surface) 44%,var(--navy));font-size:11px;font-weight:400}
+.app-shell .side nav{flex:1;padding:12px}
+.app-shell .nav-grp{font-size:10px;color:color-mix(in srgb,var(--surface) 34%,var(--navy));letter-spacing:.5px;padding:12px 12px 5px;font-weight:700}
+.app-shell .nav-item{width:100%;border:0;background:none;display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:9px;cursor:pointer;color:color-mix(in srgb,var(--surface) 68%,var(--navy));font-size:13.5px;margin-bottom:2px;text-align:left;user-select:none}
+.app-shell .nav-item:hover{background:color-mix(in srgb,var(--surface) 6%,transparent);color:var(--surface)}
+.app-shell .nav-item.active{background:var(--teal);color:var(--surface);font-weight:600;box-shadow:0 4px 12px color-mix(in srgb,var(--teal) 35%,transparent)}
+.app-shell .nav-item.disabled{opacity:.4;cursor:not-allowed}
+.app-shell .nav-item .ico{font-size:16px;width:20px;text-align:center}
+.app-shell .side-foot{padding:12px 18px;border-top:1px solid color-mix(in srgb,var(--surface) 8%,transparent);font-size:11px;color:color-mix(in srgb,var(--surface) 40%,var(--navy))}
+.app-shell .main{display:flex;flex-direction:column;min-width:0}
+.app-shell .topbar{height:60px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 26px;position:sticky;top:0;z-index:20}
+.app-shell .topbar h1{font-size:17px;font-weight:700;margin:0;color:var(--text)}
+.app-shell .topbar h1 small{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px}
+.app-shell .top-right{display:flex;align-items:center;gap:14px}
+.app-shell .env-pill{display:flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--line);padding:5px 12px;border-radius:20px;font-size:12.5px;color:var(--muted)}
+.app-shell .phi-badge{display:flex;align-items:center;gap:7px;background:var(--ok-bg);color:var(--ok-d);border:1px solid var(--ok-border);padding:6px 13px;border-radius:20px;font-size:12.5px;font-weight:600}
+.app-shell .phi-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-border)}
+.app-shell .role-select{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px}
+.app-shell .role-select button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
+.app-shell .role-select button.on{background:var(--surface);color:var(--navy);box-shadow:var(--shadow-soft)}
+.app-shell .lock{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:color-mix(in srgb,var(--surface) 55%,var(--navy))}
+.app-shell .content{padding:24px 26px;overflow:auto}
+.app-shell .view.show{display:block;animation:app-shell-fade .3s ease}
+@keyframes app-shell-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}

@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import AppShell from "./AppShell";
+import "./App.css";
 import {
   NAV_BY_ID,
   NAV_GROUP_LABEL,
@@ -30,21 +31,6 @@ const SCREEN_COPY: Record<NavItem["id"], { note: string }> = {
   policy: { note: "合规、安全、成本护栏与审批差异将从这里接入。" },
   system: { note: "部署健康、备份与升级入口将从这里接入。" },
 };
-
-const styles = `
-.screen-shell{display:grid;gap:16px;max-width:980px}
-.screen-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-elev-1);padding:24px}
-.screen-kicker{font-size:12px;font-weight:800;letter-spacing:.4px;color:var(--cost)}
-.screen-card h2{margin:8px 0 8px;font-size:28px;line-height:1.12;color:var(--navy)}
-.screen-desc{margin:0;color:var(--muted);font-size:14px;line-height:1.7}
-.screen-chip-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
-.screen-chip{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--muted);font-size:12px;font-weight:600}
-.screen-chip.primary{background:var(--teal-bg);color:var(--teal-d);border-color:var(--teal-bg)}
-.screen-chip.warn{background:var(--cost-bg);color:var(--cost);border-color:var(--cost-border)}
-.screen-chip.neutral{background:var(--surface);color:var(--text);border-color:var(--line)}
-.screen-note{display:flex;gap:12px;align-items:flex-start;padding:16px 18px;border-radius:12px;background:var(--bg);border:1px dashed var(--line);color:var(--muted);font-size:13px;line-height:1.6}
-.screen-note b{color:var(--text)}
-`;
 
 function roleLandPath(role: RoleId): string {
   return NAV_BY_ID[ROLE_NAV[role].land].path;
@@ -82,7 +68,6 @@ function Screen({
       title={nav.label}
     >
       <div className="screen-shell">
-        <style>{styles}</style>
         <section className="screen-card">
           <div className="screen-kicker">{groupLabel}</div>
           <h2>{nav.label}</h2>
