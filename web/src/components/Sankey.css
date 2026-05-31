@@ -33,7 +33,7 @@
   height: 100%;
 }
 
-.snode {
+.sankey .snode {
   position: absolute;
   width: 148px;
   padding: 9px 12px;
@@ -45,35 +45,35 @@
   z-index: 2;
 }
 
-.snode .t {
+.sankey .snode .t {
   font-size: 13px;
   font-weight: 700;
 }
 
-.snode .s {
+.sankey .snode .s {
   color: var(--muted);
   font-size: 11px;
 }
 
-.snode.gate {
+.sankey .snode.gate {
   background: linear-gradient(135deg, var(--teal-d), var(--teal));
   border: 0;
   color: var(--surface);
 }
 
-.snode.gate .t,
-.snode.gate .s {
+.sankey .snode.gate .t,
+.sankey .snode.gate .s {
   color: var(--surface);
 }
 
-.snode.sens {
+.sankey .snode.sens {
   border-color: var(--violet);
 }
 
-.snode.bad {
+.sankey .snode.bad {
   border-color: var(--bad);
 }
 
-.snode.gateout {
+.sankey .snode.gateout {
   background: linear-gradient(135deg, var(--violet-d), var(--violet));
 }

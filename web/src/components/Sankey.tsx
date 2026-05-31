@@ -68,30 +68,28 @@ function SankeyBase({ mode }: SankeyProps): JSX.Element {
       {mode === "inbound" ? (
         <>
           <div className="snode" style={{ left: 10, top: 38 }}>
-            <div className="t">Dify RAG</div>
-            <div className="s">生产 · 1.2k/h</div>
+            <div className="t">常规入口</div>
+            <div className="s">结构流</div>
           </div>
           <div className="snode" style={{ left: 10, top: 128 }}>
-            <div className="t">ComfyUI</div>
-            <div className="s">生产 · 380/h</div>
+            <div className="t">批处理入口</div>
+            <div className="s">结构流</div>
           </div>
           <div className="snode" style={{ left: 10, top: 218 }}>
-            <div className="t">Codex（开发）</div>
-            <div className="s">开发 · 90/h</div>
+            <div className="t">开发入口</div>
+            <div className="s">结构流</div>
           </div>
           <div className="snode gate" style={{ left: 365, top: 144, width: 170 }}>
             <div className="t">🛡 安全检查</div>
             <div className="s">隐私扫描 + 脱敏 + 准入</div>
           </div>
           <div className="snode sens" style={{ left: 740, top: 58 }}>
-            <div className="t">
-              私有模型 <span className="dot d-sec" />
-            </div>
-            <div className="s">敏感通道 · 脱敏后</div>
+            <div className="t">私有模型</div>
+            <div className="s">敏感通道</div>
           </div>
           <div className="snode bad" style={{ left: 740, top: 212 }}>
             <div className="t">境外模型</div>
-            <div className="s">已脱敏 12 · ✗ 阻断 3</div>
+            <div className="s">阻断出境</div>
           </div>
         </>
       ) : (
@@ -106,11 +104,11 @@ function SankeyBase({ mode }: SankeyProps): JSX.Element {
           </div>
           <div className="snode" style={{ left: 740, top: 88 }}>
             <div className="t">返回应用 ✓</div>
-            <div className="s">安全响应 · 占位符</div>
+            <div className="s">安全响应</div>
           </div>
           <div className="snode bad" style={{ left: 740, top: 228 }}>
             <div className="t">✗ 拦截</div>
-            <div className="s">隐私回流 / 有害</div>
+            <div className="s">未通过</div>
           </div>
         </>
       )}
