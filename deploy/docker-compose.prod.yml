@@ -29,13 +29,23 @@ services:
       - medharness_internal
     volumes:
       - /data/medharness/keystore:/data/medharness/keystore:rw
+    environment:
+      MEDHARNESS_KEYSTORE_ROOT: /data/medharness/keystore
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "python", "server_v2.py", "health"]
+      test: ["CMD-SHELL", "python server_v2.py health >/dev/null && python -c \"import os, urllib.request; req=urllib.request.Request('http://%s:%s/?database=%s&query=SELECT%%201' % (os.environ['CLICKHOUSE_HOST'], os.environ['CLICKHOUSE_HTTP_PORT'], os.environ['CLICKHOUSE_DATABASE']), headers={'X-ClickHouse-User': os.environ['CLICKHOUSE_USER'], 'X-ClickHouse-Key': os.environ['CLICKHOUSE_PASSWORD']}); urllib.request.urlopen(req, timeout=2).read()\""]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -72,13 +82,27 @@ services:
       - medharness_internal
     volumes:
       - /data/medharness/audit:/data/medharness/audit:rw
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      MEDHARNESS_AUDIT_FALLBACK_DIR: /data/medharness/audit
+    depends_on:
+      clickhouse:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "python", "-c", "from server_v2 import AuditLogServerV2"]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"from pathlib import Path; from clickhouse_writer import ClickHouseUnavailable; from server_v2 import AuditLogServerV2; DummyFallbackWriter = type('DummyFallbackWriter', (), {'append': lambda self, event: {'event_id': event['event_id'], 'row_id': event['row_id'], 'prev_hash': event['prev_hash'], 'current_hash': event['current_hash'], 'fallback_path': '/dev/null'}}); ch_factory = lambda **kwargs: (_ for _ in ()).throw(ClickHouseUnavailable('unavailable')); server = AuditLogServerV2({}, Path('/tmp'), clickhouse_writer_factory=ch_factory, fallback_writer_factory=lambda base_dir: DummyFallbackWriter()); event = {'event_id': '00000000-0000-0000-0000-000000000001', 'timestamp': '2026-05-31T00:00:00Z', 'actor': {'agent_role': 'system', 'model_id': 'mock', 'vendor_family': 'mock', 'session_id': 'healthcheck'}, 'action': {'tool': 'healthcheck', 'operation': 'ping'}, 'context': {'change_id': 'healthcheck', 'step': 0, 'data_levels': ['L1']}, 'result': {'status': 'ok', 'reason': 'ok', 'duration_ms': 0.0}, 'input_hash': '0000000000000000000000000000000000000000000000000000000000000000', 'output_hash': '1111111111111111111111111111111111111111111111111111111111111111'}; result = server.append(event); assert server.health()['state'] == 'fallback'; assert result['state'] == 'fallback'; assert server.query('SELECT 1')['degraded'] is True\""
+        ]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -170,7 +194,12 @@ services:
       PORT: "3000"
       GIN_MODE: release
       MEMORY_CACHE_ENABLED: "true"
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CRYPTO_SECRET: ${NEW_API_CRYPTO_SECRET}
       MEDHARNESS_DISABLE_RESALE_SURFACE: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -181,6 +210,55 @@ services:
       interval: 30s
       timeout: 10s
       start_period: 20s
+      retries: 3
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: medharness-clickhouse
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - /data/medharness/clickhouse:/var/lib/clickhouse:rw
+      - /data/medharness/clickhouse-logs:/var/log/clickhouse-server:rw
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user \"$${CLICKHOUSE_USER}\" --password \"$${CLICKHOUSE_PASSWORD}\" --database \"$${CLICKHOUSE_DB}\" --query \"SELECT 1\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: medharness-redis
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - /data/medharness/redis:/data:rw
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
       retries: 3
 
   nginx:
