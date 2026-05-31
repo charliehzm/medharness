@@ -1,0 +1,54 @@
+.dtable-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.dtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dtable th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dtable td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dtable tr.click {
+  cursor: pointer;
+}
+
+.dtable tr.click:hover {
+  background: var(--ev-bg);
+}
+
+.dtable tr.click:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
+}
+
+.dtable .dtable-mono {
+  font-family: var(--font-mono);
+}
+
+.dtable .dtable-align-center {
+  text-align: center;
+}
+
+.dtable .dtable-align-right {
+  text-align: right;
+}
+
+.dtable-empty {
+  color: var(--muted);
+  text-align: center;
+}
