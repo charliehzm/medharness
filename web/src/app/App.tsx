@@ -7,6 +7,7 @@ import Access from "@/views/Access";
 import Audit from "@/views/Audit";
 import Cost from "@/views/Cost";
 import Overview from "@/views/Overview";
+import Policy from "@/views/Policy";
 import Traffic from "@/views/Traffic";
 import {
   NAV_BY_ID,
@@ -82,6 +83,8 @@ function Screen({
         <Cost />
       ) : id === "access" ? (
         <Access />
+      ) : id === "policy" ? (
+        <Policy />
       ) : (
         <div className="screen-shell">
           <section className="screen-card">
