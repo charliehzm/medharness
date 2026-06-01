@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import subprocess
 import sys
 from importlib import util
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -94,6 +96,54 @@ def _audit_lines(tmp_path: Path) -> list[dict[str, object]]:
     ]
 
 
+class _FakeSocket:
+    def __init__(self, request_bytes: bytes) -> None:
+        self._rfile = io.BytesIO(request_bytes)
+        self._wfile = io.BytesIO()
+
+    def makefile(self, mode: str, buffering: int | None = None) -> io.BytesIO:
+        del buffering
+        if "r" in mode:
+            return self._rfile
+        return self._wfile
+
+    def sendall(self, data: bytes) -> None:
+        self._wfile.write(data)
+
+    def close(self) -> None:
+        return None
+
+
+def _invoke_http_request(
+    method: str,
+    path: str,
+    payload: dict[str, object] | None = None,
+    raw_body: bytes | None = None,
+) -> tuple[int, dict[str, object]]:
+    server_v2._RUNTIME = None
+    body = raw_body or b""
+    headers = ["Host: 127.0.0.1", "Connection: close"]
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers.append("Content-Type: application/json")
+        headers.append(f"Content-Length: {len(body)}")
+    elif raw_body is not None:
+        headers.append("Content-Type: application/json")
+        headers.append(f"Content-Length: {len(body)}")
+    request_bytes = (
+        f"{method} {path} HTTP/1.1\r\n" + "\r\n".join(headers) + "\r\n\r\n"
+    ).encode("utf-8") + body
+    fake_socket = _FakeSocket(request_bytes)
+    server = SimpleNamespace(server_name="127.0.0.1", server_port=0)
+    server_v2._ModelRouterHTTPHandler(fake_socket, ("127.0.0.1", 12345), server)
+    response = fake_socket._wfile.getvalue()
+    status_line, _, remainder = response.partition(b"\r\n")
+    headers_blob, _, body_bytes = remainder.partition(b"\r\n\r\n")
+    del headers_blob
+    status_code = int(status_line.split()[1])
+    return status_code, json.loads(body_bytes.decode("utf-8"))
+
+
 def test_route_health_and_stdio_smoke(tmp_path: Path) -> None:
     _allowlist_path(tmp_path)
 
@@ -151,6 +201,86 @@ def test_route_health_and_stdio_smoke(tmp_path: Path) -> None:
     audit_text = (tmp_path / ".audit" / "routing_log.jsonl").read_text(encoding="utf-8")
     assert "RAW-PHI-CLAIM" not in audit_text
     assert "prompt" not in audit_text
+
+
+def test_http_health_and_signed_route_response(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    health_code, health = _invoke_http_request("GET", "/health")
+    route_code, result = _invoke_http_request("POST", "/route", _route_payload())
+
+    signed_fields = {
+        key: result[key]
+        for key in (
+            "decision",
+            "reason",
+            "layer_failed",
+            "policy_version",
+            "duration_us",
+            "allowed_model_set",
+            "lane",
+            "max_data_level",
+            "map_id",
+        )
+    }
+
+    assert health_code == 200
+    assert route_code == 200
+    assert health["status"] == "ok-v2"
+    assert result["decision"] == "allow"
+    assert result["routing_log_id"]
+    assert result["sig"]
+    assert tier_trust.verify_decision(signed_fields, result["sig"], _TIER_SECRET.encode("utf-8"))
+    assert result["vendor_family"] == "alibaba"
+    assert result["deployment"] == "private://qwen-max"
+
+
+def test_http_deny_is_generic_and_reason_free(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    payload = {
+        "model_id": "qwen-max",
+        "agent_role": "coder",
+        "data_level": "L2",
+        "change_id": CHANGE_ID,
+        "desensitized": True,
+    }
+
+    status, result = _invoke_http_request("POST", "/route", payload)
+
+    assert status == 200
+    assert result["decision"] == "deny"
+    assert result["error"]["code"] == "route_denied"
+    assert result["error"]["msg"] == "request denied by routing policy"
+    assert "reason" not in result["error"]
+    assert "layer_failed" not in result["error"]
+    assert "reason" not in json.dumps(result, ensure_ascii=False)
+    assert "layer_failed" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_http_forged_tier_denies_generic(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+    payload = _route_payload(data_level="L4")
+    payload["data_level"] = "L1"
+
+    status, result = _invoke_http_request("POST", "/route", payload)
+
+    assert status == 200
+    assert result["decision"] == "deny"
+    assert result["error"]["code"] == "route_denied"
+    assert "reason" not in result["error"]
+
+
+def test_http_bad_json_rejects_without_echo(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    status, body = _invoke_http_request(
+        "POST", "/route", raw_body=b'{"model_id": "broken"'
+    )
+
+    assert status == 400
+    assert body["error"]["code"] == "bad_request"
+    assert "broken" not in json.dumps(body, ensure_ascii=False)
 
 
 def test_missing_desensitized_marker_denies(tmp_path: Path) -> None:
