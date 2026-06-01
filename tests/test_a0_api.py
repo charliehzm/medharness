@@ -169,6 +169,138 @@ def test_remaining_read_endpoints_return_contract_shapes() -> None:
     }
 
 
+def test_admin_read_endpoints_return_whitelisted_contract_shapes() -> None:
+    client = a0_api_app.make_test_client(a0_api_app.app)
+
+    users = client.get("/api/v1/admin/users")
+    tokens = client.get("/api/v1/admin/tokens")
+    channels = client.get("/api/v1/admin/channels")
+
+    assert users.status_code == 200
+    assert tokens.status_code == 200
+    assert channels.status_code == 200
+
+    assert set(users.json()) == {"users"}
+    assert set(users.json()["users"][0]) == {
+        "id_hash",
+        "role",
+        "status",
+        "group",
+        "quota",
+        "used_quota",
+        "console_role",
+    }
+    assert set(tokens.json()) == {"tokens"}
+    assert set(tokens.json()["tokens"][0]) == {
+        "id_hash",
+        "name",
+        "status",
+        "remain_quota",
+        "used_quota",
+        "allowed_data_levels",
+    }
+    assert set(channels.json()) == {"channels"}
+    assert set(channels.json()["channels"][0]) == {
+        "id_hash",
+        "name",
+        "type",
+        "status",
+        "weight",
+        "region",
+        "lane",
+        "models",
+    }
+
+    payload = {"users": users.json(), "tokens": tokens.json(), "channels": channels.json()}
+    payload_json = json.dumps(payload, ensure_ascii=False)
+    for forbidden in ("email", "phone", "display_name", "username", "key", "base_url"):
+        assert forbidden not in payload_json
+    assert serializers.assert_no_phi(payload, "GET /admin/*") == payload
+
+
+def test_admin_phi_exfil_dirty_source_is_discarded() -> None:
+    dirty_source = {
+        "users": [
+            {
+                "id": "raw-user-id-42",
+                "username": "synthetic-user",
+                "email": "synthetic.patient@example.invalid",
+                "phone": "13900000000",
+                "display_name": "Synthetic Patient",
+                "github_id": "github-sensitive-id",
+                "wechat_id": "wechat-sensitive-id",
+                "role": "normal",
+                "status": "enabled",
+                "group": "开发",
+                "quota": "¥30/日",
+                "used_quota": "¥12",
+                "console_role": None,
+            }
+        ],
+        "tokens": [
+            {
+                "id": "raw-token-id-42",
+                "name": "tk-synthetic",
+                "key": "sk-plain-token-key",
+                "base_url": "https://token.example.invalid/secret",
+                "status": "enabled",
+                "remain_quota": "¥18/日",
+                "used_quota": "¥12",
+                "allowed_data_levels": ["L2", "L3", "L9"],
+            }
+        ],
+        "channels": [
+            {
+                "id": "raw-channel-id-42",
+                "name": "Synthetic-Qwen",
+                "type": "openai",
+                "status": "green",
+                "weight": 60,
+                "region": "境内",
+                "lane": "normal",
+                "models": ["qwen-max-2026"],
+                "key": "sk-plain-channel-key",
+                "base_url": "https://channel.example.invalid/secret",
+                "display_name": "Synthetic Channel Secret",
+            }
+        ],
+    }
+
+    payload = {
+        "users": serializers.serialize_admin_users(dirty_source),
+        "tokens": serializers.serialize_admin_tokens(dirty_source),
+        "channels": serializers.serialize_admin_channels(dirty_source),
+    }
+    payload_json = json.dumps(payload, ensure_ascii=False)
+
+    for forbidden_key in (
+        "email",
+        "phone",
+        "display_name",
+        "username",
+        "github_id",
+        "wechat_id",
+        "key",
+        "base_url",
+    ):
+        assert forbidden_key not in payload_json
+    for forbidden_value in (
+        "raw-user-id-42",
+        "raw-token-id-42",
+        "raw-channel-id-42",
+        "synthetic.patient@example.invalid",
+        "13900000000",
+        "Synthetic Patient",
+        "sk-plain-token-key",
+        "sk-plain-channel-key",
+        "https://token.example.invalid/secret",
+        "https://channel.example.invalid/secret",
+    ):
+        assert forbidden_value not in payload_json
+    assert payload["tokens"]["tokens"][0]["allowed_data_levels"] == ["L2", "L3"]
+    assert serializers.assert_no_phi(payload, "admin-phi-exfil") == payload
+
+
 def test_audit_ref_miss_returns_generic_404() -> None:
     client = a0_api_app.make_test_client(a0_api_app.app)
 
@@ -315,6 +447,9 @@ def test_new_clickhouse_backed_endpoints_fail_closed(
         "/api/v1/config/models",
         "/api/v1/cost",
         "/api/v1/channels",
+        "/api/v1/admin/users",
+        "/api/v1/admin/tokens",
+        "/api/v1/admin/channels",
     ):
         response = client.get(path)
         payload = response.json()

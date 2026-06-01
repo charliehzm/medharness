@@ -8,6 +8,7 @@
 
 - BE-5 A0 read-only aggregation API skeleton: `GET /api/v1/posture`, `/traffic`, `/events` with 0-PHI output guard and ClickHouse fail-closed handling.
 - BE-6 A0 remaining endpoints under `mcp/a0-api/`: audit lineage, upstreams, config snapshots, cost, channels, audit export audit write, and config propose approval queue.
+- BE-6b A0 admin read-only proxy: `GET /api/v1/admin/{users,tokens,channels}` with B5 whitelist serializers and admin PII/key exfil regression coverage.
 
 ## [0.1.0-alpha] - 2026-05-__
 
