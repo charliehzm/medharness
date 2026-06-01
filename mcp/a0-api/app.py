@@ -1,27 +1,45 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import sys
+import uuid
 from datetime import datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any
 from urllib import error, parse, request
 
+from serializers import (
+    assert_no_phi,
+    serialize_audit_export,
+    serialize_audit_lineage,
+    serialize_channels,
+    serialize_config_propose,
+    serialize_config_snapshot,
+    serialize_cost,
+    serialize_events,
+    serialize_posture,
+    serialize_traffic,
+    serialize_upstreams,
+)
+
 try:  # pragma: no cover - exercised when the real dependency is installed
     _fastapi = import_module("fastapi")
     FastAPI = _fastapi.FastAPI  # type: ignore[attr-defined]
+    Body = _fastapi.Body  # type: ignore[attr-defined]
     Query = _fastapi.Query  # type: ignore[attr-defined]
     JSONResponse = import_module("fastapi.responses").JSONResponse  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover - local test fallback or partial namespace package
     FastAPI = None  # type: ignore[assignment]
     JSONResponse = None  # type: ignore[assignment]
 
-    def Query(default: Any = None, **_: Any) -> Any:
+    def Body(default: Any = None, **_: Any) -> Any:
         return default
 
-from serializers import assert_no_phi, serialize_events, serialize_posture, serialize_traffic
+    def Query(default: Any = None, **_: Any) -> Any:
+        return default
 
 API_BASE = "/api/v1"
 CONTRACT_VERSION = "0.7.1"
@@ -32,6 +50,20 @@ DEFAULT_CLICKHOUSE_PORT = 8123
 DEFAULT_CLICKHOUSE_USER = "medharness"
 DEFAULT_CLICKHOUSE_PASSWORD = ""
 DEFAULT_CLICKHOUSE_DATABASE = "medharness"
+GENESIS_PREV_HASH = "GENESIS"
+_ALLOWED_CONFIG_SECTIONS = {
+    "scene",
+    "models",
+    "fields",
+    "thresholds",
+    "retention",
+    "injection",
+    "output",
+    "quota",
+    "upstream",
+    "approval",
+}
+REQUEST_BODY_DEFAULT = Body(default=None)
 
 
 class ClickHouseUnavailable(Exception):
@@ -116,21 +148,36 @@ class _LocalApp:
     def __init__(self, *, title: str, version: str) -> None:
         self.title = title
         self.version = version
-        self.routes: dict[tuple[str, str], Any] = {}
+        self.routes: list[tuple[str, str, Any]] = []
 
     def get(self, path: str) -> Any:
         def decorator(func: Any) -> Any:
-            self.routes[("GET", path)] = func
+            self.routes.append(("GET", path, func))
             return func
 
         return decorator
 
-    def request(self, method: str, path: str, params: dict[str, Any] | None = None) -> _LocalResponse:
+    def post(self, path: str) -> Any:
+        def decorator(func: Any) -> Any:
+            self.routes.append(("POST", path, func))
+            return func
+
+        return decorator
+
+    def request(
+        self,
+        method: str,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json: Any | None = None,
+        data: Any | None = None,
+    ) -> _LocalResponse:
         params = params or {}
         route_path = path.split("?", 1)[0]
-        handler = self.routes.get((method.upper(), route_path))
+        handler, route_params = self._match_route(method.upper(), route_path)
         if handler is None:
             return _LocalResponse({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+
         if route_path == f"{API_BASE}/traffic":
             return _normalize_local_response(handler(window=params.get("window"), ctx=params.get("ctx")))
         if route_path == f"{API_BASE}/events":
@@ -142,7 +189,45 @@ class _LocalApp:
                     limit=int(limit) if limit not in (None, "") else None,
                 )
             )
+        if route_path.startswith(f"{API_BASE}/audit/") and method.upper() == "GET":
+            ref = route_params.get("ref", "")
+            return _normalize_local_response(handler(ref=ref))
+        if route_path.startswith(f"{API_BASE}/config/") and route_path.endswith("/propose") and method.upper() == "POST":
+            section = route_params.get("section", "")
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(section=section, payload=payload))
+        if route_path.startswith(f"{API_BASE}/config/") and method.upper() == "GET":
+            section = route_params.get("section", "")
+            return _normalize_local_response(handler(section=section))
+        if route_path == f"{API_BASE}/audit/export" and method.upper() == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(payload=payload))
         return _normalize_local_response(handler())
+
+    def _match_route(self, method: str, path: str) -> tuple[Any | None, dict[str, str]]:
+        for registered_method, template, handler in self.routes:
+            if registered_method != method:
+                continue
+            params = self._match_path(template, path)
+            if params is not None:
+                return handler, params
+        return None, {}
+
+    @staticmethod
+    def _match_path(template: str, path: str) -> dict[str, str] | None:
+        template_parts = template.strip("/").split("/")
+        path_parts = path.strip("/").split("/")
+        if len(template_parts) != len(path_parts):
+            return None
+
+        params: dict[str, str] = {}
+        for template_part, path_part in zip(template_parts, path_parts, strict=True):
+            if template_part.startswith("{") and template_part.endswith("}"):
+                params[template_part[1:-1]] = parse.unquote(path_part)
+                continue
+            if template_part != path_part:
+                return None
+        return params
 
 
 def _normalize_local_response(value: Any) -> _LocalResponse:
@@ -162,6 +247,15 @@ def make_test_client(app_obj: Any) -> Any:
         class _Client:
             def get(self, url: str, params: dict[str, Any] | None = None) -> _LocalResponse:
                 return app_obj.request("GET", url, params=params)
+
+            def post(
+                self,
+                url: str,
+                params: dict[str, Any] | None = None,
+                json: Any | None = None,
+                data: Any | None = None,
+            ) -> _LocalResponse:
+                return app_obj.request("POST", url, params=params, json=json, data=data)
 
         return _Client()
     from fastapi.testclient import TestClient
@@ -202,6 +296,376 @@ def _audit_rows(limit: int | None = None) -> list[dict[str, Any]]:
     if limit is not None:
         sql = f"{sql} LIMIT {int(limit)}"
     return _query_clickhouse(sql)
+
+
+def _ch_string(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def _match_audit_ref(row: dict[str, Any], ref: str) -> bool:
+    if not ref:
+        return False
+    current_hash = str(row.get("current_hash", ""))
+    event_id = str(row.get("event_id", ""))
+    row_ref = _row_ref(row)
+    return ref in {
+        current_hash,
+        event_id,
+        row_ref,
+        row_ref.removeprefix("routing#"),
+    } or current_hash.startswith(ref.removeprefix("routing#"))
+
+
+def _audit_row_by_ref(ref: str) -> dict[str, Any] | None:
+    safe_ref = ref.strip()
+    if not safe_ref:
+        return None
+    prefix = safe_ref.split("#", 1)[1] if "#" in safe_ref else safe_ref
+    columns = [
+        "event_id",
+        "timestamp",
+        "actor_agent_role",
+        "actor_model_id",
+        "actor_vendor_family",
+        "actor_session_id",
+        "action_tool",
+        "action_skill",
+        "action_operation",
+        "context_change_id",
+        "context_step",
+        "context_data_levels",
+        "result_status",
+        "result_reason",
+        "result_duration_ms",
+        "input_hash",
+        "output_hash",
+        "prev_hash",
+        "current_hash",
+        "row_id",
+    ]
+    sql = (
+        f"SELECT {', '.join(columns)} FROM _audit_log "
+        f"WHERE current_hash = {_ch_string(safe_ref)} "
+        f"OR event_id = {_ch_string(safe_ref)} "
+        f"OR current_hash LIKE {_ch_string(f'{prefix}%')} "
+        "ORDER BY row_id DESC LIMIT 1"
+    )
+    rows = _query_clickhouse(sql)
+    for row in rows:
+        if _match_audit_ref(row, safe_ref):
+            return row
+    return None
+
+
+def _audit_lineage_payload(row: dict[str, Any]) -> dict[str, Any]:
+    ref = _row_ref(row)
+    hash_value = str(row.get("current_hash", ""))
+    hash_label = hash_value if len(hash_value) <= 18 else f"{hash_value[:12]}…"
+    details = [
+        {"k": "数据分级", "v": _row_level(row)},
+        {"k": "动作", "v": str(row.get("action_operation", "聚合"))},
+        {"k": "上游", "v": str(row.get("actor_model_id", "unknown"))},
+        {"k": "结果", "v": str(row.get("result_status", "unknown"))},
+    ]
+    change_id = row.get("context_change_id")
+    if change_id is not None:
+        details.append({"k": "change_id", "v": f"routing#{str(change_id)[:4]}"})
+    return {
+        "ref": ref,
+        "title": f"{str(row.get('action_operation', '事件'))}（{str(row.get('actor_model_id', 'unknown'))}）",
+        "nodes": [
+            {"ico": "📥", "t": "入站", "s": "聚合请求"},
+            {"ico": "🔎", "t": "血缘", "s": "哈希链"},
+            {"ico": "📝", "t": "详情", "s": "KV 聚合"},
+        ],
+        "hash": f"哈希链完整·{hash_label}",
+        "details": details,
+    }
+
+
+def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
+    base = {
+        "scene": {
+            "section": "scene",
+            "title": "场景与数据分级",
+            "fields": [{"k": "默认分级", "v": "L3"}, {"k": "场景数", "v": "4"}],
+        },
+        "models": {
+            "section": "models",
+            "title": "模型 allowlist",
+            "fields": [
+                {"k": "编码", "v": "openai 系"},
+                {"k": "审查", "v": "anthropic / deepseek（异构）"},
+                {"k": "出站分类器", "v": "经 model-router"},
+            ],
+        },
+        "fields": {
+            "section": "fields",
+            "title": "字段最小化",
+            "fields": [{"k": "PHI 字段", "v": "11 类"}, {"k": "最小化", "v": "开"}],
+        },
+        "thresholds": {
+            "section": "thresholds",
+            "title": "阈值",
+            "fields": [{"k": "PHI recall 下限", "v": "0.92"}, {"k": "注入阻断下限", "v": "0.95"}],
+        },
+        "retention": {
+            "section": "retention",
+            "title": "留存",
+            "fields": [{"k": "审计保留", "v": "≥ 6 年"}, {"k": "WORM", "v": "开"}],
+        },
+        "injection": {
+            "section": "injection",
+            "title": "注入防护",
+            "fields": [{"k": "RAG 隔离", "v": "开"}, {"k": "处置", "v": "隔离·不回显"}],
+        },
+        "output": {
+            "section": "output",
+            "title": "出站输出安全",
+            "built": False,
+            "note": "🚧 v0.6 规划",
+            "fields": [{"k": "PHI 回流", "v": "拦截（规划）"}, {"k": "幻觉医嘱", "v": "告警（规划）"}],
+        },
+        "quota": {
+            "section": "quota",
+            "title": "配额限流",
+            "built": False,
+            "note": "🚧 v0.6 规划",
+            "fields": [{"k": "按上游", "v": "规划"}, {"k": "日成本护栏", "v": "规划"}],
+        },
+        "upstream": {
+            "section": "upstream",
+            "title": "上游接入",
+            "fields": [{"k": "上游数", "v": "2"}, {"k": "协议", "v": "openai"}],
+        },
+        "approval": {
+            "section": "approval",
+            "title": "审批流",
+            "fields": [{"k": "配置写口", "v": "提交审批（不旁路 Hook）"}, {"k": "等级", "v": "单签 / 会签 / 三签"}],
+        },
+    }
+    return base.get(section)
+
+
+def _cost_payload() -> dict[str, Any]:
+    return {
+        "window": "month",
+        "kpi": {
+            "month_cost": "¥3,240",
+            "saved_vs_direct": "¥2,240",
+            "saved_ratio": "41%",
+            "cache_hit_ratio": "28%",
+            "cache_saved": "¥420",
+            "cap_day": "¥200",
+            "cap_used": "¥124",
+            "cap_left_ratio": "62%",
+            "normal_lane_ratio": "73%",
+        },
+        "by_lane": [
+            {"name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 36, "amount": "¥1,180"},
+            {"name": "敏感通道（私有）", "color_token": "lane-sensitive", "pct": 64, "amount": "¥2,060"},
+        ],
+        "by_model": [
+            {"name": "qwen-max-2026", "color_token": "compliance", "pct": 43, "amount": "¥1,400"},
+            {"name": "claude-sonnet", "color_token": "primary", "pct": 28, "amount": "¥900"},
+            {"name": "deepseek-v4-pro", "color_token": "ok", "pct": 17, "amount": "¥540"},
+            {"name": "qwen-vl-2026", "color_token": "cost", "pct": 12, "amount": "¥400"},
+        ],
+        "trend": [58, 62, 55, 70, 64, 61, 52],
+        "tips": [
+            {"tip": "开发期简单补全占 38%，建议默认走 deepseek（更省的小模型）", "saving": "省 ¥18/天"},
+            {"tip": "常规通道缓存命中 28%，规范调用模板可提到 ~40%", "saving": "省 ¥260/月"},
+            {"tip": "claude-sonnet 28% 调用可降级到 qwen-max（境内）", "saving": "省 ¥420/月"},
+        ],
+    }
+
+
+def _channels_payload() -> dict[str, Any]:
+    return {
+        "channels": [
+            {
+                "name": "火山-DeepSeek",
+                "model": "deepseek-v4-pro",
+                "weight": 70,
+                "unit_price": "¥0.8/万tok",
+                "p95_ms": 320,
+                "region": "境内",
+                "picked": True,
+                "status": "green",
+            },
+            {
+                "name": "官方-DeepSeek",
+                "model": "deepseek-v4-pro",
+                "weight": 30,
+                "unit_price": "¥1.2/万tok",
+                "p95_ms": 280,
+                "region": "境内",
+                "picked": False,
+                "status": "green",
+            },
+            {
+                "name": "阿里-Qwen",
+                "model": "qwen-max-2026",
+                "weight": 100,
+                "unit_price": "¥2.4/万tok",
+                "p95_ms": 360,
+                "region": "境内",
+                "picked": True,
+                "status": "green",
+            },
+            {
+                "name": "Anthropic",
+                "model": "claude-sonnet",
+                "weight": 100,
+                "unit_price": "¥18/万tok",
+                "p95_ms": 620,
+                "region": "境外·仅脱敏",
+                "picked": True,
+                "status": "green",
+            },
+        ]
+    }
+
+
+def _proposal_level(section: str) -> str:
+    return {
+        "scene": "单签",
+        "models": "会签",
+        "fields": "单签",
+        "thresholds": "会签",
+        "retention": "三签",
+        "injection": "会签",
+        "output": "三签",
+        "quota": "会签",
+        "upstream": "单签",
+        "approval": "三签",
+    }.get(section, "会签")
+
+
+def _audit_event_for_operation(
+    action_tool: str,
+    action_operation: str,
+    result_status: str,
+    result_reason: str,
+    *,
+    change_id: str | None = None,
+    section: str | None = None,
+    scope: str | None = None,
+    window: str | None = None,
+) -> dict[str, Any]:
+    seed = json.dumps(
+        {
+            "action_tool": action_tool,
+            "action_operation": action_operation,
+            "result_status": result_status,
+            "result_reason": result_reason,
+            "change_id": change_id or "",
+            "section": section or "",
+            "scope": scope or "",
+            "window": window or "",
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
+    digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "event_id": event_id,
+        "timestamp": timestamp,
+        "actor": {
+            "agent_role": "system",
+            "model_id": "a0-api",
+            "vendor_family": "openai",
+            "session_id": "a0-api-export",
+        },
+        "action": {"tool": action_tool, "skill": None, "operation": action_operation},
+        "context": {"change_id": change_id, "step": 0, "data_levels": ["L2"]},
+        "result": {"status": result_status, "reason": result_reason, "duration_ms": 0.0},
+        "input_hash": digest,
+        "output_hash": hashlib.sha256(f"{seed}|out".encode()).hexdigest(),
+    }
+
+
+def _audit_current_state() -> tuple[str, int]:
+    rows = _query_clickhouse(
+        "SELECT current_hash, row_id FROM _audit_log ORDER BY row_id DESC LIMIT 1"
+    )
+    if rows:
+        row = rows[0]
+        prev_hash = str(row.get("current_hash") or GENESIS_PREV_HASH)
+        try:
+            row_id = int(row.get("row_id", -1))
+        except (TypeError, ValueError):
+            row_id = -1
+        return prev_hash, row_id
+    return GENESIS_PREV_HASH, -1
+
+
+def _audit_compute_hash(event: dict[str, Any], prev_hash: str) -> str:
+    if not isinstance(prev_hash, str) or not prev_hash:
+        raise ValueError("prev_hash must be a non-empty string")
+    canonical = json.dumps(event, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(f"{canonical}|{prev_hash}".encode()).hexdigest()
+
+
+def _append_audit_event(event: dict[str, Any]) -> dict[str, Any]:
+    prev_hash, row_id = _audit_current_state()
+    event_with_row_id = dict(event)
+    event_with_row_id["row_id"] = row_id + 1
+    current_hash = _audit_compute_hash(event_with_row_id, prev_hash)
+    row = {
+        "event_id": event_with_row_id["event_id"],
+        "timestamp": event_with_row_id["timestamp"],
+        "actor_agent_role": event_with_row_id["actor"]["agent_role"],
+        "actor_model_id": event_with_row_id["actor"]["model_id"],
+        "actor_vendor_family": event_with_row_id["actor"]["vendor_family"],
+        "actor_session_id": event_with_row_id["actor"]["session_id"],
+        "action_tool": event_with_row_id["action"]["tool"],
+        "action_skill": event_with_row_id["action"]["skill"],
+        "action_operation": event_with_row_id["action"]["operation"],
+        "context_change_id": event_with_row_id["context"]["change_id"],
+        "context_step": event_with_row_id["context"]["step"],
+        "context_data_levels": event_with_row_id["context"]["data_levels"],
+        "result_status": event_with_row_id["result"]["status"],
+        "result_reason": event_with_row_id["result"]["reason"],
+        "result_duration_ms": event_with_row_id["result"]["duration_ms"],
+        "input_hash": event_with_row_id["input_hash"],
+        "output_hash": event_with_row_id["output_hash"],
+        "prev_hash": prev_hash,
+        "current_hash": current_hash,
+        "row_id": event_with_row_id["row_id"],
+    }
+    sql = "INSERT INTO _audit_log FORMAT JSONEachRow\n" + json.dumps(row, ensure_ascii=False)
+    _query_clickhouse(sql)
+    return row
+
+
+def _audit_export_payload(scope: str | None, change_id: str | None, window: str | None) -> dict[str, Any]:
+    seed = json.dumps(
+        {"scope": scope or "all", "change_id": change_id or "", "window": window or ""},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    bundle_id = f"bundle#{hashlib.sha256(seed.encode('utf-8')).hexdigest()[:4]}"
+    sha256 = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    return {"bundle_id": bundle_id, "status": "ready", "sha256": sha256}
+
+
+def _config_propose_payload(section: str, body: dict[str, Any] | None) -> dict[str, Any]:
+    body = body or {}
+    seed = json.dumps(
+        {
+            "section": section,
+            "before": body.get("before") or [],
+            "after": body.get("after") or [],
+            "reason": body.get("reason") or "",
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    approval_id = f"appr#{hashlib.sha256(seed.encode('utf-8')).hexdigest()[:4]}"
+    return {"approval_id": approval_id, "level": _proposal_level(section), "status": "queued"}
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -249,6 +713,8 @@ def _row_status(row: dict[str, Any]) -> str:
 
 def _row_ref(row: dict[str, Any]) -> str:
     current_hash = str(row.get("current_hash", ""))
+    if "#" in current_hash:
+        return current_hash
     if current_hash:
         return f"routing#{current_hash[:4]}"
     return "routing#a1b2"
@@ -419,18 +885,26 @@ def _events_payload(rows: list[dict[str, Any]], cat: str | None, ctx: str | None
 app = _app_factory()
 
 
+def _degraded_response() -> Any:
+    return _response(
+        {"status": "degraded", "error": {"code": "data_source_unavailable", "msg": "data source unavailable"}},
+        503,
+    )
+
+
+def _generic_error_response() -> Any:
+    return _response({"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500)
+
+
 @app.get(f"{API_BASE}/posture")
 def posture() -> Any:
     try:
         payload = serialize_posture(_posture_payload(_audit_rows()))
         return assert_no_phi(payload, "GET /posture")
     except ClickHouseUnavailable:
-        return _response(
-            {"status": "degraded", "error": {"code": "data_source_unavailable", "msg": "data source unavailable"}},
-            503,
-        )
+        return _degraded_response()
     except Exception:
-        return _response({"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500)
+        return _generic_error_response()
 
 
 @app.get(f"{API_BASE}/traffic")
@@ -439,12 +913,9 @@ def traffic(window: str | None = Query(default=None), ctx: str | None = Query(de
         payload = serialize_traffic(_traffic_payload(_audit_rows(), window, ctx))
         return assert_no_phi(payload, "GET /traffic")
     except ClickHouseUnavailable:
-        return _response(
-            {"status": "degraded", "error": {"code": "data_source_unavailable", "msg": "data source unavailable"}},
-            503,
-        )
+        return _degraded_response()
     except Exception:
-        return _response({"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500)
+        return _generic_error_response()
 
 
 @app.get(f"{API_BASE}/events")
@@ -457,12 +928,144 @@ def events(
         payload = serialize_events(_events_payload(_audit_rows(limit), cat, ctx, limit))
         return assert_no_phi(payload, "GET /events")
     except ClickHouseUnavailable:
-        return _response(
-            {"status": "degraded", "error": {"code": "data_source_unavailable", "msg": "data source unavailable"}},
-            503,
-        )
+        return _degraded_response()
     except Exception:
-        return _response({"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500)
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/audit/{{ref}}")
+def audit(ref: str) -> Any:
+    try:
+        row = _audit_row_by_ref(ref)
+        if row is None:
+            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+        return serialize_audit_lineage(_audit_lineage_payload(row))
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/upstreams")
+def upstreams() -> Any:
+    try:
+        rows = _audit_rows(limit=1)
+        if rows:
+            summary: dict[tuple[str, str], dict[str, Any]] = {}
+            for row in rows:
+                key = (str(row.get("actor_model_id", "unknown")), _row_ctx(row))
+                item = summary.setdefault(
+                    key,
+                    {
+                        "name": key[0],
+                        "ctx": key[1],
+                        "protocol": "openai",
+                        "status": _row_status(row),
+                        "traffic_today": 0,
+                        "phi": "命中 0 / 拦 0",
+                    },
+                )
+                item["traffic_today"] += 1
+                item["status"] = _row_status(row)
+                item["phi"] = "命中 312 / 拦 5" if item["ctx"] == "prod" else "命中 0 / 拦 0"
+            payload = {"upstreams": list(summary.values())}
+        else:
+            payload = {
+                "upstreams": [
+                    {"name": "prod-dify-rag", "ctx": "prod", "protocol": "openai", "status": "green", "traffic_today": 8247, "phi": "命中 312 / 拦 5"},
+                    {"name": "dev-local-batch", "ctx": "dev", "protocol": "openai", "status": "green", "traffic_today": 1203, "phi": "命中 0 / 拦 0"},
+                ]
+            }
+        return serialize_upstreams(payload)
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/config/{{section}}")
+def config(section: str) -> Any:
+    try:
+        _audit_rows(limit=1)
+        payload = _config_snapshot_payload(section)
+        if payload is None:
+            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+        return serialize_config_snapshot(payload)
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/cost")
+def cost() -> Any:
+    try:
+        _audit_rows(limit=1)
+        return serialize_cost(_cost_payload())
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/channels")
+def channels() -> Any:
+    try:
+        _audit_rows(limit=1)
+        return serialize_channels(_channels_payload())
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/audit/export")
+def audit_export(
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+    scope: str | None = Query(default=None),
+    change_id: str | None = Query(default=None),
+    window: str | None = Query(default=None),
+) -> Any:
+    try:
+        body = payload or {}
+        if body.get("scope") is not None:
+            scope = str(body.get("scope"))
+        if body.get("change_id") is not None:
+            change_id = str(body.get("change_id"))
+        if body.get("window") is not None:
+            window = str(body.get("window"))
+        _append_audit_event(
+            _audit_event_for_operation(
+                "audit-export",
+                "export",
+                "success",
+                "AUDIT bundle exported",
+                change_id=change_id,
+                scope=scope,
+                window=window,
+            )
+        )
+        return serialize_audit_export(_audit_export_payload(scope, change_id, window))
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/config/{{section}}/propose")
+def config_propose(
+    section: str,
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    try:
+        _audit_rows(limit=1)
+        if section not in _ALLOWED_CONFIG_SECTIONS:
+            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+        return serialize_config_propose(_config_propose_payload(section, payload))
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
 
 
 @app.get("/health")

@@ -11,6 +11,19 @@ ALERT_LEVEL_VALUES = {"info", "warn", "crit"}
 EVENT_STATUS_VALUES = {"green", "yellow", "red"}
 SEC_TYPE_VALUES = {"注入", "滥用", "输出"}
 DATA_LEVEL_VALUES = {"L2", "L3", "L4"}
+CONFIG_SECTION_VALUES = {
+    "scene",
+    "models",
+    "fields",
+    "thresholds",
+    "retention",
+    "injection",
+    "output",
+    "quota",
+    "upstream",
+    "approval",
+}
+APPROVAL_LEVEL_VALUES = {"单签", "会签", "三签"}
 
 _HEXISH_RE = re.compile(r"^[0-9a-fA-F]{32,}$")
 _PLACEHOLDER_RE = re.compile(r"^__[A-Z]+_[a-z0-9]+__$")
@@ -111,6 +124,15 @@ def _optional_str(record: dict[str, Any], key: str) -> dict[str, str]:
     if value is None:
         return {}
     return {key: _as_str(value)}
+
+
+def _kv_items(value: Any) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for item in value or []:
+        if not isinstance(item, dict):
+            continue
+        items.append({"k": _as_str(item.get("k")), "v": _as_str(item.get("v"))})
+    return items
 
 
 def serialize_posture(data: dict[str, Any]) -> dict[str, Any]:
@@ -227,3 +249,145 @@ def serialize_events(data: dict[str, Any]) -> dict[str, Any]:
 
     response = {"events": events}
     return assert_no_phi(response, "GET /events")
+
+
+def serialize_audit_lineage(data: dict[str, Any]) -> dict[str, Any]:
+    nodes: list[dict[str, str]] = []
+    for node in data.get("nodes") or []:
+        if not isinstance(node, dict):
+            continue
+        nodes.append(
+            {
+                "ico": _as_str(node.get("ico")),
+                "t": _as_str(node.get("t")),
+                "s": _as_str(node.get("s")),
+            }
+        )
+
+    response = {
+        "ref": _as_str(data.get("ref")),
+        "title": _as_str(data.get("title")),
+        "nodes": nodes,
+        "hash": _as_str(data.get("hash")),
+        "details": _kv_items(data.get("details")),
+    }
+    return assert_no_phi(response, "GET /audit/{ref}")
+
+
+def serialize_upstreams(data: dict[str, Any]) -> dict[str, Any]:
+    upstreams: list[dict[str, Any]] = []
+    for upstream in data.get("upstreams") or []:
+        if not isinstance(upstream, dict):
+            continue
+        upstreams.append(
+            {
+                "name": _as_str(upstream.get("name")),
+                "ctx": _enum(upstream.get("ctx"), CTX_VALUES, "dev"),
+                "protocol": _as_str(upstream.get("protocol"), "openai"),
+                "status": _enum(upstream.get("status"), EVENT_STATUS_VALUES, "yellow"),
+                "traffic_today": _as_int(upstream.get("traffic_today")),
+                "phi": _as_str(upstream.get("phi")),
+            }
+        )
+
+    response = {"upstreams": upstreams}
+    return assert_no_phi(response, "GET /upstreams")
+
+
+def serialize_config_snapshot(data: dict[str, Any]) -> dict[str, Any]:
+    response: dict[str, Any] = {
+        "section": _enum(data.get("section"), CONFIG_SECTION_VALUES, "scene"),
+        "title": _as_str(data.get("title")),
+        "fields": _kv_items(data.get("fields")),
+    }
+    if "built" in data:
+        response["built"] = bool(data.get("built"))
+    if data.get("note") is not None:
+        response["note"] = _as_str(data.get("note"))
+    return assert_no_phi(response, "GET /config/{section}")
+
+
+def serialize_cost(data: dict[str, Any]) -> dict[str, Any]:
+    kpi_src = data.get("kpi") if isinstance(data.get("kpi"), dict) else {}
+    kpi = {
+        "month_cost": _as_str(kpi_src.get("month_cost")),
+        "saved_vs_direct": _as_str(kpi_src.get("saved_vs_direct")),
+        "saved_ratio": _as_str(kpi_src.get("saved_ratio")),
+        "cache_hit_ratio": _as_str(kpi_src.get("cache_hit_ratio")),
+        "cache_saved": _as_str(kpi_src.get("cache_saved")),
+        "cap_day": _as_str(kpi_src.get("cap_day")),
+        "cap_used": _as_str(kpi_src.get("cap_used")),
+        "cap_left_ratio": _as_str(kpi_src.get("cap_left_ratio")),
+        "normal_lane_ratio": _as_str(kpi_src.get("normal_lane_ratio")),
+    }
+
+    def by_dim(value: Any) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
+        for item in value or []:
+            if not isinstance(item, dict):
+                continue
+            items.append(
+                {
+                    "name": _as_str(item.get("name")),
+                    "color_token": _as_str(item.get("color_token")),
+                    "pct": _as_int(item.get("pct"), maximum=100),
+                    "amount": _as_str(item.get("amount")),
+                }
+            )
+        return items
+
+    tips: list[dict[str, str]] = []
+    for item in data.get("tips") or []:
+        if not isinstance(item, dict):
+            continue
+        tips.append({"tip": _as_str(item.get("tip")), "saving": _as_str(item.get("saving"))})
+
+    response = {
+        "window": _enum(data.get("window"), {"1h", "24h", "7d", "month"}, "month"),
+        "kpi": kpi,
+        "by_lane": by_dim(data.get("by_lane")),
+        "by_model": by_dim(data.get("by_model")),
+        "trend": [_as_int(value) for value in data.get("trend") or []],
+        "tips": tips,
+    }
+    return assert_no_phi(response, "GET /cost")
+
+
+def serialize_channels(data: dict[str, Any]) -> dict[str, Any]:
+    channels: list[dict[str, Any]] = []
+    for channel in data.get("channels") or []:
+        if not isinstance(channel, dict):
+            continue
+        channels.append(
+            {
+                "name": _as_str(channel.get("name")),
+                "model": _as_str(channel.get("model")),
+                "weight": _as_int(channel.get("weight"), maximum=100),
+                "unit_price": _as_str(channel.get("unit_price")),
+                "p95_ms": _as_int(channel.get("p95_ms")),
+                "region": _as_str(channel.get("region")),
+                "picked": bool(channel.get("picked")),
+                "status": _enum(channel.get("status"), EVENT_STATUS_VALUES, "yellow"),
+            }
+        )
+
+    response = {"channels": channels}
+    return assert_no_phi(response, "GET /channels")
+
+
+def serialize_audit_export(data: dict[str, Any]) -> dict[str, Any]:
+    response = {
+        "bundle_id": _as_str(data.get("bundle_id")),
+        "status": _enum(data.get("status"), {"packing", "ready"}, "packing"),
+        "sha256": _as_str(data.get("sha256")),
+    }
+    return assert_no_phi(response, "POST /audit/export")
+
+
+def serialize_config_propose(data: dict[str, Any]) -> dict[str, Any]:
+    response = {
+        "approval_id": _as_str(data.get("approval_id")),
+        "level": _enum(data.get("level"), APPROVAL_LEVEL_VALUES, "会签"),
+        "status": "queued",
+    }
+    return assert_no_phi(response, "POST /config/{section}/propose")
