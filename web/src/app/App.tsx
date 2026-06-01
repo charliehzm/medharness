@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 
 import AppShell from "./AppShell";
 import "./App.css";
+import Access from "@/views/Access";
 import Audit from "@/views/Audit";
 import Cost from "@/views/Cost";
 import Overview from "@/views/Overview";
@@ -79,6 +80,8 @@ function Screen({
         <Audit />
       ) : id === "cost" ? (
         <Cost />
+      ) : id === "access" ? (
+        <Access />
       ) : (
         <div className="screen-shell">
           <section className="screen-card">
