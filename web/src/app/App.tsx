@@ -8,10 +8,11 @@ import Audit from "@/views/Audit";
 import Cost from "@/views/Cost";
 import Overview from "@/views/Overview";
 import Policy from "@/views/Policy";
+import System from "@/views/System";
 import Traffic from "@/views/Traffic";
+import Login from "@/views/Login";
 import {
   NAV_BY_ID,
-  NAV_GROUP_LABEL,
   ROLE_NAV,
   isLocked,
   type NavItem,
@@ -28,33 +29,21 @@ const SCREEN_IDS: NavItem["id"][] = [
   "system",
 ];
 
-const SCREEN_COPY: Record<NavItem["id"], { note: string }> = {
-  overview: { note: "四目标卡、六闸门、需要注意与本月小结将从这里接入。" },
-  traffic: { note: "双向桑基、双色事件流与三态过滤将从这里接入。" },
-  audit: { note: "事件流、检索、血缘与导出监管包将从这里接入。" },
-  cost: { note: "成本 KPI、渠道构成、比价与省钱建议将从这里接入。" },
-  access: { note: "接入应用、用户、令牌与分组将从这里接入。" },
-  policy: { note: "合规、安全、成本护栏与审批差异将从这里接入。" },
-  system: { note: "部署健康、备份与升级入口将从这里接入。" },
-};
-
 function roleLandPath(role: RoleId): string {
   return NAV_BY_ID[ROLE_NAV[role].land].path;
-}
-
-function roleLabel(role: RoleId): string {
-  return role === "rdlead" ? "研发负责人" : "系统管理员";
 }
 
 function Screen({
   id,
   role,
   onRoleChange,
+  onLock,
   onNavigate,
 }: {
   id: NavItem["id"];
   role: RoleId;
   onRoleChange: (role: RoleId) => void;
+  onLock: () => void;
   onNavigate: (id: NavItem["id"]) => void;
 }): ReactNode {
   const nav = NAV_BY_ID[id];
@@ -63,12 +52,11 @@ function Screen({
     return <Navigate replace to={roleLandPath(role)} />;
   }
 
-  const groupLabel = nav.group ? NAV_GROUP_LABEL[nav.group] : "四目标";
-
   return (
     <AppShell
       activeId={id}
       onNavigate={onNavigate}
+      onLock={onLock}
       onRoleChange={onRoleChange}
       role={role}
       title={nav.label}
@@ -86,33 +74,33 @@ function Screen({
       ) : id === "policy" ? (
         <Policy />
       ) : (
-        <div className="screen-shell">
-          <section className="screen-card">
-            <div className="screen-kicker">{groupLabel}</div>
-            <h2>{nav.label}</h2>
-            <p className="screen-desc">🚧 规划中 · 仅展示占位符、哈希与聚合数。</p>
-            <div className="screen-chip-row" aria-label="页面状态">
-              <span className="screen-chip primary">0 PHI</span>
-              <span className="screen-chip warn">built:false</span>
-              <span className="screen-chip neutral">{roleLabel(role)}</span>
-            </div>
-          </section>
-          <section className="screen-note">
-            <b>状态</b>
-            <span>{SCREEN_COPY[id].note}</span>
-          </section>
-        </div>
+        <System />
       )}
     </AppShell>
   );
 }
 
+type AuthState = {
+  authed: boolean;
+  role: RoleId;
+};
+
 export default function App() {
-  const [role, setRole] = useState<RoleId>("rdlead");
+  const [auth, setAuth] = useState<AuthState>({ authed: false, role: "rdlead" });
   const navigate = useNavigate();
 
+  const handleLogin = (role: RoleId) => {
+    setAuth({ authed: true, role });
+    navigate(roleLandPath(role), { replace: true });
+  };
+
+  const handleLock = () => {
+    setAuth({ authed: false, role: auth.role });
+    navigate("/login", { replace: true });
+  };
+
   const handleRoleChange = (nextRole: RoleId) => {
-    setRole(nextRole);
+    setAuth({ authed: true, role: nextRole });
     navigate(roleLandPath(nextRole), { replace: true });
   };
 
@@ -120,16 +108,28 @@ export default function App() {
     navigate(NAV_BY_ID[id].path);
   };
 
+  const initialPath = auth.authed ? roleLandPath(auth.role) : "/login";
+
   return (
     <Routes>
+      <Route
+        path="/login"
+        element={auth.authed ? <Navigate replace to={roleLandPath(auth.role)} /> : <Login onLogin={handleLogin} />}
+      />
       {SCREEN_IDS.map((id) => (
         <Route
           key={id}
           path={NAV_BY_ID[id].path}
-          element={<Screen id={id} onNavigate={handleNavigate} onRoleChange={handleRoleChange} role={role} />}
+          element={
+            auth.authed ? (
+              <Screen id={id} onLock={handleLock} onNavigate={handleNavigate} onRoleChange={handleRoleChange} role={auth.role} />
+            ) : (
+              <Navigate replace to={initialPath} />
+            )
+          }
         />
       ))}
-      <Route path="*" element={<Navigate replace to={roleLandPath(role)} />} />
+      <Route path="*" element={<Navigate replace to={initialPath} />} />
     </Routes>
   );
 }

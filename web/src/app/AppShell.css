@@ -23,7 +23,7 @@
 .app-shell .role-select{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:10px}
 .app-shell .role-select button{border:0;background:none;padding:6px 12px;border-radius:7px;cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
 .app-shell .role-select button.on{background:var(--surface);color:var(--navy);box-shadow:var(--shadow-soft)}
-.app-shell .lock{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:color-mix(in srgb,var(--surface) 55%,var(--navy))}
+.app-shell .lock{display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:0;font-size:12px;color:color-mix(in srgb,var(--surface) 55%,var(--navy));cursor:pointer}
 .app-shell .content{padding:24px 26px;overflow:auto}
 .app-shell .view.show{display:block;animation:app-shell-fade .3s ease}
 @keyframes app-shell-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}

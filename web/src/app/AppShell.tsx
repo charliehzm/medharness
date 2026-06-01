@@ -7,6 +7,7 @@ import "./AppShell.css";
 type AppShellProps = {
   role: RoleId;
   onRoleChange?: (role: RoleId) => void;
+  onLock?: () => void;
   activeId?: NavItem["id"];
   title?: string;
   children?: ReactNode;
@@ -16,6 +17,7 @@ type AppShellProps = {
 export default function AppShell({
   role,
   onRoleChange,
+  onLock,
   activeId = "overview",
   title = "总览",
   children,
@@ -99,7 +101,9 @@ export default function AppShell({
                 系统管理员
               </button>
             </div>
-            <div className="lock">🔒 锁定</div>
+            <button className="lock" onClick={onLock} type="button">
+              🔒 锁定
+            </button>
           </div>
         </header>
         <div className="content">
