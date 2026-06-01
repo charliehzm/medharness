@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- BE-5 A0 read-only aggregation API skeleton: `GET /api/v1/posture`, `/traffic`, `/events` with 0-PHI output guard and ClickHouse fail-closed handling.
+
 ## [0.1.0-alpha] - 2026-05-__
 
 ### Added · 首发
