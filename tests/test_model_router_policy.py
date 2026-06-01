@@ -25,6 +25,14 @@ def _allowlist() -> Allowlist:
                 rate_limit_qps=10,
             ),
             AllowlistEntry(
+                id="qwen-private",
+                vendor_family="alibaba",
+                deployment="private://qwen-private",
+                allowed_agent_roles=("coder",),
+                allowed_data_levels=("L1", "L2", "L3", "L4"),
+                rate_limit_qps=5,
+            ),
+            AllowlistEntry(
                 id="gpt-5",
                 vendor_family="openai",
                 deployment="private://gpt-5",
@@ -61,6 +69,10 @@ def test_allow_happy_path() -> None:
     assert "model_id='qwen-max'" in decision.reason
     assert "agent_role='coder'" in decision.reason
     assert "data_level='L2'" in decision.reason
+    assert decision.allowed_model_set == ("qwen-max", "qwen-private")
+    assert decision.lane == "normal"
+    assert decision.max_data_level == "L4"
+    assert decision.map_id is None
 
 
 def test_missing_desensitized_marker_denies() -> None:
@@ -104,6 +116,40 @@ def test_data_level_veto_denies_at_data_level_layer() -> None:
     assert "data_level='L4'" in decision.reason
     assert "model_id='qwen-max'" in decision.reason
     assert "agent_role='coder'" in decision.reason
+    assert decision.allowed_model_set == ()
+    assert decision.lane is None
+    assert decision.max_data_level is None
+    assert decision.map_id is None
+
+
+def test_level_exceeds_reroutes_to_sensitive_lane_when_desensitized_with_map_id() -> None:
+    core = PolicyCore(_allowlist())
+    decision = core.evaluate(
+        _request(data_level="L4", metadata={"desensitized": True, "map_id": "map-synthetic"})
+    )
+
+    assert decision.decision == "reroute"
+    assert decision.layer_failed == "data_level"
+    assert decision.allowed_model_set == ("qwen-private",)
+    assert decision.lane == "sensitive"
+    assert decision.max_data_level == "L4"
+    assert decision.map_id == "map-synthetic"
+    assert "allowed_model_set" in decision.reason
+
+
+def test_unsigned_tier_still_denies_before_reroute_consideration() -> None:
+    core = PolicyCore(_allowlist())
+    decision = core.evaluate(
+        _request(
+            data_level="L4",
+            metadata={"desensitized": True, "map_id": "map-synthetic", "tier_trusted": False},
+        )
+    )
+
+    assert decision.decision == "deny"
+    assert decision.layer_failed == "tier"
+    assert decision.allowed_model_set == ()
+    assert decision.lane is None
 
 
 def test_reason_is_auditable_and_contains_no_raw_phi() -> None:
