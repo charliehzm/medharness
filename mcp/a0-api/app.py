@@ -13,6 +13,9 @@ from urllib import error, parse, request
 
 from serializers import (
     assert_no_phi,
+    serialize_admin_channels,
+    serialize_admin_tokens,
+    serialize_admin_users,
     serialize_audit_export,
     serialize_audit_lineage,
     serialize_channels,
@@ -527,6 +530,134 @@ def _channels_payload() -> dict[str, Any]:
     }
 
 
+def _admin_users_payload() -> dict[str, Any]:
+    # Phase A representative new-api source rows. Serializer owns the B5 whitelist.
+    return {
+        "users": [
+            {
+                "id": 1001,
+                "username": "owner-admin",
+                "email": "owner@example.invalid",
+                "phone": "13900000000",
+                "display_name": "DO-NOT-RETURN",
+                "role": "admin",
+                "status": "enabled",
+                "group": "管理",
+                "quota": "—",
+                "used_quota": "¥1,240",
+                "console_role": "研发负责人",
+            },
+            {
+                "id": 1002,
+                "github_id": "gh-sensitive-source-id",
+                "wechat_id": "wx-sensitive-source-id",
+                "role": "normal",
+                "status": "enabled",
+                "group": "生产",
+                "quota": "¥150/日",
+                "used_quota": "¥124",
+                "console_role": None,
+            },
+            {
+                "id": 1003,
+                "access_token": "plain-access-token-do-not-return",
+                "password": "plain-password-do-not-return",
+                "role": "normal",
+                "status": "disabled",
+                "group": "开发",
+                "quota": "¥30/日",
+                "used_quota": "¥30",
+                "console_role": None,
+            },
+        ]
+    }
+
+
+def _admin_tokens_payload() -> dict[str, Any]:
+    # Phase A representative new-api source rows. Token key is intentionally ignored.
+    return {
+        "tokens": [
+            {
+                "id": "token-prod-dify",
+                "name": "tk-dify-prod",
+                "key": "sk-live-plain-key-do-not-return",
+                "status": "enabled",
+                "remain_quota": "¥26/日",
+                "used_quota": "¥124",
+                "allowed_data_levels": ["L2", "L3"],
+            },
+            {
+                "id": "token-claude-code",
+                "name": "tk-claude-code",
+                "key": "sk-plain-key-do-not-return",
+                "base_url": "https://api.example.invalid/secret-key",
+                "status": "enabled",
+                "remain_quota": "¥32/日",
+                "used_quota": "¥18",
+                "allowed_data_levels": ["L2"],
+            },
+            {
+                "id": "token-codex",
+                "name": "tk-codex",
+                "status": "throttled",
+                "remain_quota": "¥0/日",
+                "used_quota": "¥30",
+                "allowed_data_levels": ["L2"],
+            },
+        ]
+    }
+
+
+def _admin_channels_payload() -> dict[str, Any]:
+    # Phase A representative new-api source rows. Credentials/base_url stay source-only.
+    return {
+        "channels": [
+            {
+                "id": "channel-volcengine-deepseek",
+                "name": "火山-DeepSeek",
+                "type": "openai",
+                "status": "green",
+                "weight": 70,
+                "region": "境内",
+                "lane": "normal",
+                "models": ["deepseek-v4-pro"],
+                "key": "sk-channel-plain-key-do-not-return",
+                "base_url": "https://volcengine.example.invalid/private",
+            },
+            {
+                "id": "channel-official-deepseek",
+                "name": "官方-DeepSeek",
+                "type": "openai",
+                "status": "green",
+                "weight": 30,
+                "region": "境内",
+                "lane": "normal",
+                "models": ["deepseek-v4-pro"],
+            },
+            {
+                "id": "channel-qwen",
+                "name": "阿里-Qwen",
+                "type": "openai",
+                "status": "green",
+                "weight": 100,
+                "region": "境内",
+                "lane": "sensitive",
+                "models": ["qwen-max-2026", "qwen-vl-2026"],
+            },
+            {
+                "id": "channel-anthropic",
+                "name": "Anthropic",
+                "type": "anthropic",
+                "status": "green",
+                "weight": 100,
+                "region": "境外·仅脱敏",
+                "lane": "normal",
+                "models": ["claude-sonnet"],
+            },
+        ]
+    }
+
+
 def _proposal_level(section: str) -> str:
     return {
         "scene": "单签",
@@ -1013,6 +1144,39 @@ def channels() -> Any:
     try:
         _audit_rows(limit=1)
         return serialize_channels(_channels_payload())
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/admin/users")
+def admin_users() -> Any:
+    try:
+        _audit_rows(limit=1)
+        return serialize_admin_users(_admin_users_payload())
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/admin/tokens")
+def admin_tokens() -> Any:
+    try:
+        _audit_rows(limit=1)
+        return serialize_admin_tokens(_admin_tokens_payload())
+    except ClickHouseUnavailable:
+        return _degraded_response()
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/admin/channels")
+def admin_channels() -> Any:
+    try:
+        _audit_rows(limit=1)
+        return serialize_admin_channels(_admin_channels_payload())
     except ClickHouseUnavailable:
         return _degraded_response()
     except Exception:

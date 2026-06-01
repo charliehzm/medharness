@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -24,6 +25,8 @@ CONFIG_SECTION_VALUES = {
     "approval",
 }
 APPROVAL_LEVEL_VALUES = {"单签", "会签", "三签"}
+CONSOLE_ROLE_VALUES = {"研发负责人", "系统管理员"}
+LANE_VALUES = {"normal", "sensitive"}
 
 _HEXISH_RE = re.compile(r"^[0-9a-fA-F]{32,}$")
 _PLACEHOLDER_RE = re.compile(r"^__[A-Z]+_[a-z0-9]+__$")
@@ -126,6 +129,15 @@ def _optional_str(record: dict[str, Any], key: str) -> dict[str, str]:
     return {key: _as_str(value)}
 
 
+def _id_hash(record: dict[str, Any], prefix: str) -> str:
+    for key in ("id", "user_id", "token_id", "channel_id", "id_hash"):
+        value = record.get(key)
+        if value is not None:
+            digest = hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:6]
+            return f"{prefix}#{digest}"
+    return f"{prefix}#000000"
+
+
 def _kv_items(value: Any) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     for item in value or []:
@@ -133,6 +145,82 @@ def _kv_items(value: Any) -> list[dict[str, str]]:
             continue
         items.append({"k": _as_str(item.get("k")), "v": _as_str(item.get("v"))})
     return items
+
+
+def serialize_admin_users(data: dict[str, Any]) -> dict[str, Any]:
+    users: list[dict[str, Any]] = []
+    for user in data.get("users") or []:
+        if not isinstance(user, dict):
+            continue
+        console_role = user.get("console_role")
+        users.append(
+            {
+                "id_hash": _id_hash(user, "u"),
+                "role": _as_str(user.get("role")),
+                "status": _as_str(user.get("status")),
+                "group": _as_str(user.get("group")),
+                "quota": _as_str(user.get("quota")),
+                "used_quota": _as_str(user.get("used_quota")),
+                "console_role": console_role if console_role in CONSOLE_ROLE_VALUES else None,
+            }
+        )
+
+    response = {"users": users}
+    return assert_no_phi(response, "GET /admin/users")
+
+
+def serialize_admin_tokens(data: dict[str, Any]) -> dict[str, Any]:
+    tokens: list[dict[str, Any]] = []
+    for token in data.get("tokens") or []:
+        if not isinstance(token, dict):
+            continue
+        allowed_data_levels = [
+            _enum(level, DATA_LEVEL_VALUES, "L2")
+            for level in token.get("allowed_data_levels") or []
+            if _as_str(level) in DATA_LEVEL_VALUES
+        ]
+        if not allowed_data_levels:
+            allowed_data_levels = ["L2"]
+        tokens.append(
+            {
+                "id_hash": _id_hash(token, "tk"),
+                "name": _as_str(token.get("name")),
+                "status": _as_str(token.get("status")),
+                "remain_quota": _as_str(token.get("remain_quota")),
+                "used_quota": _as_str(token.get("used_quota")),
+                "allowed_data_levels": allowed_data_levels,
+            }
+        )
+
+    response = {"tokens": tokens}
+    return assert_no_phi(response, "GET /admin/tokens")
+
+
+def serialize_admin_channels(data: dict[str, Any]) -> dict[str, Any]:
+    channels: list[dict[str, Any]] = []
+    for channel in data.get("channels") or []:
+        if not isinstance(channel, dict):
+            continue
+        models = [
+            _as_str(model)
+            for model in channel.get("models") or []
+            if _as_str(model)
+        ]
+        channels.append(
+            {
+                "id_hash": _id_hash(channel, "ch"),
+                "name": _as_str(channel.get("name")),
+                "type": _as_str(channel.get("type")),
+                "status": _enum(channel.get("status"), EVENT_STATUS_VALUES, "yellow"),
+                "weight": _as_int(channel.get("weight"), maximum=100),
+                "region": _as_str(channel.get("region")),
+                "lane": _enum(channel.get("lane"), LANE_VALUES, "normal"),
+                "models": models,
+            }
+        )
+
+    response = {"channels": channels}
+    return assert_no_phi(response, "GET /admin/channels")
 
 
 def serialize_posture(data: dict[str, Any]) -> dict[str, Any]:
