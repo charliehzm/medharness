@@ -152,13 +152,19 @@ def _load_fixture(name: str) -> object:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
-def _array_template(expected_list: list) -> tuple[set, set, dict] | None:
-    """For an array of objects, return (allowed_keys, required_keys, example).
+def _array_template(expected_list: list) -> tuple[set, set, dict, set] | None:
+    """For an array of objects, return (allowed, required, example, nullable).
 
-    allowed = union of keys across all variant elements; required = keys present
-    in EVERY variant; example = a merged value sample per allowed key. Lets the
-    checker tolerate union/variant arrays (e.g. events: sec vs perf) without false
-    positives while still catching truly-unexpected keys and type drift.
+    allowed  = union of keys across all variant elements;
+    required = keys present in EVERY variant;
+    example  = a representative NON-null value per key (None if the key is null in
+               every element — a frozen-null field);
+    nullable = keys that appear as null in at least one element.
+
+    This tolerates union/variant arrays (events: sec vs perf) AND nullable fields
+    (e.g. console_role: string for some users, null for others) without false
+    positives, while still catching unexpected keys, type drift, and a frozen-null
+    field that leaked a value (0-PHI).
     """
     dict_elems = [e for e in expected_list if isinstance(e, dict)]
     if not dict_elems:
@@ -168,12 +174,13 @@ def _array_template(expected_list: list) -> tuple[set, set, dict] | None:
     for e in dict_elems[1:]:
         required &= set(e)
     example: dict = {}
+    nullable: set = set()
     for k in allowed:
-        for e in dict_elems:
-            if k in e:
-                example[k] = e[k]
-                break
-    return allowed, required, example
+        vals = [e[k] for e in dict_elems if k in e]
+        if any(v is None for v in vals):
+            nullable.add(k)
+        example[k] = next((v for v in vals if v is not None), None)
+    return allowed, required, example, nullable
 
 
 def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
@@ -192,13 +199,17 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
     elif isinstance(expected, list):
         if not isinstance(actual, list):
             return [f"{path}: expected array, got {type(actual).__name__}"]
+        if expected and not actual:
+            # anti-vacuous: a non-empty frozen fixture array must not be satisfied
+            # by an empty A0 response (that would hide a serializer that drops rows).
+            return [f"{path}: contract fixture has {len(expected)} element(s) but A0 returned an empty array"]
         tmpl = _array_template(expected)
         if tmpl is None:
             if expected:
                 for i, item in enumerate(actual):
                     errors += _conforms(item, expected[0], f"{path}[{i}]")
             return errors
-        allowed, required, example = tmpl
+        allowed, required, example, nullable = tmpl
         for i, item in enumerate(actual):
             if not isinstance(item, dict):
                 errors.append(f"{path}[{i}]: expected object element, got {type(item).__name__}")
@@ -213,12 +224,27 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
                 for k in sorted(ik - allowed)
             ]
             for k in sorted(ik & allowed):
-                errors += _conforms(item[k], example[k], f"{path}[{i}].{k}")
+                av, ev = item[k], example[k]
+                if av is None:
+                    # null OK when the fixture shows this key nullable or always-null;
+                    # error only if it is a concrete value in EVERY fixture element.
+                    if k not in nullable and ev is not None:
+                        errors.append(f"{path}[{i}].{k}: contract field is always non-null but A0 returned null")
+                elif ev is None:
+                    # a field that is null in EVERY fixture element must stay null (0-PHI).
+                    errors.append(f"{path}[{i}].{k}: contract field is always null but A0 returned {type(av).__name__}")
+                else:
+                    errors += _conforms(av, ev, f"{path}[{i}].{k}")
     else:
-        # scalar leaf: tolerate None either side (nullable / PHI-redacted), unify number
-        if actual is None or expected is None:
-            return errors
-        if isinstance(expected, bool):
+        # scalar leaf: null is EXACT — a frozen-null field (e.g. a security event's
+        # payload, forced null for 0-PHI) must stay null, and a frozen scalar must
+        # not silently become null. Numbers unified (int/float).
+        if expected is None:
+            if actual is not None:
+                errors.append(f"{path}: contract fixture is null but A0 returned {type(actual).__name__}")
+        elif actual is None:
+            errors.append(f"{path}: expected {type(expected).__name__} but A0 returned null")
+        elif isinstance(expected, bool):
             if not isinstance(actual, bool):
                 errors.append(f"{path}: expected bool, got {type(actual).__name__}")
         elif isinstance(expected, (int, float)):
@@ -252,6 +278,21 @@ def test_a0_endpoint_conforms_to_frozen_fixture(key, method, path, body, fixture
     assert not errors, (
         f"{key} ({method} {path}) diverges from frozen contract fixture {fixture}:\n  - "
         + "\n  - ".join(errors)
+    )
+
+
+@pytest.mark.parametrize("section", sorted(_load_fixture("config.json").keys()))
+def test_a0_config_every_frozen_section_conforms(section, a0_client) -> None:
+    # config.json is a 10-section frozen contract; INT-1 originally only checked
+    # /config/models, so per-section drift (built/note/fields) went uncaught.
+    expected = _load_fixture("config.json")[section]
+    resp = a0_client.get(f"/api/v1/config/{section}")
+    assert resp.status_code == 200, f"config/{section} -> {resp.status_code}"
+    payload = resp.json()
+    serializers.assert_no_phi(payload, f"conformance:config:{section}")
+    errors = _conforms(payload, expected)
+    assert not errors, (
+        f"config/{section} diverges from frozen config.json[{section}]:\n  - " + "\n  - ".join(errors)
     )
 
 
