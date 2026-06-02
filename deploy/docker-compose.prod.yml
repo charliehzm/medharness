@@ -212,6 +212,36 @@ services:
       start_period: 20s
       retries: 3
 
+  a0-api:
+    build:
+      context: ..
+      dockerfile: mcp/a0-api/Dockerfile
+    image: medharness/mcp-a0-api:${VERSION}
+    container_name: medharness-a0-api
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
   clickhouse:
     image: clickhouse/clickhouse-server:24
     container_name: medharness-clickhouse
@@ -278,6 +308,8 @@ services:
       model-router:
         condition: service_healthy
       audit-log:
+        condition: service_healthy
+      a0-api:
         condition: service_healthy
     deploy:
       resources:
