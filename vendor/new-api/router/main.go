@@ -14,6 +14,7 @@ import (
 
 func SetRouter(router *gin.Engine, assets ThemeAssets) {
 	InstallMedHarnessResaleGuard(router)
+	InstallMedHarnessBypassGuard(router) // ADR-18 §5: hard-disable §D.1-bypass relay/control-plane surfaces
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
