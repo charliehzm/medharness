@@ -1,12 +1,15 @@
 package middleware
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,82 +32,221 @@ func TestSignTierMatchesPython(t *testing.T) {
 	}
 }
 
-func newGateServer(name string, order *[]string, mu *sync.Mutex, deny bool) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		mu.Lock()
-		*order = append(*order, name)
-		mu.Unlock()
-		w.Header().Set("Content-Type", "application/json")
-		if deny {
-			_, _ = w.Write([]byte(`{"decision":"deny"}`))
-			return
-		}
-		_, _ = w.Write([]byte(`{"decision":"allow","map_id":"map-x"}`))
-	}))
+type gateTestConfig struct {
+	phiResponse       string
+	desensResponse    string
+	routerResponse    string
+	injectionResponse string
+	outboundResponse  string
+	requestBody       string
+	baseStatus        int
+	baseBody          string
 }
 
-func runComplianceRequest(t *testing.T, phiDeny bool) (status int, nextCalled bool, order []string) {
+type gateTestResult struct {
+	status     int
+	body       string
+	nextCalled bool
+	order      []string
+	captures   map[string]map[string]any
+}
+
+func defaultGateTestConfig() gateTestConfig {
+	return gateTestConfig{
+		phiResponse:       `{"data_level":"L2","spans":[],"summary":{"total_hits":0}}`,
+		desensResponse:    `{"desensitized":true,"map_id":"map-x","desensitized_text":"hi","map_ref":"ref-x"}`,
+		routerResponse:    `{"decision":"allow"}`,
+		injectionResponse: `{"decision":"allow"}`,
+		outboundResponse:  `{"decision":"allow"}`,
+		requestBody:       `{"model":"qwen-max","messages":[{"role":"user","content":"hi"}]}`,
+		baseStatus:        http.StatusOK,
+	}
+}
+
+type gateRoundTripper struct {
+	order     *[]string
+	mu        *sync.Mutex
+	responses map[string]string
+	captures  map[string]map[string]any
+}
+
+func (rt gateRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	raw, _ := io.ReadAll(r.Body)
+	var parsed map[string]any
+	_ = common.Unmarshal(raw, &parsed)
+	name := strings.TrimSuffix(r.URL.Host, ".test")
+	rt.mu.Lock()
+	*rt.order = append(*rt.order, name)
+	if rt.captures != nil {
+		rt.captures[name] = parsed
+	}
+	rt.mu.Unlock()
+
+	body := []byte(rt.responses[name])
+	return &http.Response{
+		StatusCode:    http.StatusOK,
+		Status:        "200 OK",
+		Header:        http.Header{"Content-Type": []string{"application/json"}},
+		Body:          io.NopCloser(bytes.NewReader(body)),
+		ContentLength: int64(len(body)),
+		Request:       r,
+	}, nil
+}
+
+func runComplianceRequest(t *testing.T, overrides gateTestConfig) gateTestResult {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	var mu sync.Mutex
-	phi := newGateServer("phi", &order, &mu, phiDeny)
-	defer phi.Close()
-	desens := newGateServer("desens", &order, &mu, false)
-	defer desens.Close()
-	router := newGateServer("router", &order, &mu, false)
-	defer router.Close()
-	injection := newGateServer("injection", &order, &mu, false)
-	defer injection.Close()
+	cfg := defaultGateTestConfig()
+	if overrides.phiResponse != "" {
+		cfg.phiResponse = overrides.phiResponse
+	}
+	if overrides.desensResponse != "" {
+		cfg.desensResponse = overrides.desensResponse
+	}
+	if overrides.routerResponse != "" {
+		cfg.routerResponse = overrides.routerResponse
+	}
+	if overrides.injectionResponse != "" {
+		cfg.injectionResponse = overrides.injectionResponse
+	}
+	if overrides.outboundResponse != "" {
+		cfg.outboundResponse = overrides.outboundResponse
+	}
+	if overrides.requestBody != "" {
+		cfg.requestBody = overrides.requestBody
+	}
+	if overrides.baseStatus != 0 {
+		cfg.baseStatus = overrides.baseStatus
+	}
+	cfg.baseBody = overrides.baseBody
 
-	t.Setenv("PHI_DETECTOR_URL", phi.URL)
-	t.Setenv("DESENSITIZE_URL", desens.URL)
-	t.Setenv("MODEL_ROUTER_URL", router.URL)
-	t.Setenv("INJECTION_URL", injection.URL)
+	var mu sync.Mutex
+	var order []string
+	captures := map[string]map[string]any{}
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = gateRoundTripper{
+		order: &order,
+		mu:    &mu,
+		responses: map[string]string{
+			"phi":       cfg.phiResponse,
+			"desens":    cfg.desensResponse,
+			"router":    cfg.routerResponse,
+			"injection": cfg.injectionResponse,
+			"outbound":  cfg.outboundResponse,
+		},
+		captures: captures,
+	}
+	t.Cleanup(func() {
+		http.DefaultTransport = oldTransport
+	})
+
+	t.Setenv("PHI_DETECTOR_URL", "http://phi.test")
+	t.Setenv("DESENSITIZE_URL", "http://desens.test")
+	t.Setenv("MODEL_ROUTER_URL", "http://router.test")
+	t.Setenv("INJECTION_URL", "http://injection.test")
+	t.Setenv("OUTBOUND_SAFETY_URL", "http://outbound.test")
 	t.Setenv("MODEL_ROUTER_TIER_SECRET", "medharness-test-secret")
 
 	// Env is read at handler construction, so build AFTER Setenv.
 	engine := gin.New()
+	nextCalled := false
 	engine.POST("/v1/chat/completions", MedHarnessCompliance(), func(c *gin.Context) {
 		nextCalled = true
-		c.Status(http.StatusOK)
+		c.Status(cfg.baseStatus)
+		if cfg.baseBody != "" {
+			_, _ = c.Writer.Write([]byte(cfg.baseBody))
+		}
 	})
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/chat/completions",
-		strings.NewReader(`{"model":"qwen-max","messages":[{"role":"user","content":"hi"}]}`),
+		strings.NewReader(cfg.requestBody),
 	)
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
-	return w.Code, nextCalled, order
+	return gateTestResult{
+		status:     w.Code,
+		body:       w.Body.String(),
+		nextCalled: nextCalled,
+		order:      order,
+		captures:   captures,
+	}
 }
 
 // TestComplianceHappyPath: all gates pass -> §D.1 order phi->desens->router->injection -> base relay.
 func TestComplianceHappyPath(t *testing.T) {
-	status, nextCalled, order := runComplianceRequest(t, false)
-	if !nextCalled {
+	result := runComplianceRequest(t, gateTestConfig{})
+	if !result.nextCalled {
 		t.Fatalf("base relay (c.Next) was not reached on the happy path")
 	}
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200", status)
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
 	}
-	if got := strings.Join(order, ","); got != "phi,desens,router,injection" {
-		t.Fatalf("gate order = %q, want phi,desens,router,injection", got)
+	if got := strings.Join(result.order, ","); got != "phi,desens,router,injection,outbound" {
+		t.Fatalf("gate order = %q, want phi,desens,router,injection,outbound", got)
+	}
+	if got, _ := result.captures["phi"]["text"].(string); got != "hi" {
+		t.Fatalf("phi text = %q, want extracted chat message text", got)
 	}
 }
 
 // TestComplianceFailClosed: a gate deny aborts the request and never reaches base relay.
 func TestComplianceFailClosed(t *testing.T) {
-	status, nextCalled, order := runComplianceRequest(t, true)
-	if nextCalled {
+	result := runComplianceRequest(t, gateTestConfig{phiResponse: `{"decision":"deny"}`})
+	if result.nextCalled {
 		t.Fatalf("fail-closed violated: base relay was reached after a gate deny")
 	}
-	if status != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503", status)
+	if result.status != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", result.status)
 	}
-	if len(order) != 1 || order[0] != "phi" {
-		t.Fatalf("after deny the chain must stop; calls = %v, want [phi]", order)
+	if len(result.order) != 1 || result.order[0] != "phi" {
+		t.Fatalf("after deny the chain must stop; calls = %v, want [phi]", result.order)
+	}
+}
+
+func TestComplianceTierUsesHighestPHILevel(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{
+		phiResponse: `{"spans":[{"entity_type":"MRN","data_level":"L4","start":0,"end":3,"score":0.99}],"summary":{"total_hits":1}}`,
+	})
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
+	}
+	if got, _ := result.captures["router"]["data_level"].(string); got != "L4" {
+		t.Fatalf("router data_level = %q, want L4", got)
+	}
+}
+
+func TestComplianceOptionBLaneNameDefaultsSensitive(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{
+		requestBody: `{"model":"qwen-max","messages":[{"role":"user","content":"patient name: synthetic alice"}]}`,
+		phiResponse: `{"spans":[{"entity_type":"PERSON_NAME","start":14,"end":29,"score":0.95}],"summary":{"total_hits":1}}`,
+	})
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
+	}
+	if got, _ := result.captures["router"]["lane"].(string); got != "sensitive" {
+		t.Fatalf("router lane = %q, want sensitive", got)
+	}
+}
+
+func TestComplianceOutboundDenyReplacesResponse(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{
+		baseBody:         `{"choices":[{"message":{"content":"upstream body"}}]}`,
+		outboundResponse: `{"decision":"deny"}`,
+	})
+	if !result.nextCalled {
+		t.Fatalf("base relay should be reached before post-call outbound safety")
+	}
+	if result.status != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", result.status)
+	}
+	if strings.Contains(result.body, "upstream body") {
+		t.Fatalf("outbound deny leaked buffered upstream body: %s", result.body)
+	}
+	if got := strings.Join(result.order, ","); got != "phi,desens,router,injection,outbound" {
+		t.Fatalf("gate order = %q, want phi,desens,router,injection,outbound", got)
 	}
 }
