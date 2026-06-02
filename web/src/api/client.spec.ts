@@ -40,30 +40,38 @@ describe("api-client live path", () => {
     expect(url).toContain("window=24h");
   });
 
-  it("maps a non-200 to a generic api_http_error (no upstream body reaches the caller)", async () => {
+  it("maps a non-200 to the EXACT generic api_http_error (no upstream body leaks)", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ upstream_secret: "should-never-surface" }, 500));
 
-    await expect(
-      requestEndpoint("posture", { mode: "live", fetchImpl }),
-    ).rejects.toMatchObject({ error: { code: "api_http_error" } });
+    let caught: unknown;
+    try {
+      await requestEndpoint("posture", { mode: "live", fetchImpl });
+    } catch (e) {
+      caught = e;
+    }
+    // exact generic shape — nothing from the upstream body may ride along
+    expect(caught).toEqual({ error: { code: "api_http_error", msg: "请求失败" } });
+    const serialized = JSON.stringify(caught);
+    expect(serialized).not.toContain("should-never-surface");
+    expect(serialized).not.toContain("upstream_secret");
   });
 
-  it("maps invalid JSON to api_invalid_json", async () => {
+  it("maps invalid JSON to the exact generic api_invalid_json", async () => {
     const fetchImpl = vi.fn(async () => new Response("not-json{", { status: 200 }));
 
     await expect(
       requestEndpoint("posture", { mode: "live", fetchImpl }),
-    ).rejects.toMatchObject({ error: { code: "api_invalid_json" } });
+    ).rejects.toEqual({ error: { code: "api_invalid_json", msg: "请求失败" } });
   });
 
-  it("maps a fetch/network throw to api_network_error", async () => {
+  it("maps a fetch/network throw to the exact generic api_network_error", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error("connection refused");
     });
 
     await expect(
       requestEndpoint("posture", { mode: "live", fetchImpl }),
-    ).rejects.toMatchObject({ error: { code: "api_network_error" } });
+    ).rejects.toEqual({ error: { code: "api_network_error", msg: "请求失败" } });
   });
 
   it("BLOCKS a PHI-dirty live response before it reaches state (0-PHI seam)", async () => {
