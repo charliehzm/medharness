@@ -249,6 +249,23 @@ func TestComplianceNoAllowedSetLeavesContextUnstamped(t *testing.T) {
 	}
 }
 
+// TestDenyZeroProviderConnection is the ADR-18 §5 acceptance: a model-router
+// deny MUST halt the spine before base relay, so the upstream provider sees
+// ZERO connections (no egress, no cache write, no upstream log on deny). The
+// base handler stands in for "connect to provider"; it must never run.
+func TestDenyZeroProviderConnection(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{routerResponse: `{"decision":"deny"}`})
+	if result.nextCalled {
+		t.Fatalf("deny→provider must be 0 connections: base relay ran after model-router deny")
+	}
+	if result.status != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", result.status)
+	}
+	if got := strings.Join(result.order, ","); got != "phi,desens,router" {
+		t.Fatalf("router deny must stop the chain at router (no injection/base/outbound); calls = %q, want phi,desens,router", got)
+	}
+}
+
 func TestComplianceTierUsesHighestPHILevel(t *testing.T) {
 	result := runComplianceRequest(t, gateTestConfig{
 		phiResponse: `{"spans":[{"entity_type":"MRN","data_level":"L4","start":0,"end":3,"score":0.99}],"summary":{"total_hits":1}}`,
