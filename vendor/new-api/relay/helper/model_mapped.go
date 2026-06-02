@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -74,8 +75,43 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 		info.UpstreamModelName = finalUpstreamModelName
 		info.OriginModelName = ratio_setting.WithCompactModelSuffix(finalUpstreamModelName)
 	}
+	// BE-7.3 (§D.1 "base has no autonomy"): once the effective upstream model is
+	// resolved (after any model_mapping chain), fail closed if it falls outside the
+	// policy-vetted allowed_model_set stamped by middleware.MedHarnessCompliance.
+	// A channel's model_mapping must not exfiltrate the request to a model the
+	// policy never approved. No-op when no set is stamped (non-MedHarness paths).
+	if err := enforceMedHarnessAllowlist(c, info); err != nil {
+		return err
+	}
+
 	if request != nil {
 		request.SetModelName(info.UpstreamModelName)
+	}
+	return nil
+}
+
+// enforceMedHarnessAllowlist returns a generic, non-leaking error when the
+// resolved effective upstream model is not in the context-stamped
+// allowed_model_set. When no set is present (or it is empty) it is a no-op, so
+// upstream behavior is preserved for non-MedHarness deployments.
+func enforceMedHarnessAllowlist(c *gin.Context, info *common.RelayInfo) error {
+	if c == nil {
+		return nil
+	}
+	value, exists := c.Get(string(constant.ContextKeyMedHarnessAllowedModelSet))
+	if !exists {
+		return nil
+	}
+	allowed, ok := value.(map[string]bool)
+	if !ok || len(allowed) == 0 {
+		return nil
+	}
+	effectiveModel := info.UpstreamModelName
+	if effectiveModel == "" {
+		effectiveModel = info.OriginModelName
+	}
+	if !allowed[effectiveModel] {
+		return errors.New("medharness_model_outside_allowlist")
 	}
 	return nil
 }

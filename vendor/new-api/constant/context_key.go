@@ -66,4 +66,11 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	// ContextKeyMedHarnessAllowedModelSet holds the policy-vetted set of model ids
+	// (map[string]bool) from mcp-model-router, stamped by
+	// middleware.MedHarnessCompliance. The base relay uses it to enforce the §D.1
+	// "base has no autonomy" invariant: a channel's model_mapping must not redirect
+	// the effective upstream model outside this set (BE-7.3 narrow guard).
+	ContextKeyMedHarnessAllowedModelSet ContextKey = "medharness_allowed_model_set"
 )
