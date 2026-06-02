@@ -1,0 +1,39 @@
+{
+  "_dev_note": "Synthetic 0-PHI permissive dev-only allowlist for INT-5b §D.1 relay testing. Do not use in production.",
+  "schema_version": "T3.allowlist.v1",
+  "policy_version": "int5b-dev",
+  "models": [
+    {
+      "id": "gpt-4o",
+      "vendor_family": "openai",
+      "deployment": "dev://openai/gpt-4o",
+      "allowed_agent_roles": [
+        "coder",
+        "compliance",
+        "reviewer"
+      ],
+      "allowed_data_levels": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "rate_limit_qps": 20
+    },
+    {
+      "id": "qwen-max",
+      "vendor_family": "alibaba",
+      "deployment": "dev://alibaba/qwen-max",
+      "allowed_agent_roles": [
+        "coder",
+        "compliance",
+        "reviewer"
+      ],
+      "allowed_data_levels": [
+        "L1",
+        "L2",
+        "L3"
+      ],
+      "rate_limit_qps": 20
+    }
+  ]
+}
