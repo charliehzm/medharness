@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import json
+import queue
 import sys
+import threading
+from collections import deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,11 +16,13 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import async_catch  # noqa: E402
 import classifier  # noqa: E402
 
 DEFAULT_HTTP_HOST = "0.0.0.0"
 DEFAULT_HTTP_PORT = 9000
 DEFAULT_HTTP_MAX_BODY_BYTES = 1_048_576
+ASYNC_CATCH_QUEUE_MAXSIZE = 256
 OUTBOUND_CATEGORIES = ("phi_reflow", "harmful", "hallucination")
 
 
@@ -27,6 +32,59 @@ def _default_phi_scan(_text: str, _context: dict[str, object]) -> classifier.Phi
 
 PHI_SCAN = _default_phi_scan
 
+_ASYNC_CATCH_QUEUE: queue.Queue[tuple[str, bool]] = queue.Queue(maxsize=ASYNC_CATCH_QUEUE_MAXSIZE)
+_ASYNC_CATCH_LOCK = threading.Lock()
+_ASYNC_CATCH_WORKER: threading.Thread | None = None
+_ASYNC_CATCH_COUNTERS = {
+    "processed": 0,
+    "caught": 0,
+    "dropped": 0,
+}
+_ASYNC_CATCH_RING: deque[dict[str, object]] = deque(maxlen=256)
+
+
+def _default_async_sink(event: dict[str, object]) -> None:
+    _ASYNC_CATCH_RING.append(dict(event))
+
+
+ASYNC_SINK = _default_async_sink
+
+
+def _ensure_async_catch_worker() -> None:
+    global _ASYNC_CATCH_WORKER
+    with _ASYNC_CATCH_LOCK:
+        if _ASYNC_CATCH_WORKER is not None and _ASYNC_CATCH_WORKER.is_alive():
+            return
+        worker = threading.Thread(target=_async_catch_worker_loop, daemon=True)
+        worker.start()
+        _ASYNC_CATCH_WORKER = worker
+
+
+def _async_catch_worker_loop() -> None:
+    while True:
+        try:
+            text, inline_flagged_phi = _ASYNC_CATCH_QUEUE.get()
+        except Exception:
+            continue
+
+        try:
+            _ASYNC_CATCH_COUNTERS["processed"] += 1
+            if not inline_flagged_phi:
+                findings = async_catch.scan_missed(text)
+                for finding in findings:
+                    try:
+                        ASYNC_SINK(finding.to_event_dict())
+                        _ASYNC_CATCH_COUNTERS["caught"] += 1
+                    except Exception:
+                        continue
+        except Exception:
+            continue
+        finally:
+            try:
+                _ASYNC_CATCH_QUEUE.task_done()
+            except Exception:
+                pass
+
 
 def health() -> dict[str, Any]:
     return {
@@ -34,11 +92,21 @@ def health() -> dict[str, Any]:
         "backend": "rules-only",
         "max_response_chars": classifier.MAX_RESPONSE_CHARS,
         "categories": list(OUTBOUND_CATEGORIES),
+        "async_catch": {
+            "processed": _ASYNC_CATCH_COUNTERS["processed"],
+            "caught": _ASYNC_CATCH_COUNTERS["caught"],
+            "dropped": _ASYNC_CATCH_COUNTERS["dropped"],
+            "queue_depth": _ASYNC_CATCH_QUEUE.qsize(),
+        },
     }
 
 
 class _OutboundSafetyHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        _ensure_async_catch_worker()
 
 
 class _OutboundSafetyHTTPHandler(BaseHTTPRequestHandler):
@@ -112,6 +180,16 @@ class _OutboundSafetyHTTPHandler(BaseHTTPRequestHandler):
             return
 
         self._send_json(HTTPStatus.OK, result.to_dict())
+        self._enqueue_async_catch(response_text, _inline_flagged_phi(result))
+
+    def _enqueue_async_catch(self, response_text: str, inline_flagged_phi: bool) -> None:
+        try:
+            _ensure_async_catch_worker()
+            _ASYNC_CATCH_QUEUE.put_nowait((response_text, inline_flagged_phi))
+        except queue.Full:
+            _ASYNC_CATCH_COUNTERS["dropped"] += 1
+        except Exception:
+            _ASYNC_CATCH_COUNTERS["dropped"] += 1
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
@@ -168,6 +246,7 @@ def _parse_serve_args(argv: list[str]) -> tuple[str, int]:
 
 
 def _serve_http(host: str, port: int) -> int:
+    _ensure_async_catch_worker()
     server = _OutboundSafetyHTTPServer((host, port), _OutboundSafetyHTTPHandler)
     try:
         server.serve_forever(poll_interval=0.2)
@@ -176,6 +255,10 @@ def _serve_http(host: str, port: int) -> int:
     finally:
         server.server_close()
     return 0
+
+
+def _inline_flagged_phi(result: classifier.Decision) -> bool:
+    return any(item.type == "phi_reflow" for item in result.classifications)
 
 
 def main() -> int:
