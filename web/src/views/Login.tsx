@@ -1,16 +1,37 @@
-import type { JSX } from "react";
+import { type FormEvent, type JSX, useState } from "react";
 
 import Tag from "@/components/Tag";
+import { login, type ConsoleRole } from "@/api/client";
 
 import "./Login.css";
 
 type LoginProps = {
-  onLogin: (role: "rdlead" | "sysadmin") => void;
+  onLogin: (role: ConsoleRole) => void;
 };
 
 const GOALS = ["安全", "划算", "审计", "稳定"] as const;
 
 export default function Login({ onLogin }: LoginProps): JSX.Element {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    if (submitting) return;
+    setError("");
+    setSubmitting(true);
+    try {
+      const result = await login(username, password);
+      onLogin(result.role);
+    } catch {
+      setError("登录失败：用户名或密码错误，或登录服务暂不可用");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="login">
       <div className="login-bg" aria-hidden="true">
@@ -51,26 +72,61 @@ export default function Login({ onLogin }: LoginProps): JSX.Element {
       </section>
 
       <section className="login-panel">
-        <div className="login-panel-card">
+        <form className="login-panel-card" onSubmit={handleSubmit}>
           <div className="login-panel-kicker">登录控制台</div>
           <h2>企业统一身份 · 受控访问 · 全程留痕</h2>
-          <p>仅支持 OIDC 与 passkey；无自助注册、无社交登录。登录后按角色落点。</p>
-          <button className="login-btn primary" onClick={() => onLogin("rdlead")} type="button">
-            🏢 用企业 SSO 登录（OIDC）
+          <p>账号 + 密码登录，校验复用 new-api 用户系统；无自助注册、无社交登录。登录后按角色落点。</p>
+
+          <label className="login-field">
+            <span className="login-label">用户名</span>
+            <input
+              autoComplete="username"
+              className="login-input"
+              disabled={submitting}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="如 root / 管理员账号"
+              required
+              type="text"
+              value={username}
+            />
+          </label>
+
+          <label className="login-field">
+            <span className="login-label">密码</span>
+            <input
+              autoComplete="current-password"
+              className="login-input"
+              disabled={submitting}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="••••••••"
+              required
+              type="password"
+              value={password}
+            />
+          </label>
+
+          {error ? (
+            <div className="login-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+
+          <button className="login-btn primary" disabled={submitting} type="submit">
+            {submitting ? "登录中…" : "🔑 登录控制台"}
           </button>
-          <button className="login-btn" onClick={() => onLogin("sysadmin")} type="button">
-            🔑 用 passkey 登录
-          </button>
+
           <div className="login-sec">
-            <div>🔒 仅 OIDC / passkey · 已关闭自助注册与社交登录</div>
+            <div>🔒 账号+密码校验复用 new-api 用户系统 · 已关闭自助注册与社交登录</div>
             <div>🧭 登录后按角色授权：研发负责人 / 系统管理员</div>
             <div>📝 每次登录与操作全量落审计</div>
           </div>
           <div className="login-foot">工程师调用网关只需 base_url + 个人令牌，无需登录控制台。</div>
-        </div>
+        </form>
       </section>
 
-      <div className="login-env">环境 <b>生产</b> · medharness.local</div>
+      <div className="login-env">
+        环境 <b>生产</b> · medharness.local
+      </div>
     </div>
   );
 }

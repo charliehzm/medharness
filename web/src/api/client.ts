@@ -150,3 +150,67 @@ export async function requestEndpoint<K extends EndpointKey>(
 
   return assertNoPhi(parsed, where);
 }
+
+export type ConsoleRole = "rdlead" | "sysadmin";
+
+export interface LoginResult {
+  ok: true;
+  role: ConsoleRole;
+  username: string;
+  displayName: string;
+}
+
+export interface LoginOptions {
+  mode?: ApiMode;
+  fetchImpl?: FetchLike;
+}
+
+/**
+ * Console 登录：live 模式把 {username,password} POST 到 A0 /auth/login，A0 再转发
+ * new-api 校验。mock 模式无后端，任意非空凭据作为演示 gate 放行（含 "admin" 落 sysadmin）。
+ * 任何失败一律抛 generic ApiError —— 不区分原因、不泄漏后端文案。
+ */
+export async function login(
+  username: string,
+  password: string,
+  options: LoginOptions = {},
+): Promise<LoginResult> {
+  const mode = options.mode ?? DEFAULT_MODE;
+  const user = username.trim();
+
+  if (mode === "mock") {
+    if (!user || !password) throw makeApiError("api_request_error");
+    const role: ConsoleRole = user.toLowerCase().includes("admin") ? "sysadmin" : "rdlead";
+    return { ok: true, role, username: user, displayName: user };
+  }
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  let response: Response;
+  try {
+    response = await fetchImpl(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password }),
+    });
+  } catch {
+    throw makeApiError("api_network_error");
+  }
+
+  const bodyText = await readBody(response);
+  if (!response.ok) throw makeApiError("api_http_error");
+
+  const parsed = tryParseJson<{
+    ok?: boolean;
+    role?: string;
+    username?: string;
+    display_name?: string;
+  }>(bodyText);
+  if (!parsed || parsed.ok !== true) throw makeApiError("api_invalid_json");
+
+  return {
+    ok: true,
+    role: parsed.role === "sysadmin" ? "sysadmin" : "rdlead",
+    username: parsed.username ?? user,
+    displayName: parsed.display_name ?? "",
+  };
+}

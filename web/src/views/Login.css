@@ -185,6 +185,50 @@
   font-size: 13px;
 }
 
+.login-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.login-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--surface) 60%, var(--navy));
+}
+
+.login-input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--surface) 16%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--navy) 30%, transparent);
+  color: var(--surface);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.login-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal) 22%, transparent);
+}
+
+.login-input:disabled {
+  opacity: 0.6;
+}
+
+.login-error {
+  margin: 2px 0 14px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--bad) 50%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  color: color-mix(in srgb, var(--bad) 30%, var(--surface));
+  font-size: 12.5px;
+}
+
 .login-btn {
   display: flex;
   align-items: center;
