@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "tsc": "tsc -b --pretty false"
+    "tsc": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:guard": "node --experimental-strip-types --test src/api/contract/sanitize.test.ts"
   },
   "dependencies": {
     "@visactor/react-vchart": "^2.0.22",
@@ -27,6 +29,7 @@
     "globals": "^16.4.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.1",
-    "vite": "^6.4.2"
+    "vite": "^6.4.2",
+    "vitest": "^4.1.8"
   }
 }
