@@ -172,10 +172,21 @@ def test_resource_limits_match_adr_09() -> None:
         assert str(limits["cpus"]) == expected["cpus"]
 
 
-def test_nginx_conf_exists_with_upstream_blocks() -> None:
+def test_nginx_conf_is_egress_allowlist() -> None:
+    # ADR-18 §5 (BE-8): the DMZ is a positive egress allowlist. Only the gated
+    # relay (/v1/*) and the A0 console API (/api/v1/*) are exposed; everything
+    # else is default-denied. The MCP control plane (model-router / audit-log)
+    # stays internal-only and is intentionally NOT proxied here.
     text = NGINX_CONF.read_text(encoding="utf-8")
-    assert "upstream model_router" in text
-    assert "upstream audit_log" in text
+    assert "location /v1/" in text
+    assert "location /api/v1/" in text
+    # explicit hard-deny of the bare control plane + a default-deny catch-all
+    assert "location /api/route" in text
+    assert "location /api/audit" in text
+    assert "return 404" in text
+    # the old dead upstream blocks were removed (MCP is never proxied at the DMZ)
+    assert "upstream model_router" not in text
+    assert "upstream audit_log" not in text
 
 
 def test_env_production_example_has_version_placeholder() -> None:
