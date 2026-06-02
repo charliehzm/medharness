@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,11 +45,12 @@ type gateTestConfig struct {
 }
 
 type gateTestResult struct {
-	status     int
-	body       string
-	nextCalled bool
-	order      []string
-	captures   map[string]map[string]any
+	status       int
+	body         string
+	nextCalled   bool
+	order        []string
+	captures     map[string]map[string]any
+	allowedStamp map[string]bool
 }
 
 func defaultGateTestConfig() gateTestConfig {
@@ -151,8 +153,14 @@ func runComplianceRequest(t *testing.T, overrides gateTestConfig) gateTestResult
 	// Env is read at handler construction, so build AFTER Setenv.
 	engine := gin.New()
 	nextCalled := false
+	var allowedStamp map[string]bool
 	engine.POST("/v1/chat/completions", MedHarnessCompliance(), func(c *gin.Context) {
 		nextCalled = true
+		if v, ok := c.Get(string(constant.ContextKeyMedHarnessAllowedModelSet)); ok {
+			if set, ok := v.(map[string]bool); ok {
+				allowedStamp = set
+			}
+		}
 		c.Status(cfg.baseStatus)
 		if cfg.baseBody != "" {
 			_, _ = c.Writer.Write([]byte(cfg.baseBody))
@@ -168,11 +176,12 @@ func runComplianceRequest(t *testing.T, overrides gateTestConfig) gateTestResult
 	req.Header.Set("Content-Type", "application/json")
 	engine.ServeHTTP(w, req)
 	return gateTestResult{
-		status:     w.Code,
-		body:       w.Body.String(),
-		nextCalled: nextCalled,
-		order:      order,
-		captures:   captures,
+		status:       w.Code,
+		body:         w.Body.String(),
+		nextCalled:   nextCalled,
+		order:        order,
+		captures:     captures,
+		allowedStamp: allowedStamp,
 	}
 }
 
@@ -204,6 +213,39 @@ func TestComplianceFailClosed(t *testing.T) {
 	}
 	if len(result.order) != 1 || result.order[0] != "phi" {
 		t.Fatalf("after deny the chain must stop; calls = %v, want [phi]", result.order)
+	}
+}
+
+// TestComplianceStampsAllowedModelSet verifies the RouteDecision.allowed_model_set
+// is stamped onto the request context (BE-7.3) so the base relay can fence a
+// channel's model_mapping to the policy-vetted set.
+func TestComplianceStampsAllowedModelSet(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{
+		routerResponse: `{"decision":"allow","allowed_model_set":["qwen-max","qwen-plus"]}`,
+	})
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
+	}
+	if !result.nextCalled {
+		t.Fatalf("base relay must run so the stamp is observable")
+	}
+	if result.allowedStamp == nil {
+		t.Fatalf("allowed_model_set was not stamped on the context")
+	}
+	if len(result.allowedStamp) != 2 || !result.allowedStamp["qwen-max"] || !result.allowedStamp["qwen-plus"] {
+		t.Fatalf("stamped set = %v, want {qwen-max, qwen-plus}", result.allowedStamp)
+	}
+}
+
+// TestComplianceNoAllowedSetLeavesContextUnstamped: when the router omits the
+// set, nothing is stamped (the base relay then keeps upstream default behavior).
+func TestComplianceNoAllowedSetLeavesContextUnstamped(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{routerResponse: `{"decision":"allow"}`})
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
+	}
+	if result.allowedStamp != nil {
+		t.Fatalf("no allowed_model_set in decision must leave context unstamped, got %v", result.allowedStamp)
 	}
 }
 

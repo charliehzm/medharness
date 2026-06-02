@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/gin-gonic/gin"
 )
 
@@ -555,6 +556,30 @@ func tierFromRequest(c *gin.Context, rawBody []byte, phi, desens map[string]any)
 }
 
 // MedHarnessCompliance welds the §D.1 pre-call gate onto /v1/*.
+// stampAllowedModelSet records the policy-vetted allowed_model_set from the
+// RouteDecision onto the request context so the base relay can fail closed if a
+// channel's model_mapping redirects the effective upstream model outside it
+// (§D.1 "base has no autonomy", BE-7.3). A missing/empty set is a no-op, so
+// non-MedHarness deployments and decisions without a set are unaffected.
+func stampAllowedModelSet(c *gin.Context, body map[string]any) {
+	if body == nil {
+		return
+	}
+	raw, ok := body["allowed_model_set"].([]any)
+	if !ok || len(raw) == 0 {
+		return
+	}
+	set := make(map[string]bool, len(raw))
+	for _, item := range raw {
+		if name, ok := item.(string); ok && name != "" {
+			set[name] = true
+		}
+	}
+	if len(set) > 0 {
+		c.Set(string(constant.ContextKeyMedHarnessAllowedModelSet), set)
+	}
+}
+
 func MedHarnessCompliance() gin.HandlerFunc {
 	phiURL := complianceEnv("PHI_DETECTOR_URL", "http://phi-detector:9000") + "/scan"
 	desensURL := complianceEnv("DESENSITIZE_URL", "http://desensitize:9000") + "/encrypt"
@@ -624,10 +649,16 @@ func MedHarnessCompliance() gin.HandlerFunc {
 			"map_id":               mapID,
 			"tier_sig":             tierSig,
 		})
-		if r := callComplianceGate(client, routerURL, routePayload); !r.ok || r.denied {
+		route := callComplianceGate(client, routerURL, routePayload)
+		if !route.ok || route.denied {
 			abortCompliance(c)
 			return
 		}
+		// BE-7.3: stamp the policy-vetted allowed_model_set so the base relay can
+		// enforce "base has no autonomy" — a channel's model_mapping must not
+		// redirect the effective upstream model outside this set
+		// (see relay/helper/model_mapped.go).
+		stampAllowedModelSet(c, route.body)
 		// 5. injection
 		if r := callComplianceGate(client, injectionURL, scanPayload); !r.ok || r.denied {
 			abortCompliance(c)
