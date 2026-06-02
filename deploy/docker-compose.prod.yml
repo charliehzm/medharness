@@ -5,6 +5,9 @@
 services:
   phi-detector:
     image: medharness/mcp-phi-detector:${VERSION}
+    # §D.1 gate services run as HTTP servers (the image default CMD is stdio MCP,
+    # which would EOF + exit in a detached container).
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     container_name: medharness-phi-detector
     restart: unless-stopped
     networks:
@@ -23,6 +26,7 @@ services:
 
   desensitize:
     image: medharness/mcp-desensitize:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     container_name: medharness-desensitize
     restart: unless-stopped
     networks:
@@ -53,15 +57,63 @@ services:
 
   model-router:
     image: medharness/mcp-model-router:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     container_name: medharness-model-router
     restart: unless-stopped
     networks:
       - medharness_internal
+    environment:
+      # B1: must match the new-api gate's tier secret (the only signer/verifier pair).
+      MODEL_ROUTER_TIER_SECRET: ${MODEL_ROUTER_TIER_SECRET}
+      # model-router loads the active allowlist from
+      # $CLAUDE_PROJECT_DIR/openspec/changes/<change_id>/MODEL_ALLOWLIST.json and
+      # writes its routing audit to $CLAUDE_PROJECT_DIR/.audit/ (needs write).
+      CLAUDE_PROJECT_DIR: /project
+    volumes:
+      - /data/medharness/model-router:/project:rw
     depends_on:
       phi-detector:
         condition: service_healthy
       desensitize:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "server_v2.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  prompt-injection-scan:
+    image: medharness/mcp-prompt-injection-scan:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
+    container_name: medharness-prompt-injection-scan
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "detector.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  outbound-safety:
+    image: medharness/mcp-outbound-safety:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
+    container_name: medharness-outbound-safety
+    restart: unless-stopped
+    networks:
+      - medharness_internal
     deploy:
       resources:
         limits:
@@ -197,8 +249,27 @@ services:
       REDIS_CONN_STRING: redis://:${REDIS_PASSWORD}@redis:6379/0
       CRYPTO_SECRET: ${NEW_API_CRYPTO_SECRET}
       MEDHARNESS_DISABLE_RESALE_SURFACE: "true"
+      # §D.1 compliance gate: pre-call phi -> desensitize -> model-router ->
+      # injection, then base relay, then post-call outbound-safety. The tier
+      # secret MUST match model-router (B1 zero-trust).
+      MODEL_ROUTER_TIER_SECRET: ${MODEL_ROUTER_TIER_SECRET}
+      PHI_DETECTOR_URL: http://phi-detector:9000
+      DESENSITIZE_URL: http://desensitize:9000
+      MODEL_ROUTER_URL: http://model-router:9000
+      INJECTION_URL: http://prompt-injection-scan:9000
+      OUTBOUND_SAFETY_URL: http://outbound-safety:9000
     depends_on:
       redis:
+        condition: service_healthy
+      phi-detector:
+        condition: service_healthy
+      desensitize:
+        condition: service_healthy
+      model-router:
+        condition: service_healthy
+      prompt-injection-scan:
+        condition: service_healthy
+      outbound-safety:
         condition: service_healthy
     deploy:
       resources:
