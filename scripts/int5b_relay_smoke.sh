@@ -24,6 +24,10 @@ TIER_SECRET="${MODEL_ROUTER_TIER_SECRET:-dev-int5b-secret}"
 CHANGE_ID="${INT5B_CHANGE_ID:-int5b-relay}"
 ALLOW_AGENT_ROLE="${INT5B_ALLOW_AGENT_ROLE:-coder}"
 DENY_AGENT_ROLE="${INT5B_DENY_AGENT_ROLE:-reviewer}"
+# The gate signs caller_vendor_family into the tier; model-router's heterogeneity
+# layer denies an empty one. coder+openai -> allow; reviewer+openai (same family
+# as gpt-4o) -> heterogeneity deny.
+CALLER_VENDOR="${INT5B_CALLER_VENDOR:-openai}"
 
 NET="${INT5B_NET:-medharness-int5b}"
 CH="${INT5B_CH_CONTAINER:-mh-int5b-ch}"
@@ -38,6 +42,9 @@ MOCK="${INT5B_MOCK_CONTAINER:-mh-int5b-mock-upstream}"
 NEWAPI="${INT5B_NEWAPI_CONTAINER:-mh-int5b-new-api}"
 
 CH_IMAGE="${CH_IMAGE:-clickhouse/clickhouse-server:24}"
+# desensitize (_clickhouse_config_from_env) requires a NON-EMPTY CLICKHOUSE_PASSWORD
+# (prod sets one); the dev ClickHouse must too, or desensitize fails closed.
+CH_PASSWORD="${INT5B_CH_PASSWORD:-int5bpass}"
 REDIS_IMAGE="${REDIS_IMAGE:-redis:7-alpine}"
 MOCK_IMAGE="${MOCK_IMAGE:-python:3.11-slim}"
 NEWAPI_IMAGE="${NEWAPI_IMAGE:-medharness/new-api:int5b}"
@@ -195,7 +202,7 @@ wait_host_http() {
 
 wait_clickhouse() {
   for _ in $(seq 1 90); do
-    body="$(curl -sS 'http://127.0.0.1:18123/?query=SELECT%201' 2>/dev/null || true)"
+    body="$(curl -sS -H "X-ClickHouse-User: default" -H "X-ClickHouse-Key: ${CH_PASSWORD}" 'http://127.0.0.1:18123/?query=SELECT%201' 2>/dev/null || true)"
     if [ "$body" = "1" ]; then
       echo "   OK   ClickHouse"
       return 0
@@ -423,14 +430,14 @@ section "ClickHouse"
 docker run -d --name "$CH" --network "$NET" -p 18123:8123 \
   -e CLICKHOUSE_DB=medharness \
   -e CLICKHOUSE_USER=default \
-  -e CLICKHOUSE_PASSWORD= \
+  -e CLICKHOUSE_PASSWORD="$CH_PASSWORD" \
   -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
   "$CH_IMAGE" >/dev/null || fail "ClickHouse container run failed"
 wait_clickhouse
 
 section "seed synthetic audit rows"
 CLICKHOUSE_HOST=127.0.0.1 CLICKHOUSE_HTTP_PORT=18123 CLICKHOUSE_DATABASE=medharness \
-  CLICKHOUSE_USER=default CLICKHOUSE_PASSWORD= \
+  CLICKHOUSE_USER=default CLICKHOUSE_PASSWORD="$CH_PASSWORD" \
   python3 "${REPO_ROOT}/scripts/dev_seed_audit.py" --rows 24 --reset || \
   fail "scripts/dev_seed_audit.py failed"
 
@@ -454,12 +461,12 @@ docker run -d --name "$DESENS" --network "$NET" \
   -e CLICKHOUSE_HTTP_PORT=8123 \
   -e CLICKHOUSE_DATABASE=medharness \
   -e CLICKHOUSE_USER=default \
-  -e CLICKHOUSE_PASSWORD= \
+  -e CLICKHOUSE_PASSWORD="$CH_PASSWORD" \
   "medharness/mcp-desensitize:${VERSION}" serve --http --host 0.0.0.0 --port 9000 \
   >/dev/null || fail "desensitize container run failed"
 
 docker run -d --name "$ROUTER" --network "$NET" \
-  -v "${TMP_ROOT}/model-router-project:/medharness-int5b:ro" \
+  -v "${TMP_ROOT}/model-router-project:/medharness-int5b:rw" \
   -e CLAUDE_PROJECT_DIR=/medharness-int5b \
   -e MODEL_ROUTER_TIER_SECRET="$TIER_SECRET" \
   "medharness/mcp-model-router:${VERSION}" serve --http --host 0.0.0.0 --port 9000 \
@@ -485,7 +492,7 @@ docker run -d --name "$AUDIT" --network "$NET" \
   -e CLICKHOUSE_HTTP_PORT=8123 \
   -e CLICKHOUSE_DATABASE=medharness \
   -e CLICKHOUSE_USER=default \
-  -e CLICKHOUSE_PASSWORD= \
+  -e CLICKHOUSE_PASSWORD="$CH_PASSWORD" \
   -e MEDHARNESS_AUDIT_FALLBACK_DIR=/tmp/medharness-audit \
   "medharness/mcp-audit-log:${VERSION}" >/dev/null || fail "audit-log container run failed"
 wait_audit_log
@@ -571,6 +578,7 @@ ALLOW_CODE="$(curl -sS -o "$ALLOW_BODY" -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   -H "X-MedHarness-Agent-Role: ${ALLOW_AGENT_ROLE}" \
   -H "X-MedHarness-Change-Id: ${CHANGE_ID}" \
+  -H "X-MedHarness-Caller-Vendor-Family: ${CALLER_VENDOR}" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello from int5b"}]}' \
   "${NEWAPI_URL}/v1/chat/completions" 2>"${TMP_ROOT}/curl.err" || true)"
 if [ "$ALLOW_CODE" != "200" ]; then
@@ -598,6 +606,7 @@ DENY_CODE="$(curl -sS -o "$DENY_BODY" -w '%{http_code}' \
   -H 'Content-Type: application/json' \
   -H "X-MedHarness-Agent-Role: ${DENY_AGENT_ROLE}" \
   -H "X-MedHarness-Change-Id: ${CHANGE_ID}" \
+  -H "X-MedHarness-Caller-Vendor-Family: ${CALLER_VENDOR}" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello from denied int5b"}]}' \
   "${NEWAPI_URL}/v1/chat/completions" 2>"${TMP_ROOT}/curl.err" || true)"
 if [ "$DENY_CODE" != "503" ]; then

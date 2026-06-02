@@ -82,7 +82,7 @@ def test_phi_lookup_schema_has_required_shape_and_clauses() -> None:
         "ENGINE = MergeTree",
         "PARTITION BY toYYYYMM(created_at)",
         "ORDER BY (created_at, change_id, map_id)",
-        "TTL retention_until + INTERVAL 1 YEAR",
+        "TTL toDateTime(retention_until) + INTERVAL 1 YEAR",
         "SETTINGS index_granularity = 8192",
         "GRANT INSERT, SELECT ON _phi_lookup TO medharness_desensitize_writer;",
         "REVOKE ALTER UPDATE, ALTER DELETE FROM medharness_desensitize_writer;",

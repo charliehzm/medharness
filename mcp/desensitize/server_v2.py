@@ -60,7 +60,9 @@ def _safe_error(exc: Exception) -> dict[str, str]:
 def _iso_timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    # ClickHouse DateTime64 (JSONEachRow) needs 'YYYY-MM-DD HH:MM:SS.fff' (space
+    # separator, no 'T'/'Z'); an ISO-8601 'Z' value is rejected (Cannot parse).
+    return value.astimezone(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
 
 
 def _sql_quote(value: str) -> str:
@@ -548,6 +550,10 @@ def desensitize(request: dict[str, Any], provider: FileKeyProvider | None = None
     metadata_dict["key_generation"] = key_generation
 
     result: dict[str, Any] = {
+        # §D.1 gate contract: a successful envelope IS desensitized, and the map
+        # reverse-lookup ref is the map_id the gate threads to the router.
+        "desensitized": True,
+        "map_id": map_ref,
         "desensitized_text": desensitized_text,
         "map_ref": map_ref,
         "metadata": metadata_dict,

@@ -550,7 +550,7 @@ func tierFromRequest(c *gin.Context, rawBody []byte, phi, desens map[string]any)
 		"agent_role":           c.GetHeader("X-MedHarness-Agent-Role"),
 		"data_level":           phiDataLevel(phi),
 		"change_id":            c.GetHeader("X-MedHarness-Change-Id"),
-		"caller_vendor_family": "",
+		"caller_vendor_family": c.GetHeader("X-MedHarness-Caller-Vendor-Family"),
 		"desensitized":         strconv.FormatBool(desensitizedFromResponse(desens)),
 	}
 }

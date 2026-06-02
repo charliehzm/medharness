@@ -28,7 +28,7 @@ CREATE TABLE _audit_log
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (timestamp, row_id)
-TTL timestamp + INTERVAL 7 YEAR
+TTL toDateTime(timestamp) + INTERVAL 7 YEAR
 SETTINGS index_granularity = 8192;
 
 GRANT INSERT, SELECT ON _audit_log TO medharness_audit_writer;
