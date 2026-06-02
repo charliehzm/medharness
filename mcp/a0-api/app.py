@@ -53,6 +53,7 @@ DEFAULT_CLICKHOUSE_PORT = 8123
 DEFAULT_CLICKHOUSE_USER = "medharness"
 DEFAULT_CLICKHOUSE_PASSWORD = ""
 DEFAULT_CLICKHOUSE_DATABASE = "medharness"
+DEFAULT_NEW_API_URL = "http://new-api:3000"
 GENESIS_PREV_HASH = "GENESIS"
 _ALLOWED_CONFIG_SECTIONS = {
     "scene",
@@ -132,6 +133,46 @@ def _query_clickhouse(sql: str) -> list[dict[str, Any]]:
     return rows
 
 
+class NewApiUnavailable(Exception):
+    """Raised when the new-api auth backend is unreachable or returns an unusable payload."""
+
+
+def _new_api_base() -> str:
+    return os.environ.get("NEW_API_URL", DEFAULT_NEW_API_URL).rstrip("/")
+
+
+def _new_api_login(username: str, password: str) -> dict[str, Any]:
+    """Forward credentials to new-api's password-login endpoint.
+
+    new-api returns HTTP 200 with ``success: false`` for bad credentials, so a
+    non-2xx here is an infrastructure fault (caller -> 502) while a 200 +
+    ``success: false`` is a credential failure (caller -> generic 401). The
+    plaintext password is never logged.
+    """
+    body = json.dumps({"username": username, "password": password}).encode("utf-8")
+    req = request.Request(
+        f"{_new_api_base()}/api/user/login",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with request.urlopen(req, timeout=5.0) as resp:
+            raw = resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:240]
+        raise NewApiUnavailable(f"HTTP {exc.code}: {detail}") from exc
+    except OSError as exc:
+        raise NewApiUnavailable(f"login request failed: {exc}") from exc
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise NewApiUnavailable("login response was not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise NewApiUnavailable("login response was not an object")
+    return parsed
+
+
 class _LocalResponse:
     def __init__(self, payload: dict[str, Any], status_code: int = 200) -> None:
         self._payload = payload
@@ -203,6 +244,9 @@ class _LocalApp:
             section = route_params.get("section", "")
             return _normalize_local_response(handler(section=section))
         if route_path == f"{API_BASE}/audit/export" and method.upper() == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(payload=payload))
+        if route_path == f"{API_BASE}/auth/login" and method.upper() == "POST":
             payload = json if json is not None else data
             return _normalize_local_response(handler(payload=payload))
         return _normalize_local_response(handler())
@@ -1230,6 +1274,44 @@ def config_propose(
         return _degraded_response()
     except Exception:
         return _generic_error_response()
+
+
+def _console_role_from_new_api(role: Any) -> str:
+    """Map a new-api role int (1 common / 10 admin / 100 root) to a Console role."""
+    try:
+        role_int = int(role)
+    except (TypeError, ValueError):
+        role_int = 0
+    return "sysadmin" if role_int >= 10 else "rdlead"
+
+
+@app.post(f"{API_BASE}/auth/login")
+def auth_login(payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT) -> Any:
+    body = payload or {}
+    username = str(body.get("username") or "").strip()
+    password = str(body.get("password") or "")
+    if not username or not password:
+        return _response({"error": {"code": "invalid_params", "msg": "用户名或密码不能为空"}}, 400)
+    try:
+        result = _new_api_login(username, password)
+    except Exception:
+        # new-api unreachable / malformed: fail closed, never leak the cause.
+        return _response({"error": {"code": "upstream_unavailable", "msg": "登录服务暂不可用"}}, 502)
+    if not result.get("success"):
+        # 200 + success:false == bad credentials; never echo new-api's message.
+        return _response({"error": {"code": "unauthorized", "msg": "用户名或密码错误"}}, 401)
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
+    if data.get("require_2fa"):
+        return _response(
+            {"error": {"code": "twofa_unsupported", "msg": "该账号启用了两步验证，请在 new-api 后台登录"}},
+            400,
+        )
+    return {
+        "ok": True,
+        "role": _console_role_from_new_api(data.get("role")),
+        "username": str(data.get("username") or username),
+        "display_name": str(data.get("display_name") or ""),
+    }
 
 
 @app.get("/health")
