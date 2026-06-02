@@ -323,7 +323,7 @@ api_post_json() {
   body="$3"
   out="$4"
   code="$(curl -sS -o "$out" -w '%{http_code}' -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
-    -H 'Content-Type: application/json' -d "$body" "$url" 2>"${TMP_ROOT}/curl.err" || true)"
+    -H 'Content-Type: application/json' -H "New-Api-User: ${NEWAPI_USER_ID:-1}" -d "$body" "$url" 2>"${TMP_ROOT}/curl.err" || true)"
   if [ "$code" != "200" ]; then
     echo "curl stderr: $(cat "${TMP_ROOT}/curl.err")" >&2
     fail "${name} returned HTTP ${code}; body: $(compact_json_file "$out")"
@@ -337,7 +337,7 @@ api_get_json() {
   url="$2"
   out="$3"
   code="$(curl -sS -o "$out" -w '%{http_code}' -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
-    "$url" 2>"${TMP_ROOT}/curl.err" || true)"
+    -H "New-Api-User: ${NEWAPI_USER_ID:-1}" "$url" 2>"${TMP_ROOT}/curl.err" || true)"
   if [ "$code" != "200" ]; then
     echo "curl stderr: $(cat "${TMP_ROOT}/curl.err")" >&2
     fail "${name} returned HTTP ${code}; body: $(compact_json_file "$out")"
@@ -518,8 +518,13 @@ wait_host_http "new-api /api/status" "${NEWAPI_URL}/api/status" 120
 
 section "configure new-api admin API"
 RESP="${TMP_ROOT}/response.json"
+# This new-api fork requires explicit system setup (no auto root:123456); the
+# setup password must be >= 8 chars. Initialize, then log in with it.
+ROOT_PASSWORD="${INT5B_ROOT_PASSWORD:-int5bRoot123}"
+api_post_json "setup" "${NEWAPI_URL}/api/setup" \
+  "{\"username\":\"root\",\"password\":\"${ROOT_PASSWORD}\",\"confirmPassword\":\"${ROOT_PASSWORD}\",\"SelfUseModeEnabled\":true,\"DemoSiteEnabled\":false}" "$RESP"
 api_post_json "login root" "${NEWAPI_URL}/api/user/login" \
-  '{"username":"root","password":"123456"}' "$RESP"
+  "{\"username\":\"root\",\"password\":\"${ROOT_PASSWORD}\"}" "$RESP"
 
 CHANNEL_BODY="$(
   python3 - "$MOCK" <<'PY'

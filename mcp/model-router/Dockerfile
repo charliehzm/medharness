@@ -32,6 +32,7 @@ WORKDIR /app
 
 COPY --from=builder /wheels /usr/local/lib/python3.11/site-packages
 COPY --chown=medharness:medharness mcp/model-router/server_v2.py /app/server_v2.py
+COPY --chown=medharness:medharness mcp/model-router/tier_trust.py /app/tier_trust.py
 COPY --chown=medharness:medharness mcp/model-router/allowlist.py /app/allowlist.py
 COPY --chown=medharness:medharness mcp/model-router/heterogeneity.py /app/heterogeneity.py
 COPY --chown=medharness:medharness mcp/model-router/limits.py /app/limits.py
