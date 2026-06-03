@@ -18,6 +18,7 @@ import {
   type NavItem,
   type RoleId,
 } from "./nav";
+import { clearSession, loadSession } from "@/api/session";
 
 const SCREEN_IDS: NavItem["id"][] = [
   "overview",
@@ -86,7 +87,12 @@ type AuthState = {
 };
 
 export default function App() {
-  const [auth, setAuth] = useState<AuthState>({ authed: false, role: "rdlead" });
+  // Restore from the persisted session on boot so a browser refresh keeps the user
+  // logged in (the in-memory-only default is what made every refresh bounce to /login).
+  const [auth, setAuth] = useState<AuthState>(() => {
+    const session = loadSession();
+    return session ? { authed: true, role: session.role } : { authed: false, role: "rdlead" };
+  });
   const navigate = useNavigate();
 
   const handleLogin = (role: RoleId) => {
@@ -95,6 +101,7 @@ export default function App() {
   };
 
   const handleLock = () => {
+    clearSession();
     setAuth({ authed: false, role: auth.role });
     navigate("/login", { replace: true });
   };

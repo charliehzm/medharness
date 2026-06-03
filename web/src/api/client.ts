@@ -14,6 +14,7 @@ import {
   type Sanitized,
   type TrafficQuery,
 } from "@/api/contract";
+import { getToken, saveSession } from "@/api/session";
 
 export type ApiMode = "mock" | "live";
 
@@ -124,6 +125,8 @@ export async function requestEndpoint<K extends EndpointKey>(
   }
 
   const headers = new Headers(options.headers);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const init: RequestInit = { method: def.method, headers };
   if (options.body !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -158,6 +161,7 @@ export interface LoginResult {
   role: ConsoleRole;
   username: string;
   displayName: string;
+  token: string;
 }
 
 export interface LoginOptions {
@@ -181,7 +185,9 @@ export async function login(
   if (mode === "mock") {
     if (!user || !password) throw makeApiError("api_request_error");
     const role: ConsoleRole = user.toLowerCase().includes("admin") ? "sysadmin" : "rdlead";
-    return { ok: true, role, username: user, displayName: user };
+    const token = `mock.${role}`;
+    saveSession({ token, role, username: user });
+    return { ok: true, role, username: user, displayName: user, token };
   }
 
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -204,13 +210,14 @@ export async function login(
     role?: string;
     username?: string;
     display_name?: string;
+    token?: string;
   }>(bodyText);
   if (!parsed || parsed.ok !== true) throw makeApiError("api_invalid_json");
 
-  return {
-    ok: true,
-    role: parsed.role === "sysadmin" ? "sysadmin" : "rdlead",
-    username: parsed.username ?? user,
-    displayName: parsed.display_name ?? "",
-  };
+  const role: ConsoleRole = parsed.role === "sysadmin" ? "sysadmin" : "rdlead";
+  const resolvedUser = parsed.username ?? user;
+  const token = typeof parsed.token === "string" ? parsed.token : "";
+  // Persist so a refresh restores the session and admin-write calls carry the token.
+  if (token) saveSession({ token, role, username: resolvedUser });
+  return { ok: true, role, username: resolvedUser, displayName: parsed.display_name ?? "", token };
 }

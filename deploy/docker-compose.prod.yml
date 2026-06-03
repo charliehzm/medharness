@@ -304,6 +304,16 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      NEW_API_URL: http://new-api:3000
+      # Console session signing — A0 mints/verifies the Bearer token the browser
+      # persists (survives refresh) and uses to gate admin-write endpoints. Production
+      # MUST set A0_SESSION_SECRET (≥32 bytes) in the env-file; the default is LOCAL-ONLY.
+      A0_SESSION_SECRET: "${A0_SESSION_SECRET:-medharness-local-session-secret-change-in-prod-0001}"
+      A0_SESSION_TTL_SECONDS: "${A0_SESSION_TTL_SECONDS:-43200}"
+      # A0 -> new-api admin writes (user management): a root access_token + its user id,
+      # sent as Authorization + New-Api-User over the internal network (never the DMZ).
+      NEW_API_ADMIN_TOKEN: "${NEW_API_ADMIN_TOKEN:-}"
+      NEW_API_ADMIN_USER_ID: "${NEW_API_ADMIN_USER_ID:-1}"
     depends_on:
       clickhouse:
         condition: service_healthy

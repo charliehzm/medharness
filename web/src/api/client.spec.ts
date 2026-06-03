@@ -100,7 +100,7 @@ describe("api-client login", () => {
 
     const result = await login("root", "secret123", { mode: "live", fetchImpl });
 
-    expect(result).toEqual({ ok: true, role: "sysadmin", username: "root", displayName: "Root" });
+    expect(result).toEqual({ ok: true, role: "sysadmin", username: "root", displayName: "Root", token: "" });
     expect(fetchImpl).toHaveBeenCalledOnce();
     const calls = fetchImpl.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit]>;
     expect(String(calls[0]![0])).toContain("/api/v1/auth/login");

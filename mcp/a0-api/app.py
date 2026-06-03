@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
+import hmac
 import json
 import os
 import sys
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from importlib import import_module
@@ -171,6 +174,88 @@ def _new_api_login(username: str, password: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise NewApiUnavailable("login response was not an object")
     return parsed
+
+
+# ── A0-minted Console session (stateless HMAC-SHA256 Bearer; stdlib only) ────────
+# A0 owns the Console session: on login it mints a compact signed token the browser
+# stores and replays as `Authorization: Bearer`. A0 verifies it (signature + expiry)
+# and reads the operator's role from it — so a refresh keeps the session AND the
+# admin-write endpoints are gated without a per-request round-trip to new-api. The
+# token carries no PHI (new-api user id + username + role only).
+DEFAULT_SESSION_TTL_SECONDS = 43200  # 12h
+_SESSION_HEADER = base64.urlsafe_b64encode(
+    json.dumps({"alg": "HS256", "typ": "MHT"}, separators=(",", ":")).encode("utf-8")
+).rstrip(b"=").decode("ascii")
+
+
+def _session_secret() -> bytes:
+    return os.environ.get("A0_SESSION_SECRET", "").encode("utf-8")
+
+
+def _session_ttl() -> int:
+    try:
+        return int(os.environ.get("A0_SESSION_TTL_SECONDS", str(DEFAULT_SESSION_TTL_SECONDS)))
+    except ValueError:
+        return DEFAULT_SESSION_TTL_SECONDS
+
+
+def _b64url(raw: bytes) -> str:
+    return base64.urlsafe_b64encode(raw).rstrip(b"=").decode("ascii")
+
+
+def _b64url_decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _mint_session(user_id: Any, username: str, console_role: str, new_api_role: Any) -> str:
+    """Return a signed session token. Raises if no secret is configured (fail-closed)."""
+    secret = _session_secret()
+    if not secret:
+        raise NewApiUnavailable("A0_SESSION_SECRET unset")
+    now = int(time.time())
+    payload = {
+        "sub": _coerce_int(user_id),
+        "usr": username,
+        "cr": console_role,
+        "nr": _coerce_int(new_api_role),
+        "iat": now,
+        "exp": now + _session_ttl(),
+    }
+    body = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    sig = _b64url(hmac.new(secret, f"{_SESSION_HEADER}.{body}".encode("ascii"), hashlib.sha256).digest())
+    return f"{_SESSION_HEADER}.{body}.{sig}"
+
+
+def _verify_session(token: str | None) -> dict[str, Any] | None:
+    """Return the claims dict if the token is well-formed, correctly signed and unexpired; else None."""
+    secret = _session_secret()
+    if not secret or not token:
+        return None
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    header_b64, body_b64, sig_b64 = parts
+    expected = _b64url(
+        hmac.new(secret, f"{header_b64}.{body_b64}".encode("ascii"), hashlib.sha256).digest()
+    )
+    if not hmac.compare_digest(expected, sig_b64):
+        return None
+    try:
+        claims = json.loads(_b64url_decode(body_b64))
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(claims, dict) or _coerce_int(claims.get("exp")) < int(time.time()):
+        return None
+    return claims
 
 
 class _LocalResponse:
@@ -1317,12 +1402,24 @@ def auth_login(payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT) -> Any:
             {"error": {"code": "twofa_unsupported", "msg": "该账号启用了两步验证，请在 new-api 后台登录"}},
             400,
         )
-    return {
+    console_role = _console_role_from_new_api(data.get("role"))
+    resolved_username = str(data.get("username") or username)
+    response: dict[str, Any] = {
         "ok": True,
-        "role": _console_role_from_new_api(data.get("role")),
-        "username": str(data.get("username") or username),
+        "role": console_role,
+        "username": resolved_username,
         "display_name": str(data.get("display_name") or ""),
     }
+    # Mint a session token so the browser can persist the login across refreshes and
+    # authorize admin-write calls. Tolerant: if A0_SESSION_SECRET is unset the login
+    # still succeeds (no token) — only the persistence/write features need it.
+    if _session_secret():
+        # Never fail the login itself on a token-mint hiccup — the session is additive.
+        with contextlib.suppress(Exception):
+            response["token"] = _mint_session(
+                data.get("id"), resolved_username, console_role, data.get("role")
+            )
+    return response
 
 
 @app.get("/health")

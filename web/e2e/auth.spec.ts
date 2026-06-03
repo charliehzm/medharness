@@ -16,8 +16,20 @@ test("wrong password shows a generic error and stays on /login", async ({ page }
   await expect(page).toHaveURL(/\/login/);
 });
 
-test("lock returns to the login screen", async ({ page }) => {
+test("a browser refresh keeps the session (no bounce to /login)", async ({ page }) => {
+  await login(page);
+  await expect(page.locator(".topbar h1")).toBeVisible();
+  await page.reload();
+  // the persisted session must restore on boot — the Console stays, not /login
+  await expect(page.locator(".topbar h1")).toBeVisible();
+  await expect(page).not.toHaveURL(/\/login/);
+});
+
+test("lock clears the session and returns to login", async ({ page }) => {
   await login(page);
   await page.click(".lock");
+  await expect(page.locator(".login-input").first()).toBeVisible();
+  // after lock a refresh must NOT silently re-enter (the session was cleared)
+  await page.reload();
   await expect(page.locator(".login-input").first()).toBeVisible();
 });
