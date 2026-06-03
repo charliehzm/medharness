@@ -33,15 +33,20 @@ mock_count() {
 }
 
 echo "== 1. model-router allowlist (/project/openspec/changes/${CHANGE_ID}) =="
-python3 - "$CHANGE_ID" "$ALLOW_ROLE" > /tmp/e2e_allowlist.json <<'PY'
+# Allow-list BOTH roles so the DENY is decided by the HETEROGENEITY layer (a
+# distinct §D.1 control) rather than the allowlist: coder may call same-family
+# (coder same_family_allowed=True), reviewer may NOT (reviewer requires a
+# cross-vendor model), so reviewer+openai -> gpt-4o(openai) is a heterogeneity deny.
+python3 - "$CHANGE_ID" "$ALLOW_ROLE" "$DENY_ROLE" > /tmp/e2e_allowlist.json <<'PY'
 import json, sys
-cid, role = sys.argv[1], sys.argv[2]
+cid, allow_role, deny_role = sys.argv[1], sys.argv[2], sys.argv[3]
 print(json.dumps({
     "schema_version": "T3.allowlist.v1",
     "policy_version": cid,
     "models": [{
         "id": "gpt-4o", "vendor_family": "openai", "deployment": "private://gpt-4o",
-        "allowed_agent_roles": [role], "allowed_data_levels": ["L1", "L2", "L3", "L4"],
+        "allowed_agent_roles": [allow_role, deny_role],
+        "allowed_data_levels": ["L1", "L2", "L3", "L4"],
         "rate_limit_qps": 20,
     }],
 }, ensure_ascii=False, indent=2))
