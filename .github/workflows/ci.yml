@@ -40,6 +40,20 @@ jobs:
       # are intentionally NOT collected — they self-skip without a running stack.
       - run: pytest tests/integration tools/mock_upstream -v
 
+  gate-go:
+    # Offline Go unit tests for the §D.1 compliance gate pure functions
+    # (extractPromptText / rewriteDesensitizedBody / reassembleSSEContent / tier sign).
+    # No stack needed — these run the embeddings + streaming bug regressions in CI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/new-api/go.mod
+          cache-dependency-path: vendor/new-api/go.sum
+      - run: go test ./middleware/ -count=1
+        working-directory: vendor/new-api
+
   dryrun:
     runs-on: ubuntu-latest
     needs: test

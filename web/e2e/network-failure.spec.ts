@@ -17,10 +17,14 @@ const SCREEN_ERRORS: ReadonlyArray<readonly [string, string]> = [
 test("every screen renders its error state when A0 is down", async ({ page }) => {
   await login(page);
   await switchRole(page, "研发负责人");
+  // Navigate away from the landing screen (总览) FIRST, so that re-navigating to it
+  // inside the loop re-mounts + re-fetches with A0 down (auth is in-memory, so a
+  // page.reload() would drop the session — route interception is the only option).
+  await gotoScreen(page, "系统");
   await routeA0Down(page, "error"); // all /api/v1/* now 500
 
   for (const [label, errorSelector] of SCREEN_ERRORS) {
-    await gotoScreen(page, label); // nav is client-side; the app shell still renders
+    await gotoScreen(page, label); // each screen re-mounts -> fresh fetch -> error state
     await expect(page.locator(errorSelector), `${label} error state`).toBeVisible({ timeout: 10000 });
   }
 });
