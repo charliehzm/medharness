@@ -35,3 +35,19 @@ test("every screen matches its visual baseline", async ({ page }) => {
     await expect(page).toHaveScreenshot(`screen-${label}.png`, { mask });
   }
 });
+
+// A WIDE viewport pass — some layout bugs only surface when a panel is much wider
+// than the design width (e.g. the Sankey flow paths stretch to the panel width while
+// fixed-px nodes don't, detaching the right half). The default ~1280 viewport keeps
+// such drift within tolerance, so capture each screen at 1680px too.
+test("every screen matches its visual baseline at a wide viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1680, height: 1050 });
+  await login(page);
+  await switchRole(page, "研发负责人");
+  for (const [label, maskSelectors] of SCREENS) {
+    await gotoScreen(page, label);
+    await page.waitForTimeout(900);
+    const mask = maskSelectors.map((s) => page.locator(s));
+    await expect(page).toHaveScreenshot(`wide-${label}.png`, { mask });
+  }
+});
