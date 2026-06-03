@@ -67,7 +67,7 @@ def ask(prompt: str, choices: dict[str, str] | None = None, default: str | None 
 
 def banner() -> None:
     print("=" * 60)
-    print(" MedHarness 客户化向导 · v0.1.0")
+    print(" MedHarness 客户化向导 · v1.0.0")
     print("=" * 60)
     print("\n问 8 个问题，5 分钟生成你的项目档案。\n")
 
