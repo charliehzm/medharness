@@ -351,6 +351,13 @@ def scenario_seed(_relay_stack: bool):
 
 
 @pytest.fixture
+def dmz(_relay_stack: bool):
+    """The DMZ request helper as a fixture, so tests under tests/sim/ (which don't see
+    the e2e_live `http` fixture) can read A0 Console endpoints through nginx."""
+    return dmz_request
+
+
+@pytest.fixture
 def no_phi():
     """The 0-PHI deep-scan assertion, injected (avoids cross-dir conftest import collisions)."""
     return assert_no_phi
