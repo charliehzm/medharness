@@ -363,7 +363,10 @@ services:
       retries: 3
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: ..
+      dockerfile: deploy/nginx/Dockerfile
+    image: medharness/nginx:${VERSION}
     container_name: medharness-nginx
     restart: unless-stopped
     networks:
@@ -373,7 +376,6 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/medharness.conf:/etc/nginx/conf.d/default.conf:ro
       - ${TLS_CERT_DIR:-/etc/medharness/tls}:/etc/medharness/tls:ro
     depends_on:
       model-router:

@@ -7,6 +7,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "deploy" / "docker-compose.prod.yml"
 NGINX_CONF = ROOT / "deploy" / "nginx" / "medharness.conf"
+NGINX_DOCKERFILE = ROOT / "deploy" / "nginx" / "Dockerfile"
 ENV_EXAMPLE = ROOT / "deploy" / ".env.production.example"
 
 ALL_SERVICES = (
@@ -199,3 +200,40 @@ def test_env_production_example_has_version_placeholder() -> None:
     text = ENV_EXAMPLE.read_text(encoding="utf-8")
     assert "VERSION=0.5.0-edge" in text
     assert "Copy to .env.production" in text
+
+
+def test_nginx_serves_console_spa_without_new_egress() -> None:
+    # The DMZ terminator now also serves the self-built Console as a static SPA.
+    # Serving static files must NOT widen the egress allowlist: the ONLY two
+    # proxy_pass targets remain the §D.1 relay and the A0 console API.
+    text = NGINX_CONF.read_text(encoding="utf-8")
+    assert "root /usr/share/nginx/html;" in text
+    assert "try_files $uri $uri/ /index.html;" in text
+    # all of new-api's /api/* admin surface stays denied; only /api/v1/ proxies
+    assert "location /api/ { return 404; }" in text
+    # static serving adds zero upstream egress — still exactly two proxy targets
+    # (count the directive form so comment mentions of proxy_pass don't inflate it)
+    assert text.count("proxy_pass http://") == 2
+    assert "new-api:3000" in text
+    assert "a0-api:9000" in text
+
+
+def test_nginx_service_builds_console_image() -> None:
+    nginx = _service("nginx")
+    assert nginx["build"]["context"] == ".."
+    assert nginx["build"]["dockerfile"] == "deploy/nginx/Dockerfile"
+    assert nginx["image"] == "medharness/nginx:${VERSION}"
+    # the conf is baked into the image now, not a bind mount
+    for volume in nginx.get("volumes", []):
+        assert "medharness.conf" not in str(volume)
+
+
+def test_nginx_dockerfile_builds_live_console_and_bakes_conf() -> None:
+    assert NGINX_DOCKERFILE.exists()
+    text = NGINX_DOCKERFILE.read_text(encoding="utf-8")
+    assert "oven/bun" in text  # Console build stage
+    assert "VITE_API_MODE=live" in text  # baked: Console talks to the real A0 BFF
+    assert "bun run build" in text
+    assert "nginx:1.27-alpine" in text  # serve stage
+    assert "/usr/share/nginx/html" in text
+    assert "medharness.conf" in text  # conf baked into the image
