@@ -107,10 +107,22 @@ export default function Traffic(): JSX.Element {
         <div className="traffic-stack">
           <section className="traffic-panel">
             <div className="traffic-mode-tabs" role="tablist" aria-label="流向切换">
-              <button className={mode === "inbound" ? "on" : ""} onClick={() => setMode("inbound")} type="button">
+              <button
+                className={mode === "inbound" ? "on" : ""}
+                onClick={() => setMode("inbound")}
+                type="button"
+                role="tab"
+                aria-selected={mode === "inbound"}
+              >
                 调用请求
               </button>
-              <button className={mode === "outbound" ? "on" : ""} onClick={() => setMode("outbound")} type="button">
+              <button
+                className={mode === "outbound" ? "on" : ""}
+                onClick={() => setMode("outbound")}
+                type="button"
+                role="tab"
+                aria-selected={mode === "outbound"}
+              >
                 模型响应 <span className="traffic-wip">🚧</span>
               </button>
             </div>
@@ -135,12 +147,14 @@ export default function Traffic(): JSX.Element {
                   className={filter === item.id ? "on" : ""}
                   onClick={() => setFilter(item.id)}
                   type="button"
+                  role="tab"
+                  aria-selected={filter === item.id}
                 >
                   {item.label}
                 </button>
               ))}
-              <span className="traffic-window">实时 · 最近 1 小时</span>
             </div>
+            <span className="traffic-window">实时 · 最近 1 小时</span>
             <EventStream events={visibleEvents} />
             <div className="traffic-note">
               仅显示脱敏后的占位符 <span className="mono">__NAME_a1__</span> 与统计数据，不含原始信息。

@@ -7,7 +7,13 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 45_000,
-  expect: { timeout: 12_000 },
+  expect: {
+    timeout: 12_000,
+    // Visual regression tolerance: kill animations (the Sankey/particle/orb views
+    // never settle) and allow a small ratio for cross-render antialiasing. Baselines
+    // are captured per-browser on the LOCAL render env (this suite is local-only).
+    toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: "disabled", caret: "hide" },
+  },
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -17,5 +23,12 @@ export default defineConfig({
     ignoreHTTPSErrors: true, // self-signed DMZ cert
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Cross-browser: the functional + visual specs run on all three engines. The
+  // a11y + responsive specs self-restrict to chromium (DOM-/viewport-level checks
+  // are engine-independent) via a guard on testInfo.project.name.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+  ],
 });

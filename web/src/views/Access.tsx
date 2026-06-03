@@ -204,6 +204,8 @@ export default function Access(): JSX.Element {
                 className={tab === item.id ? "on" : ""}
                 onClick={() => setTab(item.id)}
                 type="button"
+                role="tab"
+                aria-selected={tab === item.id}
               >
                 {item.label}
               </button>
