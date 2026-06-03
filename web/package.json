@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "tsc": "tsc -b --pretty false",
     "test": "vitest run",
-    "test:guard": "node --experimental-strip-types --test src/api/contract/sanitize.test.ts"
+    "test:guard": "node --experimental-strip-types --test src/api/contract/sanitize.test.ts",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
+    "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@visactor/react-vchart": "^2.0.22",
@@ -19,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.60.0",
     "@types/node": "^18.19.130",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
