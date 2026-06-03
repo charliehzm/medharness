@@ -41,3 +41,33 @@ export async function assertNoPhiDom(page: Page, where: string): Promise<void> {
     expect(match, `PHI-like marker on ${where}: ${match?.[0]?.slice(0, 8)}`).toBeNull();
   }
 }
+
+export type A0DownMode = "abort" | "error";
+
+// Drive the Console's A0 data path "down" by intercepting its /api/v1/* reads, so a
+// screen renders its error state WITHOUT touching the shared container (reversible,
+// per-test, no cross-test bleed). Apply AFTER login (login itself hits /api/v1/auth).
+export async function routeA0Down(page: Page, mode: A0DownMode = "abort"): Promise<void> {
+  await page.route("**/api/v1/**", (route) => {
+    if (mode === "error") {
+      void route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: '{"error":{"code":"data_source_unavailable","msg":"data source unavailable"}}',
+      });
+    } else {
+      void route.abort();
+    }
+  });
+}
+
+// Collect pageerror + console.error so a spec can assert a screen renders with zero
+// uncaught errors. Returns a live array (read it at teardown).
+export function captureConsole(page: Page): string[] {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(`console.error: ${m.text()}`);
+  });
+  return errors;
+}

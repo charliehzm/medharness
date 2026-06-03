@@ -17,3 +17,13 @@ test("研发负责人 unlocks all seven screens", async ({ page }) => {
   await expect(page.locator(".nav-item.disabled")).toHaveCount(0);
   await expect(page.locator(".nav-item:not(.disabled)")).toHaveCount(7);
 });
+
+test("clicking a locked screen as 系统管理员 is a no-op", async ({ page }) => {
+  await login(page); // admin -> sysadmin, with 3 locked screens
+  const heading = await page.locator(".topbar h1").textContent();
+  await page.locator(".nav-item.disabled").first().click({ force: true });
+  await page.waitForTimeout(300);
+  // the locked nav never becomes active and the screen heading is unchanged
+  await expect(page.locator(".nav-item.disabled.active")).toHaveCount(0);
+  await expect(page.locator(".topbar h1")).toHaveText(heading ?? "");
+});
