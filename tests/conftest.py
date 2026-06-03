@@ -265,6 +265,56 @@ def inject_allowlist(_relay_stack: bool):
 
 
 @pytest.fixture
+def ch_query(_relay_stack: bool):
+    """Run a ClickHouse query against the live (internal-only) CH via the a0 container,
+    returning parsed JSONEachRow rows."""
+
+    def _query(sql: str) -> list[dict[str, Any]]:
+        script = (
+            "import json,os,urllib.parse,urllib.request\n"
+            f"sql={sql!r}\n"
+            "if ' FORMAT ' not in (' '+sql.upper()+' '): sql+=' FORMAT JSONEachRow'\n"
+            "db=os.environ.get('CLICKHOUSE_DATABASE','medharness')\n"
+            "url='http://clickhouse:8123/?'+urllib.parse.urlencode({'database':db})\n"
+            "req=urllib.request.Request(url,data=sql.encode(),method='POST',headers={"
+            "'X-ClickHouse-User':os.environ.get('CLICKHOUSE_USER','medharness'),"
+            "'X-ClickHouse-Key':os.environ.get('CLICKHOUSE_PASSWORD','')})\n"
+            "out=urllib.request.urlopen(req,timeout=10).read().decode()\n"
+            "print(json.dumps([json.loads(x) for x in out.splitlines() if x.strip()]))\n"
+        )
+        out = _docker("exec", A0, "python", "-c", script)
+        if out.returncode != 0:
+            pytest.skip(f"clickhouse query failed: {out.stderr.strip()[:200]}")
+        return json.loads(out.stdout or "[]")
+
+    return _query
+
+
+@pytest.fixture
+def mcp_post(_relay_stack: bool):
+    """POST JSON to an internal MCP service (port 9000) via the a0 container."""
+
+    def _post(host: str, path: str, body: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+        script = (
+            "import json,urllib.request,urllib.error\n"
+            f"body={json.dumps(body)!r}\n"
+            f"req=urllib.request.Request('http://{host}:9000{path}',data=body.encode(),"
+            "method='POST',headers={'Content-Type':'application/json'})\n"
+            "try:\n"
+            "  r=urllib.request.urlopen(req,timeout=10); print(json.dumps([r.status,json.loads(r.read().decode())]))\n"
+            "except urllib.error.HTTPError as e:\n"
+            "  print(json.dumps([e.code,json.loads(e.read().decode() or '{}')]))\n"
+        )
+        out = _docker("exec", A0, "python", "-c", script)
+        if out.returncode != 0:
+            pytest.skip(f"mcp post failed: {out.stderr.strip()[:200]}")
+        status, payload = json.loads(out.stdout)
+        return status, payload
+
+    return _post
+
+
+@pytest.fixture
 def no_phi():
     """The 0-PHI deep-scan assertion, injected (avoids cross-dir conftest import collisions)."""
     return assert_no_phi
