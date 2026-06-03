@@ -74,15 +74,21 @@ user, pw, mock = sys.argv[1], sys.argv[2], sys.argv[3]
 BASE = "http://new-api:3000"
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
-def call(path, body=None):
+def call(path, body=None, method=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(BASE + path, data=data, method="POST" if body is not None else "GET")
+    req = urllib.request.Request(BASE + path, data=data, method=method or ("POST" if body is not None else "GET"))
     req.add_header("Content-Type", "application/json")
     req.add_header("New-Api-User", "1")
     with op.open(req, timeout=10) as resp:
-        return json.loads(resp.read().decode())
+        raw = resp.read().decode()
+        return json.loads(raw) if raw.strip() else {}
 
 call("/api/user/login", {"username": user, "password": pw})
+# Delete stale channels first so gpt-4o routes only to the live mock here
+# (other test runs leave dead channels that new-api would load-balance onto).
+ch = call("/api/channel/?p=1&size=100"); data = ch.get("data")
+for c in (data.get("items") if isinstance(data, dict) else data) or []:
+    call("/api/channel/%s" % c["id"], method="DELETE")
 call("/api/channel/", {"mode": "single", "channel": {
     "type": 1, "base_url": f"http://{mock}:18080", "key": "sk-mock",
     "models": "gpt-4o", "group": "default", "status": 1, "name": "E2EMock"}})

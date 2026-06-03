@@ -95,7 +95,15 @@ func callComplianceGate(client *http.Client, url string, payload []byte) gateOut
 	var parsed map[string]any
 	_ = common.Unmarshal(raw, &parsed)
 	if parsed != nil {
-		if decision, _ := parsed["decision"].(string); decision == "deny" {
+		// MCP deny signals are not uniform across the spine: model-router uses
+		// decision="deny", outbound-safety uses decision="blocked", and the
+		// injection scanner uses a top-level boolean "blocked": true (HTTP 200,
+		// no "decision"). Honor all of them, or those §D.1 gates are no-ops and
+		// injection attacks / unsafe responses pass through to the client.
+		if decision, _ := parsed["decision"].(string); decision == "deny" || decision == "blocked" {
+			return gateOutcome{body: parsed, denied: true, ok: true}
+		}
+		if blocked, _ := parsed["blocked"].(bool); blocked {
 			return gateOutcome{body: parsed, denied: true, ok: true}
 		}
 		if _, hasErr := parsed["error"]; hasErr {
@@ -199,6 +207,42 @@ func appendChatContent(parts *[]string, content any) {
 		}
 		appendChatContent(parts, value["content"])
 	}
+}
+
+// rewriteDesensitizedBody returns the request body with its prompt content
+// replaced by the desensitize service's redacted text, so the base relay sends a
+// PHI-free prompt upstream (the §D.1 red line: raw PHI must NEVER egress). When
+// the redacted text splits 1:1 with the string messages, message roles/structure
+// are preserved; otherwise it fails safe to a single redacted user message.
+func rewriteDesensitizedBody(rawBody []byte, desensitizedText string) []byte {
+	var parsed map[string]any
+	if common.Unmarshal(rawBody, &parsed) != nil {
+		return nil
+	}
+	messages, ok := parsed["messages"].([]any)
+	if !ok || len(messages) == 0 {
+		return nil
+	}
+	stringMsgs := make([]map[string]any, 0, len(messages))
+	for _, item := range messages {
+		if m, ok := item.(map[string]any); ok {
+			if _, isStr := m["content"].(string); isStr {
+				stringMsgs = append(stringMsgs, m)
+			}
+		}
+	}
+	if parts := strings.Split(desensitizedText, "\n"); len(stringMsgs) > 0 && len(stringMsgs) == len(parts) {
+		for i, m := range stringMsgs {
+			m["content"] = parts[i]
+		}
+	} else {
+		parsed["messages"] = []any{map[string]any{"role": "user", "content": desensitizedText}}
+	}
+	newBody, err := common.Marshal(parsed)
+	if err != nil {
+		return nil
+	}
+	return newBody
 }
 
 func normalizeDataLevel(value any) (string, bool) {
@@ -516,6 +560,13 @@ func (w *bufferedComplianceWriter) WriteString(data string) (int, error) {
 	return w.Write([]byte(data))
 }
 
+// Flush must be a no-op: the gate has to HOLD the whole buffered response until
+// post-call outbound-safety decides. Without this override, a relay handler that
+// calls Flush() flushes the EMBEDDED original writer (committing the relay's
+// Content-Length), so a later outbound-block 503 ships a stale Content-Length and
+// the client gets a truncated/IncompleteRead response.
+func (w *bufferedComplianceWriter) Flush() {}
+
 func (w *bufferedComplianceWriter) Status() int {
 	return w.status
 }
@@ -631,6 +682,19 @@ func MedHarnessCompliance() gin.HandlerFunc {
 		}
 		desensitized := desensitizedFromResponse(desens.body)
 		mapID := mapIDFromResponse(desens.body, requestMapID, desensitized)
+
+		// §D.1 red line: the upstream must NEVER receive raw PHI. desensitize
+		// returns the redacted prompt; rewrite the relayed body with it so the
+		// base relay sends the desensitized prompt (not the original).
+		if dtext, _ := desens.body["desensitized_text"].(string); dtext != "" {
+			if newBody := rewriteDesensitizedBody(rawBody, dtext); newBody != nil {
+				if storage, err := common.CreateBodyStorage(newBody); err == nil {
+					c.Set(common.KeyBodyStorage, storage)
+					c.Request.ContentLength = int64(len(newBody))
+					c.Request.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+				}
+			}
+		}
 
 		// 3. sign the gate-attested tier (B1)
 		tier := tierFromRequest(c, rawBody, phi.body, desens.body)

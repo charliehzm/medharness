@@ -46,6 +46,9 @@ MODEL_CATALOG = (
 # X-Mock-Echo-Phi=1, so the post-call outbound-safety gate fires (the one DENY
 # path where the upstream IS hit but the client still gets a generic 503).
 ECHO_PHI_TEXT = " 病案号 BL-SYN-0001 身份证 110101199001011234 手机 13800138000"
+# Synthetic harmful trigger (matches outbound-safety HARMFUL_RULES) appended when
+# X-Mock-Echo-Unsafe=1 — the reliable way to make outbound return decision=blocked.
+ECHO_UNSAFE_TEXT = " make a bomb"
 
 MAX_INJECTED_DELAY_SECONDS = 30.0
 
@@ -54,16 +57,43 @@ _RELAY_COUNT_LOCK = threading.Lock()
 _RELAY_COUNT = 0
 
 
+_LAST_LOCK = threading.Lock()
+_LAST_PROMPT = ""
+
+
 def _bump_relay_count() -> None:
     global _RELAY_COUNT
     with _RELAY_COUNT_LOCK:
         _RELAY_COUNT += 1
 
 
+def _record_last_prompt(payload: dict[str, Any]) -> None:
+    # Capture the relayed prompt so a test can verify the gateway DESENSITIZED it
+    # (the §D.1 guarantee: the upstream must never receive raw PHI).
+    global _LAST_PROMPT
+    parts: list[str] = []
+    for message in payload.get("messages", []) or []:
+        content = message.get("content") if isinstance(message, dict) else None
+        if isinstance(content, str):
+            parts.append(content)
+    text = payload.get("input")
+    if isinstance(text, str):
+        parts.append(text)
+    with _LAST_LOCK:
+        _LAST_PROMPT = "\n".join(parts)
+
+
+def last_prompt() -> dict[str, str]:
+    with _LAST_LOCK:
+        return {"prompt": _LAST_PROMPT}
+
+
 def _reset_relay_count() -> None:
-    global _RELAY_COUNT
+    global _RELAY_COUNT, _LAST_PROMPT
     with _RELAY_COUNT_LOCK:
         _RELAY_COUNT = 0
+    with _LAST_LOCK:
+        _LAST_PROMPT = ""
 
 
 def relay_count() -> dict[str, int]:
@@ -83,9 +113,12 @@ def _model_from_payload(payload: dict[str, Any]) -> str:
 
 
 def _reply_text(directives: dict[str, Any] | None = None) -> str:
+    text = MOCK_REPLY_TEXT
     if directives and directives.get("echo_phi"):
-        return MOCK_REPLY_TEXT + ECHO_PHI_TEXT
-    return MOCK_REPLY_TEXT
+        text += ECHO_PHI_TEXT
+    if directives and directives.get("echo_unsafe"):
+        text += ECHO_UNSAFE_TEXT
+    return text
 
 
 def _usage(directives: dict[str, Any] | None = None) -> dict[str, int]:
@@ -216,6 +249,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
             "hang_s": _int_directive(h, "X-Mock-Hang", "MOCK_HANG_S", 0) or 0,
             "status": _int_directive(h, "X-Mock-Status", "MOCK_STATUS", None),
             "echo_phi": _flag_directive(h, "X-Mock-Echo-Phi", "MOCK_ECHO_PHI"),
+            "echo_unsafe": _flag_directive(h, "X-Mock-Echo-Unsafe", "MOCK_ECHO_UNSAFE"),
             "prompt_tokens": _int_directive(h, "X-Mock-Prompt-Tokens", "MOCK_PROMPT_TOKENS", None),
             "completion_tokens": _int_directive(h, "X-Mock-Completion-Tokens", "MOCK_COMPLETION_TOKENS", None),
         }
@@ -294,6 +328,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
             return
+        _record_last_prompt(payload)
         model = _model_from_payload(payload)
         if payload.get("stream") is True:
             self._send_sse(_openai_chat_chunks(model, directives))
@@ -309,6 +344,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
             return
+        _record_last_prompt(payload)
         self._send_json(HTTPStatus.OK, _anthropic_message(_model_from_payload(payload), directives))
 
     def _handle_embeddings(self) -> None:
@@ -320,6 +356,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         except ValueError:
             self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
             return
+        _record_last_prompt(payload)
         self._send_json(HTTPStatus.OK, _embeddings(_model_from_payload(payload), directives))
 
     def do_GET(self) -> None:
@@ -330,6 +367,9 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
                 return
             if path == "/__count":
                 self._send_json(HTTPStatus.OK, relay_count())
+                return
+            if path == "/__last":
+                self._send_json(HTTPStatus.OK, last_prompt())
                 return
             if path == "/v1/models":
                 self._handle_models()

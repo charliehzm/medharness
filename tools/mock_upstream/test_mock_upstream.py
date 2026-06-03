@@ -223,6 +223,17 @@ def test_echo_phi_appends_synthetic_marker(base_url: str) -> None:
     assert "身份证" in content
 
 
+def test_echo_unsafe_appends_harmful_trigger(base_url: str) -> None:
+    status, payload = _post_headers(
+        base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Echo-Unsafe": "1"}
+    )
+    assert status == 200
+    content = payload["choices"][0]["message"]["content"]
+    assert "[mock-upstream]" in content
+    # harmful trigger matching outbound-safety HARMFUL_RULES (the reliable D9 block)
+    assert "make a bomb" in content
+
+
 def test_token_usage_overrides(base_url: str) -> None:
     status, payload = _post_headers(
         base_url,
@@ -244,3 +255,14 @@ def test_reset_zeroes_the_counter(base_url: str) -> None:
     assert status == 200
     assert payload == {"count": 0, "reset": True}
     assert _get_json(base_url, "/__count")[1]["count"] == 0
+
+
+def test_last_prompt_capture_and_reset(base_url: str) -> None:
+    _post_json(
+        base_url, "/v1/chat/completions",
+        {"model": "m", "messages": [{"role": "user", "content": "hello desensitized world"}]},
+    )
+    # the upstream records what it received -> a test can verify the gateway desensitized it
+    assert _get_json(base_url, "/__last")[1]["prompt"] == "hello desensitized world"
+    _post_json(base_url, "/__reset", {})
+    assert _get_json(base_url, "/__last")[1]["prompt"] == ""
