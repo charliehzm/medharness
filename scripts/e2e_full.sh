@@ -37,6 +37,27 @@ seed_scenarios() {  # seed the deterministic 15-scenario _audit_log; capture the
   docker cp scripts/seed_scenarios.py "${A0}:/tmp/seed_scenarios.py" >/dev/null 2>&1
   docker exec "$A0" python /tmp/seed_scenarios.py --reset --emit-manifest > /tmp/e2e_seed_manifest.json 2>/dev/null
 }
+provision_admin_token() {  # root access_token for A0 user-management writes — generated
+  # at RUNTIME from new-api (never committed). Skips if already set (normal run);
+  # recreates a0-api with it on a fresh stack so the user-management e2e works OOTB.
+  [ -n "$(docker exec "$A0" printenv NEW_API_ADMIN_TOKEN 2>/dev/null)" ] && return 0
+  local tok
+  tok=$(docker exec -i "$A0" python - <<'PY' 2>/dev/null
+import http.cookiejar, json, urllib.request
+op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+def call(p, b=None):
+    d = json.dumps(b).encode() if b is not None else None
+    r = urllib.request.Request("http://new-api:3000" + p, data=d, method="POST" if b is not None else "GET")
+    r.add_header("Content-Type", "application/json"); r.add_header("New-Api-User", "1")
+    return json.loads(op.open(r, timeout=10).read().decode() or "{}")
+call("/api/user/login", {"username": "admin", "password": "medharness123"})
+print(call("/api/user/token").get("data") or "")
+PY
+)
+  [ -n "$tok" ] || { echo "  WARN: could not provision admin token (user-mgmt e2e may skip)"; return 0; }
+  NEW_API_ADMIN_TOKEN="$tok" NEW_API_ADMIN_USER_ID=1 docker compose "${COMPOSE[@]}" up -d a0-api >/dev/null 2>&1
+  for _ in $(seq 1 30); do [ "$(docker inspect -f '{{.State.Health.Status}}' "$A0" 2>/dev/null)" = healthy ] && break; sleep 2; done
+}
 
 hr; echo "[1/7] stack"
 if [ "$FRESH" = 1 ]; then
@@ -49,6 +70,7 @@ fi
 for _ in $(seq 1 90); do [ "$(dmz_code)" = 200 ] && break; sleep 2; done
 [ "$(dmz_code)" = 200 ] || { echo "  ERROR: DMZ not healthy at $BASE"; exit 1; }
 echo "  DMZ $BASE healthy"
+provision_admin_token
 
 hr; echo "[2/7] seed deterministic 15-scenario 0-PHI audit rows"
 seed_scenarios && sed 's/.*"total": *\([0-9]*\).*/  seeded \1 scenario rows + manifest/' /tmp/e2e_seed_manifest.json | head -1
