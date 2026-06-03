@@ -851,9 +851,16 @@ def _parse_timestamp(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    # ClickHouse returns the DateTime64(3, 'UTC') column as a naive, space-separated
+    # string ("2026-06-03 07:36:44.943"). Attach UTC so window comparisons against an
+    # aware `start` (datetime.now(timezone.utc) - horizon) don't raise TypeError, and
+    # so the events `.astimezone(UTC)` formatting doesn't assume the host's local zone.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def _row_ctx(row: dict[str, Any]) -> str:
