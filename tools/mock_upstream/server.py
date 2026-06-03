@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Tiny stdlib mock OpenAI/Anthropic-compatible upstream server."""
+"""Tiny stdlib mock OpenAI/Anthropic-compatible upstream server.
+
+Beyond the happy-path provider dialects it exposes a few X-Mock-* request
+headers (with MOCK_* env fallbacks) so tests can drive the gateway's error,
+latency, timeout, token-cost, and post-call (outbound-safety) paths WITHOUT any
+third-party deps. These headers are inert to the real gateway. A /__count relay
+counter (and /__reset) lets a caller verify the §D.1 DENY invariant — a denied
+call must reach the upstream ZERO times.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +16,7 @@ import json
 import os
 import sys
 import threading
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -24,9 +33,23 @@ ANTHROPIC_MESSAGE_ID = "msg_mock_000000000000"
 CREATED_AT = 0
 EMBEDDING_VECTOR = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
 
+# Multi-vendor catalog so model×vendor matrix cases have real ids to vary.
+MODEL_CATALOG = (
+    ("gpt-4o", "openai"),
+    ("claude-sonnet-4.6", "anthropic"),
+    ("qwen-max-2026", "alibaba"),
+    (DEFAULT_MODEL, "mock-upstream"),
+    ("mock-embedding-model", "mock-upstream"),
+)
+
+# SYNTHETIC PHI-shaped string (NOT a real person) appended to the reply when
+# X-Mock-Echo-Phi=1, so the post-call outbound-safety gate fires (the one DENY
+# path where the upstream IS hit but the client still gets a generic 503).
+ECHO_PHI_TEXT = " 病案号 BL-SYN-0001 身份证 110101199001011234 手机 13800138000"
+
+MAX_INJECTED_DELAY_SECONDS = 30.0
+
 # Cumulative count of relay requests actually received (chat/messages/embeddings).
-# Lets a caller verify the §D.1 DENY invariant: a denied call must reach the
-# upstream ZERO times (GET /__count unchanged across the denied request).
 _RELAY_COUNT_LOCK = threading.Lock()
 _RELAY_COUNT = 0
 
@@ -35,6 +58,12 @@ def _bump_relay_count() -> None:
     global _RELAY_COUNT
     with _RELAY_COUNT_LOCK:
         _RELAY_COUNT += 1
+
+
+def _reset_relay_count() -> None:
+    global _RELAY_COUNT
+    with _RELAY_COUNT_LOCK:
+        _RELAY_COUNT = 0
 
 
 def relay_count() -> dict[str, int]:
@@ -53,11 +82,26 @@ def _model_from_payload(payload: dict[str, Any]) -> str:
     return DEFAULT_MODEL
 
 
-def _usage() -> dict[str, int]:
-    return {"prompt_tokens": 1, "completion_tokens": 5, "total_tokens": 6}
+def _reply_text(directives: dict[str, Any] | None = None) -> str:
+    if directives and directives.get("echo_phi"):
+        return MOCK_REPLY_TEXT + ECHO_PHI_TEXT
+    return MOCK_REPLY_TEXT
 
 
-def _openai_chat_completion(model: str) -> dict[str, object]:
+def _usage(directives: dict[str, Any] | None = None) -> dict[str, int]:
+    directives = directives or {}
+    prompt = directives.get("prompt_tokens")
+    completion = directives.get("completion_tokens")
+    prompt = 1 if prompt is None else int(prompt)
+    completion = 5 if completion is None else int(completion)
+    return {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": prompt + completion,
+    }
+
+
+def _openai_chat_completion(model: str, directives: dict[str, Any] | None = None) -> dict[str, object]:
     return {
         "id": CHAT_COMPLETION_ID,
         "object": "chat.completion",
@@ -66,15 +110,15 @@ def _openai_chat_completion(model: str) -> dict[str, object]:
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": MOCK_REPLY_TEXT},
+                "message": {"role": "assistant", "content": _reply_text(directives)},
                 "finish_reason": "stop",
             }
         ],
-        "usage": _usage(),
+        "usage": _usage(directives),
     }
 
 
-def _openai_chat_chunks(model: str) -> list[dict[str, object]]:
+def _openai_chat_chunks(model: str, directives: dict[str, Any] | None = None) -> list[dict[str, object]]:
     base = {
         "id": CHAT_COMPLETION_ID,
         "object": "chat.completion.chunk",
@@ -86,36 +130,38 @@ def _openai_chat_chunks(model: str) -> list[dict[str, object]]:
         {
             **base,
             "choices": [
-                {"index": 0, "delta": {"content": MOCK_REPLY_TEXT}, "finish_reason": None}
+                {"index": 0, "delta": {"content": _reply_text(directives)}, "finish_reason": None}
             ],
         },
         {
             **base,
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            "usage": _usage(),
+            "usage": _usage(directives),
         },
     ]
 
 
-def _anthropic_message(model: str) -> dict[str, object]:
+def _anthropic_message(model: str, directives: dict[str, Any] | None = None) -> dict[str, object]:
+    usage = _usage(directives)
     return {
         "id": ANTHROPIC_MESSAGE_ID,
         "type": "message",
         "role": "assistant",
-        "content": [{"type": "text", "text": MOCK_REPLY_TEXT}],
+        "content": [{"type": "text", "text": _reply_text(directives)}],
         "model": model,
         "stop_reason": "end_turn",
         "stop_sequence": None,
-        "usage": {"input_tokens": 1, "output_tokens": 5},
+        "usage": {"input_tokens": usage["prompt_tokens"], "output_tokens": usage["completion_tokens"]},
     }
 
 
-def _embeddings(model: str) -> dict[str, object]:
+def _embeddings(model: str, directives: dict[str, Any] | None = None) -> dict[str, object]:
+    usage = _usage(directives)
     return {
         "object": "list",
         "data": [{"object": "embedding", "embedding": list(EMBEDDING_VECTOR), "index": 0}],
         "model": model,
-        "usage": {"prompt_tokens": 1, "total_tokens": 1},
+        "usage": {"prompt_tokens": usage["prompt_tokens"], "total_tokens": usage["prompt_tokens"]},
     }
 
 
@@ -123,20 +169,29 @@ def _models() -> dict[str, object]:
     return {
         "object": "list",
         "data": [
-            {
-                "id": DEFAULT_MODEL,
-                "object": "model",
-                "created": CREATED_AT,
-                "owned_by": "mock-upstream",
-            },
-            {
-                "id": "mock-embedding-model",
-                "object": "model",
-                "created": CREATED_AT,
-                "owned_by": "mock-upstream",
-            },
+            {"id": model_id, "object": "model", "created": CREATED_AT, "owned_by": vendor}
+            for model_id, vendor in MODEL_CATALOG
         ],
     }
+
+
+def _int_directive(headers: Any, name: str, env: str, default: int | None) -> int | None:
+    raw = headers.get(name)
+    if raw is None or str(raw).strip() == "":
+        raw = os.environ.get(env)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        return default
+
+
+def _flag_directive(headers: Any, name: str, env: str) -> bool:
+    raw = headers.get(name)
+    if raw is None or str(raw).strip() == "":
+        raw = os.environ.get(env)
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"} if raw is not None else False
 
 
 class MockUpstreamHTTPServer(ThreadingHTTPServer):
@@ -153,6 +208,33 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return
+
+    def _directives(self) -> dict[str, Any]:
+        h = self.headers
+        return {
+            "latency_ms": _int_directive(h, "X-Mock-Latency-Ms", "MOCK_LATENCY_MS", 0) or 0,
+            "hang_s": _int_directive(h, "X-Mock-Hang", "MOCK_HANG_S", 0) or 0,
+            "status": _int_directive(h, "X-Mock-Status", "MOCK_STATUS", None),
+            "echo_phi": _flag_directive(h, "X-Mock-Echo-Phi", "MOCK_ECHO_PHI"),
+            "prompt_tokens": _int_directive(h, "X-Mock-Prompt-Tokens", "MOCK_PROMPT_TOKENS", None),
+            "completion_tokens": _int_directive(h, "X-Mock-Completion-Tokens", "MOCK_COMPLETION_TOKENS", None),
+        }
+
+    def _relay_pre(self, directives: dict[str, Any]) -> bool:
+        """Count the hit, apply injected latency/hang, then optionally short-circuit
+        with an injected error status. Returns True if a response was already sent."""
+        _bump_relay_count()
+        delay = directives["latency_ms"] / 1000.0 + float(directives["hang_s"])
+        if delay > 0:
+            time.sleep(min(delay, MAX_INJECTED_DELAY_SECONDS))
+        if directives["status"] is not None:
+            try:
+                status = HTTPStatus(int(directives["status"]))
+            except ValueError:
+                status = HTTPStatus.INTERNAL_SERVER_ERROR
+            self._error(status, "mock_injected_error", f"mock injected HTTP {int(status)}")
+            return True
+        return False
 
     def _send_json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -204,7 +286,9 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, _models())
 
     def _handle_chat_completions(self) -> None:
-        _bump_relay_count()
+        directives = self._directives()
+        if self._relay_pre(directives):
+            return
         try:
             payload = self._read_json_body()
         except ValueError:
@@ -212,27 +296,31 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
             return
         model = _model_from_payload(payload)
         if payload.get("stream") is True:
-            self._send_sse(_openai_chat_chunks(model))
+            self._send_sse(_openai_chat_chunks(model, directives))
             return
-        self._send_json(HTTPStatus.OK, _openai_chat_completion(model))
+        self._send_json(HTTPStatus.OK, _openai_chat_completion(model, directives))
 
     def _handle_messages(self) -> None:
-        _bump_relay_count()
+        directives = self._directives()
+        if self._relay_pre(directives):
+            return
         try:
             payload = self._read_json_body()
         except ValueError:
             self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
             return
-        self._send_json(HTTPStatus.OK, _anthropic_message(_model_from_payload(payload)))
+        self._send_json(HTTPStatus.OK, _anthropic_message(_model_from_payload(payload), directives))
 
     def _handle_embeddings(self) -> None:
-        _bump_relay_count()
+        directives = self._directives()
+        if self._relay_pre(directives):
+            return
         try:
             payload = self._read_json_body()
         except ValueError:
             self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
             return
-        self._send_json(HTTPStatus.OK, _embeddings(_model_from_payload(payload)))
+        self._send_json(HTTPStatus.OK, _embeddings(_model_from_payload(payload), directives))
 
     def do_GET(self) -> None:
         try:
@@ -253,6 +341,10 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         try:
             path = urlsplit(self.path).path
+            if path == "/__reset":
+                _reset_relay_count()
+                self._send_json(HTTPStatus.OK, {"count": 0, "reset": True})
+                return
             if path == "/v1/chat/completions":
                 self._handle_chat_completions()
                 return

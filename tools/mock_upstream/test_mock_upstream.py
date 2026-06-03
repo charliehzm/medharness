@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -68,6 +69,19 @@ def _post_raw(base_url: str, path: str, body: bytes) -> int:
     )
     with urllib.request.urlopen(request, timeout=5) as response:
         return response.status
+
+
+def _post_headers(
+    base_url: str, path: str, payload: dict[str, Any], headers: dict[str, str]
+) -> tuple[int, dict[str, Any]]:
+    request = urllib.request.Request(
+        f"{base_url}{path}",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", **headers},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return response.status, _read_json(response)
 
 
 def test_health(base_url: str) -> None:
@@ -164,3 +178,69 @@ def test_relay_count_increments_on_relay_only(base_url: str) -> None:
     # each relay POST counts exactly once (the §D.1 DENY proof relies on this)
     _post_json(base_url, "/v1/chat/completions", {"model": "m", "messages": []})
     assert _get_json(base_url, "/__count")[1]["count"] == before + 1
+
+
+def test_models_catalog_is_multi_vendor(base_url: str) -> None:
+    status, payload = _get_json(base_url, "/v1/models")
+    assert status == 200
+    vendors = {m["owned_by"] for m in payload["data"]}
+    ids = {m["id"] for m in payload["data"]}
+    assert {"openai", "anthropic", "alibaba"} <= vendors
+    assert {"gpt-4o", "claude-sonnet-4.6", "qwen-max-2026"} <= ids
+
+
+def test_latency_injection_delays_response(base_url: str) -> None:
+    start = time.monotonic()
+    status, _ = _post_headers(
+        base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Latency-Ms": "300"}
+    )
+    elapsed = time.monotonic() - start
+    assert status == 200
+    assert elapsed >= 0.3
+
+
+def test_status_injection_returns_error_and_still_counts(base_url: str) -> None:
+    before = _get_json(base_url, "/__count")[1]["count"]
+    with pytest.raises(urllib.error.HTTPError) as excinfo:
+        _post_headers(
+            base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Status": "500"}
+        )
+    assert excinfo.value.code == 500
+    body = json.loads(excinfo.value.read().decode("utf-8"))
+    assert body["error"]["code"] == "mock_injected_error"
+    # the upstream WAS contacted (error sent after receipt) -> the counter advances
+    assert _get_json(base_url, "/__count")[1]["count"] == before + 1
+
+
+def test_echo_phi_appends_synthetic_marker(base_url: str) -> None:
+    status, payload = _post_headers(
+        base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Echo-Phi": "1"}
+    )
+    assert status == 200
+    content = payload["choices"][0]["message"]["content"]
+    assert "[mock-upstream]" in content
+    # synthetic PHI echoed so the post-call outbound-safety gate (D9) fires
+    assert "身份证" in content
+
+
+def test_token_usage_overrides(base_url: str) -> None:
+    status, payload = _post_headers(
+        base_url,
+        "/v1/chat/completions",
+        {"model": "m", "messages": []},
+        {"X-Mock-Prompt-Tokens": "42", "X-Mock-Completion-Tokens": "7"},
+    )
+    assert status == 200
+    usage = payload["usage"]
+    assert usage["prompt_tokens"] == 42
+    assert usage["completion_tokens"] == 7
+    assert usage["total_tokens"] == 49
+
+
+def test_reset_zeroes_the_counter(base_url: str) -> None:
+    _post_json(base_url, "/v1/chat/completions", {"model": "m", "messages": []})
+    assert _get_json(base_url, "/__count")[1]["count"] > 0
+    status, payload = _post_json(base_url, "/__reset", {})
+    assert status == 200
+    assert payload == {"count": 0, "reset": True}
+    assert _get_json(base_url, "/__count")[1]["count"] == 0
