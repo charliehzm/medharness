@@ -35,7 +35,10 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: pytest tests/integration -v
+      # tools/mock_upstream is the LLM simulator (Layer 5): stdlib-only and fully
+      # offline, so it runs here. The live E2E layers (tests/e2e_live, tests/sim)
+      # are intentionally NOT collected — they self-skip without a running stack.
+      - run: pytest tests/integration tools/mock_upstream -v
 
   dryrun:
     runs-on: ubuntu-latest
