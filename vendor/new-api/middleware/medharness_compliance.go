@@ -170,6 +170,18 @@ func extractPromptText(rawBody []byte) string {
 	}
 	messages, ok := parsed["messages"].([]any)
 	if !ok || len(messages) == 0 {
+		// Embeddings (and other non-chat /v1 bodies) carry their text in `input`
+		// (string OR []string), not `messages`. Extract it so phi-detect sees the
+		// real PHI and desensitize acts on exactly that text — falling back to the
+		// whole raw body would make rewriteDesensitizedBody replace `input` with the
+		// entire desensitized JSON. (§D.1 red line: PHI in `input` must not egress.)
+		if input, present := parsed["input"]; present {
+			inputParts := make([]string, 0, 4)
+			appendEmbeddingInput(&inputParts, input)
+			if len(inputParts) > 0 {
+				return strings.Join(inputParts, "\n")
+			}
+		}
 		return fallback
 	}
 	parts := make([]string, 0, len(messages))
@@ -184,6 +196,24 @@ func extractPromptText(rawBody []byte) string {
 		return fallback
 	}
 	return strings.Join(parts, "\n")
+}
+
+// appendEmbeddingInput collects the string text from an embeddings `input` field,
+// which per the OpenAI embeddings DTO is a string or an array of strings. Token-id
+// arrays ([]int / [][]int) carry no PHI text and are ignored.
+func appendEmbeddingInput(parts *[]string, input any) {
+	switch value := input.(type) {
+	case string:
+		if value != "" {
+			*parts = append(*parts, value)
+		}
+	case []any:
+		for _, item := range value {
+			if s, ok := item.(string); ok && s != "" {
+				*parts = append(*parts, s)
+			}
+		}
+	}
 }
 
 func appendChatContent(parts *[]string, content any) {
@@ -221,6 +251,17 @@ func rewriteDesensitizedBody(rawBody []byte, desensitizedText string) []byte {
 	}
 	messages, ok := parsed["messages"].([]any)
 	if !ok || len(messages) == 0 {
+		// Embeddings `input` path (no `messages`): rewrite the input with the
+		// desensitized text so the upstream never receives raw PHI. Mirrors the
+		// 1:1-split-else-collapse strategy used for string messages below.
+		if _, present := parsed["input"]; present {
+			parsed["input"] = rewriteEmbeddingInput(parsed["input"], desensitizedText)
+			newBody, err := common.Marshal(parsed)
+			if err != nil {
+				return nil
+			}
+			return newBody
+		}
 		return nil
 	}
 	stringMsgs := make([]map[string]any, 0, len(messages))
@@ -243,6 +284,37 @@ func rewriteDesensitizedBody(rawBody []byte, desensitizedText string) []byte {
 		return nil
 	}
 	return newBody
+}
+
+// rewriteEmbeddingInput returns the embeddings `input` with PHI replaced by the
+// desensitized text. A string input becomes the desensitized string. An array of
+// strings is mapped element-wise when the desensitized text splits 1:1 across the
+// string elements (preserving array shape); otherwise it fails safe to a single
+// desensitized string so the raw identifier can never survive.
+func rewriteEmbeddingInput(original any, desensitizedText string) any {
+	switch value := original.(type) {
+	case string:
+		return desensitizedText
+	case []any:
+		stringIdx := make([]int, 0, len(value))
+		for i, item := range value {
+			if _, ok := item.(string); ok {
+				stringIdx = append(stringIdx, i)
+			}
+		}
+		parts := strings.Split(desensitizedText, "\n")
+		if len(stringIdx) > 0 && len(stringIdx) == len(parts) {
+			out := make([]any, len(value))
+			copy(out, value)
+			for j, idx := range stringIdx {
+				out[idx] = parts[j]
+			}
+			return out
+		}
+		return []any{desensitizedText}
+	default:
+		return desensitizedText
+	}
 }
 
 func normalizeDataLevel(value any) (string, bool) {

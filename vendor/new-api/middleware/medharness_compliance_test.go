@@ -309,3 +309,81 @@ func TestComplianceOutboundDenyReplacesResponse(t *testing.T) {
 		t.Fatalf("gate order = %q, want phi,desens,router,injection,outbound", got)
 	}
 }
+
+// --- Fix#1: embeddings `input` desensitization (the §D.1 red-line bypass) -------
+
+const embRawID = "110101199001011237" // SYNTHETIC valid-checksum CN-ID
+
+// extractPromptText must read embeddings `input` (string OR array) — not just
+// `messages` — so phi-detect/desensitize see the PHI; chat bodies still work.
+func TestExtractPromptTextEmbeddingsInput(t *testing.T) {
+	cases := []struct{ name, body, want string }{
+		{"string input", `{"model":"m","input":"id ` + embRawID + `"}`, "id " + embRawID},
+		{"array input", `{"model":"m","input":["id ` + embRawID + `","note"]}`, "id " + embRawID + "\nnote"},
+		{"chat regression", `{"model":"m","messages":[{"role":"user","content":"hi"}]}`, "hi"},
+		{"neither -> raw fallback", `{"model":"m"}`, `{"model":"m"}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := extractPromptText([]byte(tc.body)); got != tc.want {
+				t.Fatalf("extractPromptText = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// rewriteDesensitizedBody must rewrite embeddings `input` with the redacted text so
+// the upstream never receives the raw identifier — string and array shapes — while
+// still rewriting chat `messages`.
+func TestRewriteDesensitizedBodyEmbeddingsInput(t *testing.T) {
+	t.Run("string input rewritten", func(t *testing.T) {
+		out := rewriteDesensitizedBody([]byte(`{"model":"m","input":"id `+embRawID+`"}`), "id PHI_CN_ID_x")
+		if out == nil || strings.Contains(string(out), embRawID) {
+			t.Fatalf("raw id survived string rewrite: %s", out)
+		}
+		var parsed map[string]any
+		_ = common.Unmarshal(out, &parsed)
+		if got, _ := parsed["input"].(string); got != "id PHI_CN_ID_x" {
+			t.Fatalf("input = %q, want desensitized string", got)
+		}
+	})
+	t.Run("array input element-wise (1:1 split)", func(t *testing.T) {
+		out := rewriteDesensitizedBody([]byte(`{"model":"m","input":["id `+embRawID+`","note"]}`), "id PHI_CN_ID_x\nnote")
+		if out == nil || strings.Contains(string(out), embRawID) {
+			t.Fatalf("raw id survived array rewrite: %s", out)
+		}
+		var parsed map[string]any
+		_ = common.Unmarshal(out, &parsed)
+		arr, ok := parsed["input"].([]any)
+		if !ok || len(arr) != 2 || arr[0] != "id PHI_CN_ID_x" || arr[1] != "note" {
+			t.Fatalf("array not rewritten 1:1: %v", parsed["input"])
+		}
+	})
+	t.Run("array input safe-collapse (mismatched split)", func(t *testing.T) {
+		out := rewriteDesensitizedBody([]byte(`{"model":"m","input":["id `+embRawID+`","a","b"]}`), "one blob")
+		if out == nil || strings.Contains(string(out), embRawID) {
+			t.Fatalf("raw id survived collapse: %s", out)
+		}
+	})
+	t.Run("chat messages regression", func(t *testing.T) {
+		out := rewriteDesensitizedBody([]byte(`{"model":"m","messages":[{"role":"user","content":"id `+embRawID+`"}]}`), "id PHI_CN_ID_x")
+		if out == nil || strings.Contains(string(out), embRawID) {
+			t.Fatalf("raw id survived chat rewrite: %s", out)
+		}
+	})
+}
+
+// End-to-end through the live middleware (in-process): an embeddings body's `input`
+// text must reach the phi scan AND the base relay must receive the desensitized body.
+func TestComplianceEmbeddingsInputDesensitized(t *testing.T) {
+	result := runComplianceRequest(t, gateTestConfig{
+		requestBody:    `{"model":"qwen-max","input":"patient id ` + embRawID + `"}`,
+		desensResponse: `{"desensitized":true,"map_id":"map-x","desensitized_text":"patient id PHI_CN_ID_x","map_ref":"ref-x"}`,
+	})
+	if result.status != http.StatusOK {
+		t.Fatalf("status = %d, want 200", result.status)
+	}
+	if got, _ := result.captures["phi"]["text"].(string); got != "patient id "+embRawID {
+		t.Fatalf("phi scan text = %q, want the embeddings input text", got)
+	}
+}

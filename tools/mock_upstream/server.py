@@ -79,6 +79,10 @@ def _record_last_prompt(payload: dict[str, Any]) -> None:
     text = payload.get("input")
     if isinstance(text, str):
         parts.append(text)
+    elif isinstance(text, list):
+        # embeddings `input` may be an array of strings — capture each so a test can
+        # verify the gateway desensitized array-shaped PHI before egress (EMB3).
+        parts.extend(item for item in text if isinstance(item, str))
     with _LAST_LOCK:
         _LAST_PROMPT = "\n".join(parts)
 

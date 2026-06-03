@@ -358,3 +358,31 @@ def relay(relay_token: str):
         return dmz_request("POST", "/v1/chat/completions", body=body, headers=headers)
 
     return _relay
+
+
+@pytest.fixture
+def relay_embeddings(relay_token: str):
+    """POST /v1/embeddings through the DMZ. The body carries the text in `input`
+    (string OR array), NOT `messages` — the path that exposed the embeddings PHI
+    bypass. The channel serving `model` also serves /v1/embeddings (the mock does)."""
+
+    def _relay(
+        role: str,
+        vendor_family: str,
+        change_id: str,
+        input_value: Any,
+        model: str = "gpt-4o",
+        extra_headers: dict[str, str] | None = None,
+    ) -> LiveResp:
+        body: dict[str, Any] = {"model": model, "input": input_value}
+        headers = {
+            "Authorization": relay_token,
+            "X-MedHarness-Agent-Role": role,
+            "X-MedHarness-Change-Id": change_id,
+            "X-MedHarness-Caller-Vendor-Family": vendor_family,
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+        return dmz_request("POST", "/v1/embeddings", body=body, headers=headers)
+
+    return _relay
