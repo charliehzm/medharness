@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -22,6 +23,23 @@ CHAT_COMPLETION_ID = "chatcmpl-mock-000000000000"
 ANTHROPIC_MESSAGE_ID = "msg_mock_000000000000"
 CREATED_AT = 0
 EMBEDDING_VECTOR = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06]
+
+# Cumulative count of relay requests actually received (chat/messages/embeddings).
+# Lets a caller verify the §D.1 DENY invariant: a denied call must reach the
+# upstream ZERO times (GET /__count unchanged across the denied request).
+_RELAY_COUNT_LOCK = threading.Lock()
+_RELAY_COUNT = 0
+
+
+def _bump_relay_count() -> None:
+    global _RELAY_COUNT
+    with _RELAY_COUNT_LOCK:
+        _RELAY_COUNT += 1
+
+
+def relay_count() -> dict[str, int]:
+    with _RELAY_COUNT_LOCK:
+        return {"count": _RELAY_COUNT}
 
 
 def health() -> dict[str, object]:
@@ -186,6 +204,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, _models())
 
     def _handle_chat_completions(self) -> None:
+        _bump_relay_count()
         try:
             payload = self._read_json_body()
         except ValueError:
@@ -198,6 +217,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, _openai_chat_completion(model))
 
     def _handle_messages(self) -> None:
+        _bump_relay_count()
         try:
             payload = self._read_json_body()
         except ValueError:
@@ -206,6 +226,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, _anthropic_message(_model_from_payload(payload)))
 
     def _handle_embeddings(self) -> None:
+        _bump_relay_count()
         try:
             payload = self._read_json_body()
         except ValueError:
@@ -218,6 +239,9 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if path == "/health":
                 self._handle_health()
+                return
+            if path == "/__count":
+                self._send_json(HTTPStatus.OK, relay_count())
                 return
             if path == "/v1/models":
                 self._handle_models()

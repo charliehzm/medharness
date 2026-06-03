@@ -26,6 +26,10 @@ detect_os() {
 apply_chattr_linux() {
   local dir="$1"
   mkdir -p "${dir}"
+  # The MCP services run as non-root uid 9000; their host bind mounts must be
+  # owned by 9000 or the writers fail closed. (Named volumes inherit this from
+  # the image; bind mounts use host ownership, so set it here before +a.)
+  sudo chown -R 9000:9000 "${dir}" || c_warn "chown 9000 failed for ${dir}"
   if ! command -v chattr >/dev/null 2>&1; then
     c_fail "chattr not found · install e2fsprogs"
     exit 2

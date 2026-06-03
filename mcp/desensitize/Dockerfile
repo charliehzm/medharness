@@ -45,6 +45,11 @@ COPY --chown=medharness:medharness mcp/desensitize/key_provider/interface.py /ap
 COPY --chown=medharness:medharness mcp/desensitize/key_provider/file_provider.py /app/key_provider/file_provider.py
 COPY --chown=medharness:medharness mcp/desensitize/sql/phi_lookup.sql /app/sql/phi_lookup.sql
 
+# Keystore dir owned by the runtime uid so a fresh named volume inherits 9000
+# ownership — the FileKeyProvider chmods the keystore root to 0700, which fails
+# on a root-owned mount and makes desensitize fail closed (every relay denied).
+RUN mkdir -p /data/medharness/keystore && chown -R medharness:medharness /data/medharness
+
 USER medharness:medharness
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

@@ -154,3 +154,13 @@ def test_unknown_route_returns_404(base_url: str) -> None:
         _get_json(base_url, "/v1/unknown")
 
     assert excinfo.value.code == 404
+
+
+def test_relay_count_increments_on_relay_only(base_url: str) -> None:
+    before = _get_json(base_url, "/__count")[1]["count"]
+    # a non-relay GET must NOT count as an upstream connection
+    _get_json(base_url, "/health")
+    assert _get_json(base_url, "/__count")[1]["count"] == before
+    # each relay POST counts exactly once (the §D.1 DENY proof relies on this)
+    _post_json(base_url, "/v1/chat/completions", {"model": "m", "messages": []})
+    assert _get_json(base_url, "/__count")[1]["count"] == before + 1
