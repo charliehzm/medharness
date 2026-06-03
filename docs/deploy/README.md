@@ -1,5 +1,7 @@
 # MedHarness 部署快速开始 (Self-host, v0.5.0-edge)
 
+> 只想在 macOS / 单机上点开看看（含 Console 账号密码登录）？直接跳到 **§9 本地 docker 一键体验**。
+
 ## 1. 先决条件
 
 ```bash
@@ -103,3 +105,51 @@ bash scripts/int5_console_smoke.sh
 - 真实 LLM provider channel 由 operator 在 new-api admin 中配置。
 - `ci-trigger`、`internal-kb`、`pm-bridge`、`vector-db` 是 v0.5.0-edge 的 intentional placeholders。
 - 真实 OIDC、多租户、billing 是 post-v1.0 范围。
+
+## 9. 本地 docker 一键体验（macOS / 单机 dev，含 Console 登录）
+
+> prod compose 默认用 `/data/medharness/*` 主机 bind 挂载（Linux 生产盘 + WORM）。在
+> dev 机上叠加 `deploy/docker-compose.local.yml` override：把这些 bind 换成 Docker 命名
+> 卷、把 nginx 映射到本机高端口（18080/18443），**零主机目录准备**即可起全栈。自建
+> Console 也已打进 nginx 镜像（live 模式），同源访问。
+
+```bash
+# 1) 配置（本地 throwaway 密钥；TLS 指向仓库内目录，避免 /etc 与 sudo）
+cp deploy/.env.production.example deploy/.env.production
+#   编辑 deploy/.env.production：CLICKHOUSE_PASSWORD / REDIS_PASSWORD /
+#   NEW_API_CRYPTO_SECRET / MODEL_ROUTER_TIER_SECRET 填本地值；
+#   并把 TLS_CERT_DIR 改成绝对路径，如 TLS_CERT_DIR=$PWD/deploy/.tls
+bash scripts/gen-tls.sh --cn localhost --out deploy/.tls
+
+# 2) 构建 + 起全栈（两个 compose 文件叠加；首跑会 build new-api / a0-api / nginx+Console）
+docker compose -f deploy/docker-compose.prod.yml -f deploy/docker-compose.local.yml \
+  --env-file deploy/.env.production up -d --build
+
+# 3) 一次性 bootstrap new-api root 账号（/api/setup 经 DMZ 会被 404，故用 exec）
+docker compose -f deploy/docker-compose.prod.yml -f deploy/docker-compose.local.yml \
+  --env-file deploy/.env.production exec -T new-api \
+  wget -qO- --header='Content-Type: application/json' \
+  --post-data='{"username":"admin","password":"medharness123","confirmPassword":"medharness123","SelfUseModeEnabled":true,"DemoSiteEnabled":false}' \
+  http://localhost:3000/api/setup
+```
+
+打开 `https://localhost:18443`（自签证书，浏览器需手动信任），用 **admin / medharness123**
+登录 → 落「系统管理员」。验证（curl）：
+
+```bash
+curl -sk https://localhost:18443/health                                  # ok
+curl -sk -X POST https://localhost:18443/api/v1/auth/login \
+  -H 'Content-Type: application/json' -d '{"username":"admin","password":"medharness123"}'
+#   -> {"ok":true,"role":"sysadmin","username":"admin","display_name":"Root User"}
+curl -sk -o /dev/null -w '%{http_code}\n' https://localhost:18443/api/setup   # 404（控制面在 DMZ 被拒）
+```
+
+**登录链路**：Console 表单（账号+密码）→ nginx 同源 → A0 `POST /api/v1/auth/login` →
+转发 new-api `/api/user/login` 真校验；new-api `role≥10` 落「系统管理员」，否则「研发负责人」；
+失败一律 generic 401（不回显后端文案）。
+
+dev 已知点：
+
+- `ci-trigger / internal-kb / pm-bridge / vector-db` 是 intentional placeholders，会 restart-loop（退出码 0），**不在登录/Console 路径上**，可忽略或 `docker compose ... stop <svc>`。
+- Console 数据源是 ClickHouse `_audit_log`；空库时各屏走 degraded。要看「有数据」的 Console，参考 `scripts/int5_console_smoke.sh` 的 `dev_seed_audit.py` 思路灌合成（0-PHI）行。
+- 端口/卷可在 `deploy/docker-compose.local.yml` 改；停栈 `docker compose -f ... -f ... down`（加 `-v` 连命名卷一起删）。
