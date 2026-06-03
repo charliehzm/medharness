@@ -17,6 +17,10 @@ type LoadState =
 
 type CostDim = CostResponse["by_lane"][number];
 
+// Honest sentinel for commercial-tier savings intelligence the community substrate
+// cannot truthfully derive (vs-direct savings, cache ROI, budget cap).
+const SOON = "即将推出";
+
 type ChannelRow = {
   [key: string]: unknown;
   name: string;
@@ -212,27 +216,14 @@ export default function Cost(): JSX.Element {
 
   const kpiCards = useMemo(() => {
     if (state.status !== "ready") return [];
+    const k = state.cost.kpi;
+    // Real where the substrate supports it (cost / today / lane share); the
+    // savings-intelligence card honestly points to the commercial tier.
     return [
-      {
-        title: "本月成本",
-        value: state.cost.kpi.month_cost,
-        foot: `较直连省 ${state.cost.kpi.saved_vs_direct} · ${state.cost.kpi.saved_ratio}`,
-      },
-      {
-        title: "缓存省",
-        value: state.cost.kpi.cache_saved,
-        foot: `缓存命中 ${state.cost.kpi.cache_hit_ratio}`,
-      },
-      {
-        title: "常规通道",
-        value: state.cost.kpi.normal_lane_ratio,
-        foot: "常规通道承载更多低成本流量",
-      },
-      {
-        title: "节省比",
-        value: state.cost.kpi.saved_ratio,
-        foot: `按聚合口径估算节省 ${state.cost.kpi.saved_vs_direct}`,
-      },
+      { title: "本月成本", value: k.month_cost, foot: "近 30 日实时聚合", soon: false },
+      { title: "今日成本", value: k.cap_used, foot: "今日累计用量", soon: false },
+      { title: "常规通道占比", value: k.normal_lane_ratio, foot: "低成本池承载占比", soon: false },
+      { title: "省钱分析", value: SOON, foot: "较直连节省 · 缓存 ROI · 优化建议（商业版）", soon: true },
     ];
   }, [state]);
 
@@ -271,7 +262,7 @@ export default function Cost(): JSX.Element {
               <Card key={card.title}>
                 <div className="cost-kpi-card">
                   <div className="cost-kpi-title">{card.title}</div>
-                  <div className="cost-kpi-value">{card.value}</div>
+                  <div className={card.soon ? "cost-kpi-value cost-kpi-soon" : "cost-kpi-value"}>{card.value}</div>
                   <div className="cost-kpi-foot">{card.foot}</div>
                 </div>
               </Card>
@@ -279,21 +270,21 @@ export default function Cost(): JSX.Element {
           </section>
 
           <section className="cost-grid cost-grid-guard">
-            <Card title="成本护栏">
+            <Card title="通道与用量">
               <div className="cost-guard">
-                <Ring value={Number.parseInt(state.cost.kpi.cap_left_ratio, 10)} color="var(--cost)" label="余量" denominator="% left" />
+                <Ring value={Number.parseInt(state.cost.kpi.normal_lane_ratio, 10) || 0} color="var(--cost)" label="常规占比" denominator="% 低成本池" />
                 <div className="cost-guard-copy">
                   <div className="cost-guard-line">
-                    <span>日上限</span>
-                    <b>{state.cost.kpi.cap_day}</b>
+                    <span>本月成本</span>
+                    <b>{state.cost.kpi.month_cost}</b>
                   </div>
                   <div className="cost-guard-line">
-                    <span>今日已用</span>
+                    <span>今日成本</span>
                     <b>{state.cost.kpi.cap_used}</b>
                   </div>
                   <div className="cost-guard-line">
-                    <span>剩余比例</span>
-                    <b>{state.cost.kpi.cap_left_ratio}</b>
+                    <span>常规通道</span>
+                    <b>{state.cost.kpi.normal_lane_ratio}</b>
                   </div>
                 </div>
               </div>

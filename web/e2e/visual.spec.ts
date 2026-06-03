@@ -15,7 +15,7 @@ const SCREENS: ReadonlyArray<readonly [string, readonly string[]]> = [
   ["总览", []], // posture scores are deterministic from the seed; gates are static
   ["流量监控", [".events"]], // event stream carries live timestamps
   ["合规与报表", [".dtable-scroll"]], // table rows carry timestamps
-  ["用量与成本", []], // static cost payload
+  ["用量与成本", [".cost-grid-kpi", ".cost-grid-guard", ".cost-grid-bars"]], // live cost aggregates vary per run
   ["接入", [".dtable-scroll"]], // admin id_hashes vary per run
   ["策略", []], // static config sections
   ["系统", [".system-list"]], // upstream "today" counters

@@ -11,7 +11,7 @@
   },
   "outbound": {
     "built": false,
-    "note": "即将推出",
+    "note": "出站安全网关已上线（有害 / PHI 回流 / 幻觉规则检查）；实时响应流可视化即将推出",
     "gate": { "phi_reflow": 0, "harmful": 0, "hallucination": 0 }
   }
 }

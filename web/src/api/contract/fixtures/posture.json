@@ -7,8 +7,8 @@
     { "id": "desensitize", "group": "compliance", "status": "green", "metric": "0.02ms", "built": true },
     { "id": "model-router", "group": "compliance", "status": "green", "metric": "11/11", "built": true },
     { "id": "injection", "group": "security", "status": "green", "metric": "100%", "built": true },
-    { "id": "outbound-safety", "group": "security", "status": "planned", "metric": "即将推出", "built": false },
-    { "id": "rate-limit", "group": "security", "status": "planned", "metric": "即将推出", "built": false }
+    { "id": "outbound-safety", "group": "security", "status": "green", "metric": "3 类规则检查", "desc": "有害拦截 · PHI 回流 · 幻觉医嘱告警", "built": true },
+    { "id": "rate-limit", "group": "security", "status": "green", "metric": "配额强制", "desc": "按用户 / 令牌配额预扣结算 · RPM 可配置", "built": true }
   ],
   "alerts": [
     { "cat": "security", "type": "注入", "level": "warn", "summary": "prod-dify 今日拦截 3 次注入尝试", "payload": null }

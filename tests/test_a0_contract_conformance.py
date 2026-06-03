@@ -299,4 +299,9 @@ def test_a0_config_every_frozen_section_conforms(section, a0_client) -> None:
 def test_all_thirteen_contract_endpoints_are_covered() -> None:
     # Guard against silent drift: this suite must exercise every frozen endpoint.
     assert len(ENDPOINTS) == 13
-    assert {e[4] for e in ENDPOINTS} == {p.name for p in FIXTURES.glob("*.json")}
+    # admin_users_mgmt.json backs the sysadmin user-management view, which is
+    # auth-gated (_require_sysadmin) and therefore cannot be driven by this no-auth
+    # structural suite. It has dedicated, auth-aware coverage in
+    # tests/test_a0_user_mgmt.py, so it is excluded here (not silently dropped).
+    structural_fixtures = {p.name for p in FIXTURES.glob("*.json")} - {"admin_users_mgmt.json"}
+    assert {e[4] for e in ENDPOINTS} == structural_fixtures

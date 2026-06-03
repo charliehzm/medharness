@@ -663,16 +663,24 @@ def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
         "output": {
             "section": "output",
             "title": "出站输出安全",
-            "built": False,
-            "note": "即将推出",
-            "fields": [{"k": "PHI 回流", "v": "拦截（即将推出）"}, {"k": "幻觉医嘱", "v": "告警（即将推出）"}],
+            "built": True,
+            "note": "规则版 · 社区版",
+            "fields": [
+                {"k": "PHI 回流", "v": "拦截"},
+                {"k": "有害内容", "v": "拦截"},
+                {"k": "幻觉医嘱", "v": "告警"},
+            ],
         },
         "quota": {
             "section": "quota",
             "title": "配额限流",
-            "built": False,
-            "note": "即将推出",
-            "fields": [{"k": "按上游", "v": "即将推出"}, {"k": "日成本护栏", "v": "即将推出"}],
+            "built": True,
+            "note": "由底座强制",
+            "fields": [
+                {"k": "用户 / 令牌配额", "v": "强制（预扣 + 结算）"},
+                {"k": "余额不足", "v": "拒绝放行"},
+                {"k": "请求限流 RPM", "v": "可配置"},
+            ],
         },
         "upstream": {
             "section": "upstream",
@@ -688,36 +696,149 @@ def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
     return base.get(section)
 
 
+# --- A3 live cost: aggregate REAL usage/cost from the new-api substrate ----------
+# new-api enforces + records per-(day, user, model) quota usage; A0 reads it via the
+# admin token (GET /api/data/) and folds it into the frozen cost contract. Fields the
+# COMMUNITY substrate cannot truthfully derive — savings-vs-direct, cache ROI, daily
+# budget cap, optimization tips — are surfaced as "即将推出" (commercial tier), NEVER
+# fabricated. If the substrate is unreachable / unconfigured we degrade to an honest
+# zero state, never to invented spend.
+_COST_SOON = "即将推出"
+_QUOTA_PER_UNIT = float(os.environ.get("NEW_API_QUOTA_PER_UNIT", "") or 500000.0)
+_COST_CURRENCY = os.environ.get("NEW_API_COST_CURRENCY", "$")
+_SENSITIVE_MODEL_HINTS = ("gpt", "claude", "gemini", "anthropic", "openai", "o1", "o3", "境外")
+_MODEL_COLOR_TOKENS = ("compliance", "primary", "ok", "cost")
+
+
+def _lane_of_model(model: str) -> str:
+    name = (model or "").lower()
+    return "sensitive" if any(hint in name for hint in _SENSITIVE_MODEL_HINTS) else "normal"
+
+
+def _fmt_cost(quota: float) -> str:
+    unit = _QUOTA_PER_UNIT if _QUOTA_PER_UNIT > 0 else 500000.0
+    value = quota / unit
+    if 0 < value < 0.01:  # sub-cent real spend: keep enough precision to read non-zero
+        return f"{_COST_CURRENCY}{value:,.4f}"
+    return f"{_COST_CURRENCY}{value:,.2f}"
+
+
+def _fetch_live_cost(window_days: int = 30) -> dict[str, Any] | None:
+    """Aggregate real usage from new-api /api/data/ (admin). None on any failure."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    start = now - window_days * 86400
+    try:
+        status, parsed = _new_api_admin_request(
+            "GET", f"/api/data/?start_timestamp={start}&end_timestamp={now}"
+        )
+    except NewApiUnavailable:
+        return None
+    if status != 200 or not parsed.get("success") or not isinstance(parsed.get("data"), list):
+        return None
+    total = 0.0
+    by_model: dict[str, float] = {}
+    by_lane = {"normal": 0.0, "sensitive": 0.0}
+    by_day: dict[int, float] = {}
+    today = 0.0
+    seven_start = now - 7 * 86400
+    today_start = now - 86400
+    for row in parsed["data"]:
+        if not isinstance(row, dict):
+            continue
+        try:
+            quota = float(row.get("quota") or 0)
+            ts = int(row.get("created_at") or 0)
+        except (TypeError, ValueError):
+            continue
+        if quota <= 0:
+            continue
+        total += quota
+        model = str(row.get("model_name") or "unknown")
+        by_model[model] = by_model.get(model, 0.0) + quota
+        by_lane[_lane_of_model(model)] += quota
+        if ts >= seven_start:
+            bucket = min(6, (ts - seven_start) // 86400)
+            by_day[bucket] = by_day.get(bucket, 0.0) + quota
+        if ts >= today_start:
+            today += quota
+    return {"total": total, "by_model": by_model, "by_lane": by_lane, "by_day": by_day, "today": today}
+
+
+def _cost_kpi(month_cost: str, cap_used: str, normal_ratio: str) -> dict[str, str]:
+    # Real where the substrate supports it; honest "即将推出" for commercial-tier
+    # savings intelligence (vs-direct savings, cache ROI, daily budget cap).
+    return {
+        "month_cost": month_cost,
+        "saved_vs_direct": _COST_SOON,
+        "saved_ratio": _COST_SOON,
+        "cache_hit_ratio": _COST_SOON,
+        "cache_saved": _COST_SOON,
+        "cap_day": _COST_SOON,
+        "cap_used": cap_used,
+        "cap_left_ratio": _COST_SOON,
+        "normal_lane_ratio": normal_ratio,
+    }
+
+
+_COST_COMMERCIAL_TIP = {
+    "tip": "实时用量与成本已接入底座；较直连节省、缓存 ROI 与优化建议由商业版提供",
+    "saving": _COST_SOON,
+}
+
+
 def _cost_payload() -> dict[str, Any]:
+    live = _fetch_live_cost(30)
+    if not live or live["total"] <= 0:
+        # Honest zero state — real shape, no fabricated spend.
+        return {
+            "window": "month",
+            "kpi": _cost_kpi(_fmt_cost(0.0), _fmt_cost(0.0), "0%"),
+            "by_lane": [
+                {"name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 0, "amount": _fmt_cost(0.0)},
+            ],
+            "by_model": [
+                {"name": "（暂无实时用量）", "color_token": "compliance", "pct": 0, "amount": _fmt_cost(0.0)},
+            ],
+            "trend": [0, 0, 0, 0, 0, 0, 0],
+            "tips": [_COST_COMMERCIAL_TIP],
+        }
+    total = live["total"]
+    ranked = sorted(live["by_model"].items(), key=lambda kv: kv[1], reverse=True)[:4]
+    by_model = [
+        {
+            "name": name,
+            "color_token": _MODEL_COLOR_TOKENS[i % len(_MODEL_COLOR_TOKENS)],
+            "pct": round(quota / total * 100),
+            "amount": _fmt_cost(quota),
+        }
+        for i, (name, quota) in enumerate(ranked)
+    ]
+    lanes = live["by_lane"]
+    lane_total = lanes["normal"] + lanes["sensitive"]
+    by_lane: list[dict[str, Any]] = []
+    if lanes["normal"] > 0 or lane_total == 0:
+        by_lane.append({
+            "name": "常规通道（低成本池）",
+            "color_token": "lane-normal",
+            "pct": round(lanes["normal"] / lane_total * 100) if lane_total else 0,
+            "amount": _fmt_cost(lanes["normal"]),
+        })
+    if lanes["sensitive"] > 0:
+        by_lane.append({
+            "name": "敏感通道（私有）",
+            "color_token": "lane-sensitive",
+            "pct": round(lanes["sensitive"] / lane_total * 100) if lane_total else 0,
+            "amount": _fmt_cost(lanes["sensitive"]),
+        })
+    normal_ratio = f"{round(lanes['normal'] / lane_total * 100)}%" if lane_total else "0%"
+    trend = [int(live["by_day"].get(bucket, 0.0)) for bucket in range(7)]
     return {
         "window": "month",
-        "kpi": {
-            "month_cost": "¥3,240",
-            "saved_vs_direct": "¥2,240",
-            "saved_ratio": "41%",
-            "cache_hit_ratio": "28%",
-            "cache_saved": "¥420",
-            "cap_day": "¥200",
-            "cap_used": "¥124",
-            "cap_left_ratio": "62%",
-            "normal_lane_ratio": "73%",
-        },
-        "by_lane": [
-            {"name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 36, "amount": "¥1,180"},
-            {"name": "敏感通道（私有）", "color_token": "lane-sensitive", "pct": 64, "amount": "¥2,060"},
-        ],
-        "by_model": [
-            {"name": "qwen-max-2026", "color_token": "compliance", "pct": 43, "amount": "¥1,400"},
-            {"name": "claude-sonnet", "color_token": "primary", "pct": 28, "amount": "¥900"},
-            {"name": "deepseek-v4-pro", "color_token": "ok", "pct": 17, "amount": "¥540"},
-            {"name": "qwen-vl-2026", "color_token": "cost", "pct": 12, "amount": "¥400"},
-        ],
-        "trend": [58, 62, 55, 70, 64, 61, 52],
-        "tips": [
-            {"tip": "开发期简单补全占 38%，建议默认走 deepseek（更省的小模型）", "saving": "省 ¥18/天"},
-            {"tip": "常规通道缓存命中 28%，规范调用模板可提到 ~40%", "saving": "省 ¥260/月"},
-            {"tip": "claude-sonnet 28% 调用可降级到 qwen-max（境内）", "saving": "省 ¥420/月"},
-        ],
+        "kpi": _cost_kpi(_fmt_cost(total), _fmt_cost(live["today"]), normal_ratio),
+        "by_lane": by_lane,
+        "by_model": by_model,
+        "trend": trend,
+        "tips": [_COST_COMMERCIAL_TIP],
     }
 
 
@@ -1140,16 +1261,18 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
             {
                 "id": "outbound-safety",
                 "group": "security",
-                "status": "planned",
-                "metric": "即将推出",
-                "built": False,
+                "status": "green",
+                "metric": "3 类规则检查",
+                "desc": "有害拦截 · PHI 回流 · 幻觉医嘱告警",
+                "built": True,
             },
             {
                 "id": "rate-limit",
                 "group": "security",
-                "status": "planned",
-                "metric": "即将推出",
-                "built": False,
+                "status": "green",
+                "metric": "配额强制",
+                "desc": "按用户 / 令牌配额预扣结算 · RPM 可配置",
+                "built": True,
             },
         ],
         "alerts": [
@@ -1201,7 +1324,7 @@ def _traffic_payload(rows: list[dict[str, Any]], window: str | None, ctx: str | 
         },
         "outbound": {
             "built": False,
-            "note": "即将推出",
+            "note": "出站安全网关已上线（有害 / PHI 回流 / 幻觉规则检查）；实时响应流可视化即将推出",
             "gate": {"phi_reflow": 0, "harmful": 0, "hallucination": 0},
         },
     }

@@ -90,6 +90,13 @@
   line-height: 1.1;
 }
 
+/* Commercial-tier savings intelligence: rendered muted, not as a hard number. */
+.cost-kpi-value.cost-kpi-soon {
+  color: var(--muted);
+  font-size: 20px;
+  font-weight: 700;
+}
+
 .cost-guard {
   display: grid;
   grid-template-columns: 120px minmax(0, 1fr);

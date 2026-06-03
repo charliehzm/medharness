@@ -154,7 +154,9 @@ def test_remaining_read_endpoints_return_contract_shapes() -> None:
         "phi",
     }
     assert config.json()["section"] == "output"
-    assert config.json()["built"] is False
+    # A1: outbound output-safety is now a real rules-based gate (harmful + PHI reflow
+    # + medical-hallucination heuristics), so the config card reports it as built.
+    assert config.json()["built"] is True
     assert set(cost.json()) == {"window", "kpi", "by_lane", "by_model", "trend", "tips"}
     assert set(channels.json()) == {"channels"}
     assert set(channels.json()["channels"][0]) == {
