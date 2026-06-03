@@ -393,7 +393,9 @@ def _audit_row_by_ref(ref: str) -> dict[str, Any] | None:
     sql = (
         f"SELECT {', '.join(columns)} FROM _audit_log "
         f"WHERE current_hash = {_ch_string(safe_ref)} "
-        f"OR event_id = {_ch_string(safe_ref)} "
+        # event_id is a UUID column: compare its string form so a non-UUID ref
+        # (e.g. 'routing#2df6') doesn't make ClickHouse raise CANNOT_PARSE_UUID.
+        f"OR toString(event_id) = {_ch_string(safe_ref)} "
         f"OR current_hash LIKE {_ch_string(f'{prefix}%')} "
         "ORDER BY row_id DESC LIMIT 1"
     )
@@ -744,7 +746,9 @@ def _audit_event_for_operation(
     )
     event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
     digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
-    timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    # ClickHouse DateTime64(3) JSONEachRow wants 'YYYY-MM-DD HH:MM:SS.fff' (space,
+    # no T/Z); an ISO 'T…Z' string fails to parse and the INSERT 503s.
+    timestamp = datetime.now(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
     return {
         "event_id": event_id,
         "timestamp": timestamp,
