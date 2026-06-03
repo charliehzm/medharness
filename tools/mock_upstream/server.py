@@ -151,6 +151,19 @@ def _openai_chat_completion(model: str, directives: dict[str, Any] | None = None
     }
 
 
+def _content_fragments(directives: dict[str, Any] | None = None) -> list[str]:
+    """The streamed delta.content pieces. With X-Mock-Stream-Split the synthetic
+    harmful trigger is SPLIT across chunk boundaries: no single SSE frame contains
+    the whole phrase, but the concatenation does. A per-frame outbound scan misses
+    it (evasion); only a scan that reassembles delta.content catches "make a bomb".
+    """
+    if directives and directives.get("stream_split"):
+        s = ECHO_UNSAFE_TEXT  # " make a bomb"
+        cut = s.index("bomb")  # boundary mid-phrase -> [" make a ", "bomb"]
+        return [MOCK_REPLY_TEXT + s[:cut], s[cut:]]
+    return [_reply_text(directives)]
+
+
 def _openai_chat_chunks(model: str, directives: dict[str, Any] | None = None) -> list[dict[str, object]]:
     base = {
         "id": CHAT_COMPLETION_ID,
@@ -158,20 +171,24 @@ def _openai_chat_chunks(model: str, directives: dict[str, Any] | None = None) ->
         "created": CREATED_AT,
         "model": model,
     }
-    return [
-        {**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]},
-        {
-            **base,
-            "choices": [
-                {"index": 0, "delta": {"content": _reply_text(directives)}, "finish_reason": None}
-            ],
-        },
+    chunks: list[dict[str, object]] = [
+        {**base, "choices": [{"index": 0, "delta": {"role": "assistant"}, "finish_reason": None}]}
+    ]
+    for fragment in _content_fragments(directives):
+        chunks.append(
+            {
+                **base,
+                "choices": [{"index": 0, "delta": {"content": fragment}, "finish_reason": None}],
+            }
+        )
+    chunks.append(
         {
             **base,
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
             "usage": _usage(directives),
-        },
-    ]
+        }
+    )
+    return chunks
 
 
 def _anthropic_message(model: str, directives: dict[str, Any] | None = None) -> dict[str, object]:
@@ -250,6 +267,7 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
             "status": _int_directive(h, "X-Mock-Status", "MOCK_STATUS", None),
             "echo_phi": _flag_directive(h, "X-Mock-Echo-Phi", "MOCK_ECHO_PHI"),
             "echo_unsafe": _flag_directive(h, "X-Mock-Echo-Unsafe", "MOCK_ECHO_UNSAFE"),
+            "stream_split": _flag_directive(h, "X-Mock-Stream-Split", "MOCK_STREAM_SPLIT"),
             "prompt_tokens": _int_directive(h, "X-Mock-Prompt-Tokens", "MOCK_PROMPT_TOKENS", None),
             "completion_tokens": _int_directive(h, "X-Mock-Completion-Tokens", "MOCK_COMPLETION_TOKENS", None),
         }

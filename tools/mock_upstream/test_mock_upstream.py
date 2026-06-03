@@ -266,3 +266,46 @@ def test_last_prompt_capture_and_reset(base_url: str) -> None:
     assert _get_json(base_url, "/__last")[1]["prompt"] == "hello desensitized world"
     _post_json(base_url, "/__reset", {})
     assert _get_json(base_url, "/__last")[1]["prompt"] == ""
+
+
+def _post_sse(base_url: str, payload: dict[str, Any], headers: dict[str, str]) -> str:
+    request = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", **headers},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        assert response.headers.get_content_type() == "text/event-stream"
+        return response.read().decode("utf-8")
+
+
+def _reassemble_sse_content(body: str) -> str:
+    out: list[str] = []
+    for line in body.splitlines():
+        if not line.startswith("data: ") or line.endswith("[DONE]"):
+            continue
+        chunk = json.loads(line[len("data: ") :])
+        for choice in chunk.get("choices", []):
+            frag = choice.get("delta", {}).get("content")
+            if isinstance(frag, str):
+                out.append(frag)
+    return "".join(out)
+
+
+def test_stream_split_evades_per_frame_but_reassembles(base_url: str) -> None:
+    # X-Mock-Stream-Split breaks the harmful phrase across SSE frames: no single
+    # frame contains "make a bomb" (a naive per-frame outbound scan misses it),
+    # but reassembling delta.content yields the full phrase (a reassembling scan
+    # catches it). This drives the ST3 streaming-evasion gate test.
+    body = _post_sse(base_url, {"model": "m", "stream": True}, {"X-Mock-Stream-Split": "1"})
+    frames = [line for line in body.splitlines() if line.startswith("data: ")]
+    assert not any("make a bomb" in frame for frame in frames)
+    assert "make a bomb" in _reassemble_sse_content(body)
+
+
+def test_stream_echo_phi_survives_in_a_single_frame(base_url: str) -> None:
+    # PHI echoed into a streamed delta stays verbatim inside one frame, so even a
+    # per-frame scan catches it (this is ST2: streaming PHI reflow is still blocked).
+    body = _post_sse(base_url, {"model": "m", "stream": True}, {"X-Mock-Echo-Phi": "1"})
+    assert any("身份证" in line for line in body.splitlines() if line.startswith("data: "))
