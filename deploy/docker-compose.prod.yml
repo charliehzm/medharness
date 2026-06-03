@@ -163,6 +163,9 @@ services:
   ci-trigger:
     image: medharness/mcp-ci-trigger:${VERSION}
     container_name: medharness-ci-trigger
+    # stub placeholders run a minimal HTTP health server (not stdio, which EOFs
+    # and restart-loops in a detached container).
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -172,7 +175,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -181,6 +184,7 @@ services:
   internal-kb:
     image: medharness/mcp-internal-kb:${VERSION}
     container_name: medharness-internal-kb
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -190,7 +194,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -199,6 +203,7 @@ services:
   pm-bridge:
     image: medharness/mcp-pm-bridge:${VERSION}
     container_name: medharness-pm-bridge
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -208,7 +213,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -217,6 +222,7 @@ services:
   vector-db:
     image: medharness/mcp-vector-db:${VERSION}
     container_name: medharness-vector-db
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -226,7 +232,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s

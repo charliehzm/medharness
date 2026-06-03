@@ -49,7 +49,43 @@ def _serve_stdio() -> int:
     return 0
 
 
+def _serve_http(host: str, port: int) -> int:
+    """Long-lived HTTP health endpoint so this v0.5.0-edge placeholder stays up in
+    a detached container — the default `serve --stdio` hits stdin EOF and exits,
+    which restart-loops under compose. Real behavior lands in a later milestone;
+    for now only GET /health is served."""
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class _Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_args: object) -> None:
+            pass
+
+        def do_GET(self) -> None:
+            if self.path.rstrip("/") in ("", "/health"):
+                body = json.dumps({"status": "ok", "service": "vector-db", "stub": True}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+    ThreadingHTTPServer((host, port), _Handler).serve_forever()
+    return 0
+
+
 def main() -> int:
+    if sys.argv[1:3] == ["serve", "--http"]:
+        host, port = "0.0.0.0", 9000
+        rest = sys.argv[3:]
+        for i, a in enumerate(rest):
+            if a == "--host" and i + 1 < len(rest):
+                host = rest[i + 1]
+            elif a == "--port" and i + 1 < len(rest):
+                port = int(rest[i + 1])
+        return _serve_http(host, port)
     if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
         return _serve_stdio()
     cmd = sys.argv[1] if len(sys.argv) > 1 else "health"
