@@ -69,19 +69,28 @@ echo "   mock up"
 
 echo "== 3. new-api channel + token (via ${A0} -> new-api:3000) =="
 TOKEN_KEY="$(docker exec -i "$A0" python - "$ROOT_USER" "$ROOT_PASS" "$MOCK" <<'PY'
-import http.cookiejar, json, sys, urllib.request
+import http.cookiejar, json, sys, time, urllib.error, urllib.request
 user, pw, mock = sys.argv[1], sys.argv[2], sys.argv[3]
 BASE = "http://new-api:3000"
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 
 def call(path, body=None, method=None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(BASE + path, data=data, method=method or ("POST" if body is not None else "GET"))
-    req.add_header("Content-Type", "application/json")
-    req.add_header("New-Api-User", "1")
-    with op.open(req, timeout=10) as resp:
-        raw = resp.read().decode()
-        return json.loads(raw) if raw.strip() else {}
+    # new-api rate-limits auth endpoints; the smoke runs right after the heavy
+    # live-pytest phase, so a burst can yield a transient 429. Back off & retry.
+    for attempt in range(6):
+        req = urllib.request.Request(BASE + path, data=data, method=method or ("POST" if body is not None else "GET"))
+        req.add_header("Content-Type", "application/json")
+        req.add_header("New-Api-User", "1")
+        try:
+            with op.open(req, timeout=10) as resp:
+                raw = resp.read().decode()
+                return json.loads(raw) if raw.strip() else {}
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 5:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise
 
 call("/api/user/login", {"username": user, "password": pw})
 # Delete stale channels first so gpt-4o routes only to the live mock here
@@ -136,3 +145,7 @@ echo "   DENY -> 503 generic + no marker + ZERO upstream connections ($C1 == $C2
 
 echo "RELAY-PROD-STACK E2E PASS"
 [ "$KEEP" = 1 ] && echo "(kept mock $MOCK up)"
+# NB: the line above is a `test && echo` compound; when KEEP=0 the test is false
+# and would make it the script's (false) exit status. Force a clean exit so a
+# fully-passing smoke reports success to callers that check $? (e.g. e2e_full.sh).
+exit 0

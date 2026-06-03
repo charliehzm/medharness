@@ -33,6 +33,13 @@ services:
     # NOT reachable through the nginx DMZ (the /api/ deny).
     volumes:
       - new_api_data:/data:rw
+    environment:
+      # Local test stack ONLY. The automated E2E harness logs in many times per
+      # run (Console Playwright specs + pytest session setup + relay smoke).
+      # new-api's CriticalRateLimit defaults to 20 logins / 20 min (constants.go),
+      # which 429s back-to-back suite runs. Production keeps the default (enabled);
+      # this relaxes it for the local harness only. Map-merges into the prod env.
+      CRITICAL_RATE_LIMIT_ENABLE: "false"
   clickhouse:
     volumes:
       - clickhouse_data:/var/lib/clickhouse:rw
