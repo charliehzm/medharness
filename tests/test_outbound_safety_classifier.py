@@ -119,6 +119,45 @@ def test_hallucination_medical_advice_warns_only() -> None:
     assert result.sanitized_text is None
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "这个药完全没有副作用，绝对安全。",  # false-safety (ZH)
+        "It has no side effects and is completely safe.",  # false-safety (EN)
+        "根据你的描述，你一定是癌症。",  # definitive self-diagnosis (ZH)
+        "Based on this, you definitely have cancer.",  # definitive diagnosis (EN)
+        "建议你自行加倍剂量，效果更好。",  # unsanctioned dosage change (ZH)
+        "You should double your dose tonight.",  # dosage directive (EN)
+        "临床证明可治愈所有类型的糖尿病。",  # fabricated authority (ZH)
+        "This remedy is clinically proven and FDA-approved.",  # fabricated authority (EN)
+    ],
+)
+def test_medical_hallucination_heuristics_warn(text: str) -> None:
+    result = classifier.classify(text, _context(), _policy(), phi_scan=_no_phi_scan)
+
+    assert result.decision == "warned"
+    assert result.classifications  # at least one rule fired
+    assert all(
+        item.type == "hallucination" and item.disposition == "warn"
+        for item in result.classifications
+    )
+    assert result.sanitized_text is None
+
+
+def test_responsible_medical_language_does_not_warn() -> None:
+    # Substantive, safe clinical phrasing must NOT trip the heuristics: it names a
+    # side effect honestly and defers to a clinician — the opposite of the patterns.
+    result = classifier.classify(
+        "本药可能引起嗜睡等副作用，请遵医嘱用药，如有不适请及时就医。",
+        _context(),
+        _policy(),
+        phi_scan=_no_phi_scan,
+    )
+
+    assert result.decision == "pass"
+    assert result.classifications == ()
+
+
 def test_normal_response_passes_without_classifications() -> None:
     result = classifier.classify(
         "建议把此回复转交给合规官复核，并继续遵循既定流程。",

@@ -75,7 +75,13 @@ HARMFUL_RULES: tuple[_Rule, ...] = (
     ),
 )
 
+# Medical-hallucination heuristics (rule-based — the COMMUNITY tier; the trained
+# classifier is the commercial tier). Disposition is "warn", never "block": a
+# hallucination is FLAGGED for human review, not silently dropped. Each pattern
+# targets a class of unsafe/unsupported medical assertion an LLM should never make
+# authoritatively. EN + ZH.
 HALLUCINATION_RULES: tuple[_Rule, ...] = (
+    # 1. Direct dangerous medical directives (highest confidence).
     _Rule(
         "hallucination",
         re.compile(
@@ -84,6 +90,50 @@ HALLUCINATION_RULES: tuple[_Rule, ...] = (
             re.IGNORECASE,
         ),
         0.78,
+        "warn",
+    ),
+    # 2. False-safety / absolute-efficacy claims (no drug is risk-free or 100%).
+    _Rule(
+        "hallucination",
+        re.compile(
+            r"\b(no side effects?|completely safe|totally safe|100%\s*(?:safe|effective|cure(?:d)?))\b"
+            r"|无(?:任何)?副作用|没有(?:任何)?副作用|绝对安全|百分之百(?:治愈|有效|安全)|100%治愈|包治百病|药到病除",
+            re.IGNORECASE,
+        ),
+        0.74,
+        "warn",
+    ),
+    # 3. Definitive diagnosis the model cannot make without examination.
+    _Rule(
+        "hallucination",
+        re.compile(
+            r"\byou (?:definitely |certainly )?have\b[^.\n]{0,40}\b(cancer|tumou?r|diabetes|aids|hiv)\b"
+            r"|你(?:得了|患有|确诊为?|一定是|肯定是)(?:癌症?|肿瘤|糖尿病|艾滋病?|尿毒症|白血病)",
+            re.IGNORECASE,
+        ),
+        0.70,
+        "warn",
+    ),
+    # 4. Unsanctioned medication-change / dosage directives.
+    _Rule(
+        "hallucination",
+        re.compile(
+            r"\b(?:double|triple|increase|stop|skip)\s+(?:your\s+|the\s+)?(?:dose|dosage|medication|insulin)\b"
+            r"|(?:自行|建议你?)(?:加倍|加量|减量|停用|停服|换药)|(?:剂量|药量)(?:翻倍|加倍|乘以)",
+            re.IGNORECASE,
+        ),
+        0.72,
+        "warn",
+    ),
+    # 5. Fabricated authority (unverifiable claims of proof / approval).
+    _Rule(
+        "hallucination",
+        re.compile(
+            r"\b(?:fda[- ]approved|clinically proven|studies (?:prove|show) it cures)\b"
+            r"|临床(?:证明|验证)(?:可|能)?治愈|研究证明[^.\n]{0,20}治愈|权威(?:机构)?认证[^.\n]{0,20}疗效",
+            re.IGNORECASE,
+        ),
+        0.66,
         "warn",
     ),
 )
