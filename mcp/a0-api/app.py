@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -19,6 +20,7 @@ from serializers import (
     serialize_admin_channels,
     serialize_admin_tokens,
     serialize_admin_users,
+    serialize_admin_users_mgmt,
     serialize_audit_export,
     serialize_audit_lineage,
     serialize_channels,
@@ -36,6 +38,7 @@ try:  # pragma: no cover - exercised when the real dependency is installed
     FastAPI = _fastapi.FastAPI  # type: ignore[attr-defined]
     Body = _fastapi.Body  # type: ignore[attr-defined]
     Query = _fastapi.Query  # type: ignore[attr-defined]
+    Header = _fastapi.Header  # type: ignore[attr-defined]
     JSONResponse = import_module("fastapi.responses").JSONResponse  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover - local test fallback or partial namespace package
     FastAPI = None  # type: ignore[assignment]
@@ -47,8 +50,11 @@ except Exception:  # pragma: no cover - local test fallback or partial namespace
     def Query(default: Any = None, **_: Any) -> Any:
         return default
 
+    def Header(default: Any = None, **_: Any) -> Any:
+        return default
+
 API_BASE = "/api/v1"
-CONTRACT_VERSION = "0.7.1"
+CONTRACT_VERSION = "0.8.0"
 DEFAULT_HTTP_HOST = "0.0.0.0"
 DEFAULT_HTTP_PORT = 8010
 DEFAULT_CLICKHOUSE_HOST = "clickhouse"
@@ -258,6 +264,80 @@ def _verify_session(token: str | None) -> dict[str, Any] | None:
     return claims
 
 
+# ── Admin-write authorization + new-api admin client ─────────────────────────────
+# The admin user-management endpoints are gated on the A0 session: only a verified
+# token whose console role is "sysadmin" may mutate users, and every mutation is
+# replayed to new-api under a server-held root access_token (never the operator's).
+# Authorization is decided locally from the signed token — no per-request round-trip.
+def _require_session(authorization: str | None) -> dict[str, Any] | None:
+    """Return verified session claims for the request, or None (fail-closed)."""
+    return _verify_session(authorization)
+
+
+def _require_sysadmin(authorization: str | None) -> dict[str, Any] | None:
+    """Return claims only if the session is valid AND the console role is sysadmin."""
+    claims = _verify_session(authorization)
+    if claims is None or claims.get("cr") != "sysadmin":
+        return None
+    return claims
+
+
+def _new_api_admin_headers() -> dict[str, str] | None:
+    """Admin headers for new-api, or None if the root token is unconfigured.
+
+    new-api wants the access_token in the BARE Authorization header (no "Bearer ")
+    plus the New-Api-User id. Returns None so the caller fails closed with a 503 —
+    the token itself is never logged.
+    """
+    token = os.environ.get("NEW_API_ADMIN_TOKEN", "")
+    if not token:
+        return None
+    return {
+        "Authorization": token,
+        "New-Api-User": os.environ.get("NEW_API_ADMIN_USER_ID", ""),
+        "Content-Type": "application/json",
+    }
+
+
+def _new_api_admin_request(
+    method: str, path: str, body: dict[str, Any] | None = None
+) -> tuple[int, dict[str, Any]]:
+    """Call new-api as admin and return (status, parsed-json).
+
+    Mirrors ``_new_api_login`` discipline: a transport fault or non-2xx raises
+    NewApiUnavailable (caller -> 502/503); a 2xx with new-api's own
+    ``success: false`` is returned verbatim so the caller maps it to a GENERIC 4xx
+    (new-api's message is never echoed). The admin token and any request body are
+    never logged.
+    """
+    headers = _new_api_admin_headers()
+    if headers is None:
+        raise NewApiUnavailable("NEW_API_ADMIN_TOKEN unset")
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = request.Request(
+        f"{_new_api_base()}{path}",
+        data=data,
+        method=method.upper(),
+        headers=headers,
+    )
+    try:
+        with request.urlopen(req, timeout=5.0) as resp:
+            raw = resp.read().decode("utf-8")
+            status = resp.status
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:240]
+        raise NewApiUnavailable(f"HTTP {exc.code}: {detail}") from exc
+    except OSError as exc:
+        raise NewApiUnavailable(f"admin request failed: {exc}") from exc
+    try:
+        parsed = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise NewApiUnavailable("admin response was not valid JSON") from exc
+    if not isinstance(parsed, dict):
+        raise NewApiUnavailable("admin response was not an object")
+    return status, parsed
+
+
 class _LocalResponse:
     def __init__(self, payload: dict[str, Any], status_code: int = 200) -> None:
         self._payload = payload
@@ -300,10 +380,13 @@ class _LocalApp:
         params: dict[str, Any] | None = None,
         json: Any | None = None,
         data: Any | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> _LocalResponse:
         params = params or {}
         route_path = path.split("?", 1)[0]
-        handler, route_params = self._match_route(method.upper(), route_path)
+        verb = method.upper()
+        authorization = (headers or {}).get("Authorization")
+        handler, route_params = self._match_route(verb, route_path)
         if handler is None:
             return _LocalResponse({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
 
@@ -318,22 +401,40 @@ class _LocalApp:
                     limit=int(limit) if limit not in (None, "") else None,
                 )
             )
-        if route_path.startswith(f"{API_BASE}/audit/") and method.upper() == "GET":
+        if route_path.startswith(f"{API_BASE}/audit/") and verb == "GET":
             ref = route_params.get("ref", "")
             return _normalize_local_response(handler(ref=ref))
-        if route_path.startswith(f"{API_BASE}/config/") and route_path.endswith("/propose") and method.upper() == "POST":
+        if route_path.startswith(f"{API_BASE}/config/") and route_path.endswith("/propose") and verb == "POST":
             section = route_params.get("section", "")
             payload = json if json is not None else data
             return _normalize_local_response(handler(section=section, payload=payload))
-        if route_path.startswith(f"{API_BASE}/config/") and method.upper() == "GET":
+        if route_path.startswith(f"{API_BASE}/config/") and verb == "GET":
             section = route_params.get("section", "")
             return _normalize_local_response(handler(section=section))
-        if route_path == f"{API_BASE}/audit/export" and method.upper() == "POST":
+        if route_path == f"{API_BASE}/audit/export" and verb == "POST":
             payload = json if json is not None else data
             return _normalize_local_response(handler(payload=payload))
-        if route_path == f"{API_BASE}/auth/login" and method.upper() == "POST":
+        if route_path == f"{API_BASE}/auth/login" and verb == "POST":
             payload = json if json is not None else data
             return _normalize_local_response(handler(payload=payload))
+        # ── admin user-management write proxies (sysadmin Bearer threaded via headers)
+        if route_path == f"{API_BASE}/admin/users/manage_list" and verb == "GET":
+            return _normalize_local_response(handler(authorization=authorization))
+        if route_path == f"{API_BASE}/admin/groups" and verb == "GET":
+            return _normalize_local_response(handler(authorization=authorization))
+        # create (exact 4-seg path) MUST precede the {user_id} (.../admin/users/) branch
+        if route_path == f"{API_BASE}/admin/users" and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(authorization=authorization, payload=payload))
+        if route_path.startswith(f"{API_BASE}/admin/users/") and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(
+                handler(
+                    user_id=route_params.get("user_id", ""),
+                    authorization=authorization,
+                    payload=payload,
+                )
+            )
         return _normalize_local_response(handler())
 
     def _match_route(self, method: str, path: str) -> tuple[Any | None, dict[str, str]]:
@@ -377,8 +478,13 @@ def _response(content: dict[str, Any], status_code: int) -> Any:
 def make_test_client(app_obj: Any) -> Any:
     if hasattr(app_obj, "request"):
         class _Client:
-            def get(self, url: str, params: dict[str, Any] | None = None) -> _LocalResponse:
-                return app_obj.request("GET", url, params=params)
+            def get(
+                self,
+                url: str,
+                params: dict[str, Any] | None = None,
+                headers: dict[str, Any] | None = None,
+            ) -> _LocalResponse:
+                return app_obj.request("GET", url, params=params, headers=headers)
 
             def post(
                 self,
@@ -386,8 +492,9 @@ def make_test_client(app_obj: Any) -> Any:
                 params: dict[str, Any] | None = None,
                 json: Any | None = None,
                 data: Any | None = None,
+                headers: dict[str, Any] | None = None,
             ) -> _LocalResponse:
-                return app_obj.request("POST", url, params=params, json=json, data=data)
+                return app_obj.request("POST", url, params=params, json=json, data=data, headers=headers)
 
         return _Client()
     from fastapi.testclient import TestClient
@@ -1420,6 +1527,331 @@ def auth_login(payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT) -> Any:
                 data.get("id"), resolved_username, console_role, data.get("role")
             )
     return response
+
+
+# ── A0 user-management write proxies (sysadmin-only; replayed to new-api) ─────────
+# These POST-shaped endpoints let a Console sysadmin manage new-api users without
+# ever touching the new-api admin token in the browser. Every handler: (1) gates on
+# a sysadmin session, (2) requires the server-held admin token, (3) validates input
+# locally — A0 NEVER creates a root (role=100) — (4) for role/delete enforces the
+# new-api role hierarchy (cannot act on a peer/superior), (5) maps any new-api
+# business failure to a GENERIC 4xx (new-api's message is never echoed). The admin
+# token and operator passwords are never logged.
+_MGMT_USERNAME_RE = re.compile(r"^[\w.-]{1,20}$")
+_MGMT_GROUP_RE = re.compile(r"^[\w-]{1,64}$")
+_MGMT_ALLOWED_ROLES = {1, 10}  # common / admin — root (100) is never minted by A0
+
+
+def _forbidden_response(claims: dict[str, Any] | None) -> Any:
+    """401 when there is no valid session; 403 when valid but not sysadmin."""
+    if claims is None:
+        return _response({"error": {"code": "unauthorized", "msg": "登录态无效或已过期"}}, 401)
+    return _response({"error": {"code": "forbidden", "msg": "需要系统管理员权限"}}, 403)
+
+
+def _sysadmin_or_error(authorization: str | None) -> tuple[dict[str, Any] | None, Any]:
+    """Resolve a sysadmin session, else return (None, error-response)."""
+    session = _require_session(authorization)
+    if session is None or session.get("cr") != "sysadmin":
+        return None, _forbidden_response(session)
+    if _new_api_admin_headers() is None:
+        return None, _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 503
+        )
+    return session, None
+
+
+def _operation_failed_response() -> Any:
+    """Generic admin-write failure — never echoes new-api's own message."""
+    return _response({"error": {"code": "operation_failed", "msg": "操作失败"}}, 422)
+
+
+def _invalid_params_response() -> Any:
+    return _response({"error": {"code": "invalid_params", "msg": "参数不合法"}}, 400)
+
+
+def _admin_write_succeeded(status: int, parsed: dict[str, Any]) -> bool:
+    return 200 <= status < 300 and bool(parsed.get("success", True))
+
+
+def _new_api_user_role(user_id: int) -> int | None:
+    """Return the target user's current new-api role int, or None if not found."""
+    status, parsed = _new_api_admin_request("GET", "/api/user/?p=1&page_size=100")
+    if not _admin_write_succeeded(status, parsed):
+        return None
+    data = parsed.get("data")
+    items = data.get("items") if isinstance(data, dict) else data
+    for user in items or []:
+        if isinstance(user, dict) and _coerce_int(user.get("id"), -1) == user_id:
+            return _coerce_int(user.get("role"))
+    return None
+
+
+def _can_manage_target(operator_role: int, target_role: int) -> bool:
+    """Mirror new-api canManageTargetRole: act only on a strictly-lower role."""
+    return target_role < operator_role
+
+
+@app.get(f"{API_BASE}/admin/users/manage_list")
+def admin_users_manage_list(authorization: str | None = Header(default=None)) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    try:
+        status, parsed = _new_api_admin_request("GET", "/api/user/?p=1&page_size=100")
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return serialize_admin_users_mgmt(parsed.get("data") or {})
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users")
+def admin_users_create(
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    body = payload or {}
+    username = str(body.get("username") or "")
+    password = str(body.get("password") or "")
+    display_name = str(body.get("display_name") or "")
+    role = _coerce_int(body.get("role"), 1) if body.get("role") is not None else 1
+    group = body.get("group")
+    if not _MGMT_USERNAME_RE.fullmatch(username):
+        return _invalid_params_response()
+    if not 8 <= len(password) <= 20:
+        return _invalid_params_response()
+    if role not in _MGMT_ALLOWED_ROLES:
+        return _invalid_params_response()
+    if group is not None and not _MGMT_GROUP_RE.fullmatch(str(group)):
+        return _invalid_params_response()
+    # An operator may not mint a role >= their own (so an admin can't clone an admin).
+    if not _can_manage_target(_coerce_int(session.get("nr")), role):
+        return _forbidden_response(session)
+    request_body: dict[str, Any] = {
+        "username": username,
+        "password": password,
+        "display_name": display_name,
+        "role": role,
+    }
+    if group is not None:
+        request_body["group"] = str(group)
+    try:
+        status, parsed = _new_api_admin_request("POST", "/api/user/", request_body)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users/{{user_id}}/update")
+def admin_users_update(
+    user_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(user_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    body = payload or {}
+    update: dict[str, Any] = {"id": target_id}
+    if body.get("username") is not None:
+        username = str(body.get("username"))
+        if not _MGMT_USERNAME_RE.fullmatch(username):
+            return _invalid_params_response()
+        update["username"] = username
+    if body.get("display_name") is not None:
+        update["display_name"] = str(body.get("display_name"))
+    if body.get("group") is not None:
+        group = str(body.get("group"))
+        if not _MGMT_GROUP_RE.fullmatch(group):
+            return _invalid_params_response()
+        update["group"] = group
+    role_changed = body.get("role") is not None
+    if role_changed:
+        role = _coerce_int(body.get("role"), -1)
+        if role not in _MGMT_ALLOWED_ROLES:
+            return _invalid_params_response()
+        update["role"] = role
+    try:
+        # A role change is privileged: the operator must out-rank BOTH the target's
+        # current role and the requested new role (mirror new-api canManageTargetRole).
+        if role_changed:
+            current = _new_api_user_role(target_id)
+            if current is None:
+                return _operation_failed_response()
+            operator = _coerce_int(session.get("nr"))
+            if not _can_manage_target(operator, current) or not _can_manage_target(
+                operator, _coerce_int(update["role"])
+            ):
+                return _forbidden_response(session)
+        status, parsed = _new_api_admin_request("PUT", "/api/user/", update)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users/{{user_id}}/password")
+def admin_users_password(
+    user_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(user_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    password = str((payload or {}).get("password") or "")
+    if not 8 <= len(password) <= 20:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request(
+            "PUT", "/api/user/", {"id": target_id, "password": password}
+        )
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users/{{user_id}}/status")
+def admin_users_status(
+    user_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(user_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    body = payload or {}
+    if "enabled" not in body or not isinstance(body.get("enabled"), bool):
+        return _invalid_params_response()
+    action = "enable" if body.get("enabled") else "disable"
+    try:
+        status, parsed = _new_api_admin_request(
+            "POST", "/api/user/manage", {"id": target_id, "action": action}
+        )
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users/{{user_id}}/role")
+def admin_users_role(
+    user_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(user_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    action = str((payload or {}).get("action") or "")
+    if action not in {"promote", "demote"}:
+        return _invalid_params_response()
+    try:
+        # Changing a target's role is privileged: the operator must strictly out-rank
+        # the target's CURRENT role (mirror new-api canManageTargetRole).
+        current = _new_api_user_role(target_id)
+        if current is None:
+            return _operation_failed_response()
+        if not _can_manage_target(_coerce_int(session.get("nr")), current):
+            return _forbidden_response(session)
+        status, parsed = _new_api_admin_request(
+            "POST", "/api/user/manage", {"id": target_id, "action": action}
+        )
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/users/{{user_id}}/delete")
+def admin_users_delete(
+    user_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(user_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    try:
+        # Deleting a target is privileged: the operator must strictly out-rank the
+        # target's CURRENT role (mirror new-api canManageTargetRole).
+        current = _new_api_user_role(target_id)
+        if current is None:
+            return _operation_failed_response()
+        if not _can_manage_target(_coerce_int(session.get("nr")), current):
+            return _forbidden_response(session)
+        status, parsed = _new_api_admin_request(
+            "POST", "/api/user/manage", {"id": target_id, "action": "delete"}
+        )
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.get(f"{API_BASE}/admin/groups")
+def admin_groups(authorization: str | None = Header(default=None)) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    # new-api group listing is self-scoped; A0 keeps this minimal and static so the
+    # management form has a stable, non-PHI group source.
+    return {"groups": ["default"]}
 
 
 @app.get("/health")

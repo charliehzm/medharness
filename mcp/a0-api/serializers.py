@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 CTX_VALUES = {"dev", "prod"}
@@ -37,6 +38,15 @@ _PHI_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("bank_card", re.compile(r"(?<!\d)\d{16,19}(?!\d)")),
     ("cn_passport", re.compile(r"\b[EeGgDdSsPpHh]\d{8}\b")),
 )
+# Patient-PHI patterns = the full PHI set MINUS email. Rationale: on the staff
+# user-management view a staff operator's *work* email is identity metadata, not
+# patient PHI — it is allowed to surface. A patient identifier (id card, mobile,
+# bank card, passport) must NEVER appear there, so we keep every patient pattern
+# and only drop the email one. The gateway/audit data path is unchanged and still
+# enforces the full 0-PHI contract via assert_no_phi (email included).
+_PATIENT_PHI_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (kind, pattern) for kind, pattern in _PHI_PATTERNS if kind != "email"
+)
 
 
 @dataclass(frozen=True)
@@ -54,12 +64,15 @@ class PhiLeakError(Exception):
         super().__init__(f"assert_no_phi{label}: {len(violations)} sanitized violation(s)")
 
 
-def _scan_string(value: str) -> list[str]:
+def _scan_string(
+    value: str,
+    patterns: tuple[tuple[str, re.Pattern[str]], ...] = _PHI_PATTERNS,
+) -> list[str]:
     if _HEXISH_RE.fullmatch(value):
         return []
 
     hits: list[str] = []
-    for kind, pattern in _PHI_PATTERNS:
+    for kind, pattern in patterns:
         for token in value.split():
             if _PLACEHOLDER_RE.fullmatch(token):
                 continue
@@ -69,22 +82,27 @@ def _scan_string(value: str) -> list[str]:
     return hits
 
 
-def _walk(node: Any, path: str, out: list[PhiViolation]) -> None:
+def _walk(
+    node: Any,
+    path: str,
+    out: list[PhiViolation],
+    patterns: tuple[tuple[str, re.Pattern[str]], ...] = _PHI_PATTERNS,
+) -> None:
     if isinstance(node, str):
-        for kind in _scan_string(node):
+        for kind in _scan_string(node, patterns):
             out.append(PhiViolation(path=path, kind=kind))
         return
 
     if isinstance(node, list):
         for index, item in enumerate(node):
-            _walk(item, f"{path}[{index}]", out)
+            _walk(item, f"{path}[{index}]", out, patterns)
         return
 
     if isinstance(node, dict):
         if "payload" in node and node["payload"] is not None:
             out.append(PhiViolation(path=f"{path}.payload", kind="payload_not_null"))
         for key, value in node.items():
-            _walk(value, f"{path}.{key}", out)
+            _walk(value, f"{path}.{key}", out, patterns)
 
 
 def find_phi(value: Any) -> list[PhiViolation]:
@@ -95,6 +113,26 @@ def find_phi(value: Any) -> list[PhiViolation]:
 
 def assert_no_phi(value: dict[str, Any], where: str | None = None) -> dict[str, Any]:
     violations = find_phi(value)
+    if violations:
+        raise PhiLeakError(violations, where)
+    return value
+
+
+def find_patient_phi(value: Any) -> list[PhiViolation]:
+    violations: list[PhiViolation] = []
+    _walk(value, "$", violations, _PATIENT_PHI_PATTERNS)
+    return violations
+
+
+def assert_no_patient_phi(value: dict[str, Any], where: str | None = None) -> dict[str, Any]:
+    """Like ``assert_no_phi`` but tolerant of staff email (patient PHI only).
+
+    Used by the staff user-management serializer: a staff operator's work email is
+    identity metadata and may surface, but a patient identifier (cn id / mobile /
+    bank card / passport) must never leak even if upstream injected one. Raises the
+    same ``PhiLeakError`` as ``assert_no_phi`` so callers handle one error type.
+    """
+    violations = find_patient_phi(value)
     if violations:
         raise PhiLeakError(violations, where)
     return value
@@ -167,6 +205,72 @@ def serialize_admin_users(data: dict[str, Any]) -> dict[str, Any]:
 
     response = {"users": users}
     return assert_no_phi(response, "GET /admin/users")
+
+
+_MGMT_ROLE_LABELS = {100: "root", 10: "admin", 1: "normal"}
+_MGMT_STATUS_LABELS = {1: "enabled", 2: "disabled"}
+
+
+def _mgmt_role_label(value: Any) -> str:
+    try:
+        return _MGMT_ROLE_LABELS.get(int(value), str(int(value)))
+    except (TypeError, ValueError):
+        return _as_str(value)
+
+
+def _mgmt_status_label(value: Any) -> str:
+    try:
+        return _MGMT_STATUS_LABELS.get(int(value), str(int(value)))
+    except (TypeError, ValueError):
+        return _as_str(value)
+
+
+def _mgmt_last_login(value: Any) -> str:
+    epoch = _as_int(value, default=0)
+    if epoch <= 0:
+        return ""
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def serialize_admin_users_mgmt(data: dict[str, Any]) -> dict[str, Any]:
+    """Serialize new-api's user-list into the A0 management-view contract.
+
+    Accepts new-api's ``{items:[...], total}`` shape OR a bare list. Whitelists ONLY
+    the management fields below — password / access_token / oauth ids are never
+    emitted — and maps the raw role/status ints to labels. Staff email is allowed
+    here (operator identity, not patient PHI), so the result is gated by
+    ``assert_no_patient_phi``: an injected patient identifier still throws.
+    """
+    items = data.get("items") if isinstance(data, dict) else None
+    if items is None and isinstance(data, dict):
+        items = data.get("users")
+    if items is None:
+        items = data if isinstance(data, list) else []
+
+    users: list[dict[str, Any]] = []
+    for user in items or []:
+        if not isinstance(user, dict):
+            continue
+        users.append(
+            {
+                "id": _as_int(user.get("id")),
+                "username": _as_str(user.get("username")),
+                "display_name": _as_str(user.get("display_name")),
+                "email": _as_str(user.get("email")),
+                "role": _mgmt_role_label(user.get("role")),
+                "status": _mgmt_status_label(user.get("status")),
+                "group": _as_str(user.get("group")),
+                "quota": _as_str(user.get("quota")),
+                "used_quota": _as_str(user.get("used_quota")),
+                "last_login": _mgmt_last_login(
+                    user.get("last_login_time", user.get("last_login"))
+                ),
+            }
+        )
+
+    total = data.get("total") if isinstance(data, dict) else None
+    response = {"users": users, "total": _as_int(total, default=len(users))}
+    return assert_no_patient_phi(response, "GET /admin/users/manage_list")
 
 
 def serialize_admin_tokens(data: dict[str, Any]) -> dict[str, Any]:
