@@ -336,8 +336,15 @@ def relay(relay_token: str):
         model: str = "gpt-4o",
         stream: bool = False,
         extra_headers: dict[str, str] | None = None,
+        messages: list[dict[str, Any]] | None = None,
     ) -> LiveResp:
-        body: dict[str, Any] = {"model": model, "messages": [{"role": "user", "content": content}]}
+        # `messages` overrides the default single-user-message body, so a caller can
+        # scatter PHI across several messages (MM1) or use a structured content array
+        # (MM2) to exercise extractPromptText/rewriteDesensitizedBody recursion.
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages if messages is not None else [{"role": "user", "content": content}],
+        }
         if stream:
             body["stream"] = True
         headers = {
