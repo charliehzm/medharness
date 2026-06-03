@@ -88,7 +88,7 @@ const columns: TableColumn<AuditRow>[] = [
     key: "upstream",
     header: "上游",
     render: (row) => (
-      <span>
+      <span className="audit-upstream">
         {row.upstream} <span className="audit-muted">· {row.ctx}</span>
       </span>
     ),
@@ -124,7 +124,9 @@ function toAuditRow(event: TrafficEvent): AuditRow {
 }
 
 function formatTime(value: string): string {
-  return value.replace("T", " ").replace("Z", " UTC");
+  // Drop sub-second precision (".480000") — the microseconds bloat the cell and force
+  // an ugly mid-value wrap. "2026-06-03T11:30:08.480000Z" -> "2026-06-03 11:30:08 UTC".
+  return value.replace(/\.\d+/, "").replace("T", " ").replace("Z", " UTC");
 }
 
 function matchesSearch(row: AuditRow, query: string): boolean {

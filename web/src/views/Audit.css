@@ -132,6 +132,13 @@
   font-family: var(--font-mono);
 }
 
+/* Keep the time and upstream (model · ctx) on a single line — the table scrolls
+   horizontally (.dtable-scroll) if cramped, which is cleaner than a mid-value wrap. */
+.audit-time,
+.audit-upstream {
+  white-space: nowrap;
+}
+
 .audit-code,
 .audit-selected-ref {
   display: inline-flex;
