@@ -11,17 +11,37 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { assertNoPhi, findPhi, PhiLeakError } from "./sanitize.ts";
+import { assertNoPatientPhi, assertNoPhi, findPatientPhi, findPhi, PhiLeakError } from "./sanitize.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixDir = join(here, "fixtures");
+
+// 管理面用户列表 fixture 是**唯一**合法携带运营人员（**非患者**）邮箱的 fixture：
+// 它走患者-only 守卫 assertNoPatientPhi（放行 email），不经 dashboard 级 assertNoPhi。
+// 故从「全量 0 PHI」blanket 循环中豁免，单独按患者-only 口径核验（见下一条 test）。
+const PATIENT_ONLY_FIXTURES = new Set(["admin_users_mgmt.json"]);
 
 test("所有合成 fixtures 0 PHI（与 api-phi-exfil drill 同口径）", () => {
   const files = readdirSync(fixDir).filter((f) => f.endsWith(".json"));
   assert.ok(files.length >= 8, `fixtures 应 ≥ 8 个，实际 ${files.length}`);
   for (const f of files) {
+    if (PATIENT_ONLY_FIXTURES.has(f)) continue;
     const data = JSON.parse(readFileSync(join(fixDir, f), "utf-8"));
     assert.deepEqual(findPhi(data), [], `${f} 不应有 PHI / payload 违规`);
+  }
+});
+
+test("管理面 fixture：患者 0 PHI（放行 STAFF email，仍拦患者标识）", () => {
+  for (const f of PATIENT_ONLY_FIXTURES) {
+    const data = JSON.parse(readFileSync(join(fixDir, f), "utf-8"));
+    // 患者-only 守卫必须通过：身份证 / 手机 / 卡号 / 护照 / payload 仍 0。
+    assert.deepEqual(findPatientPhi(data), [], `${f} 不应含患者 PHI`);
+    assert.doesNotThrow(() => assertNoPatientPhi(data, `fixture ${f}`));
+    // 反证：carve-out 是真的——全量 assertNoPhi 在此 fixture 上**只**因 email 命中，
+    // 证明放行的仅是邮箱、患者标识未被顺带放过。
+    const full = findPhi(data);
+    assert.ok(full.length > 0, `${f} 应被全量守卫因 email 命中`);
+    assert.ok(full.every((v) => v.kind === "email"), `${f} 全量命中应仅限 email`);
   }
 });
 

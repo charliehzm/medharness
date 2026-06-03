@@ -6,13 +6,16 @@ export const CONSOLE_PASS = process.env.MEDHARNESS_LIVE_PASS || "medharness123";
 // All seven Console screens (rdlead sees all; sysadmin only the first set).
 export const SCREENS = ["总览", "流量监控", "合规与报表", "用量与成本", "接入", "策略", "系统"];
 
-// Unambiguous PHI markers — the DOM must never contain these (mirrors the Python
-// conftest 0-PHI patterns).
-export const PHI_PATTERNS = [
+// Patient identifiers — must NEVER appear in the DOM on ANY screen, ever.
+export const PATIENT_PHI_PATTERNS = [
   /[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]/, // cn id-18
   /(?<!\d)1[3-9]\d{9}(?!\d)/, // cn mobile
-  /[\w.+-]+@[\w-]+\.[\w.-]+/, // email
 ];
+// Staff email — allowed ONLY on the sysadmin user-management view (these are internal
+// operators, not patients). Every other screen/view must still be email-free.
+export const STAFF_EMAIL_PATTERN = /[\w.+-]+@[\w-]+\.[\w.-]+/;
+// Full scan (patient + staff email) — the default for every non-management view.
+export const PHI_PATTERNS = [...PATIENT_PHI_PATTERNS, STAFF_EMAIL_PATTERN];
 
 export async function login(page: Page, user = CONSOLE_USER, pass = CONSOLE_PASS): Promise<void> {
   await page.goto("/login");
@@ -39,6 +42,16 @@ export async function assertNoPhiDom(page: Page, where: string): Promise<void> {
   for (const pattern of PHI_PATTERNS) {
     const match = html.match(pattern);
     expect(match, `PHI-like marker on ${where}: ${match?.[0]?.slice(0, 8)}`).toBeNull();
+  }
+}
+
+// Patient-only DOM scan — for the sysadmin user-management view, where staff email is
+// expected but a patient identifier (cn-id / mobile) must still never appear.
+export async function assertNoPatientPhiDom(page: Page, where: string): Promise<void> {
+  const html = await page.content();
+  for (const pattern of PATIENT_PHI_PATTERNS) {
+    const match = html.match(pattern);
+    expect(match, `patient-PHI marker on ${where}: ${match?.[0]?.slice(0, 8)}`).toBeNull();
   }
 }
 

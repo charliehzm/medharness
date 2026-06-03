@@ -1,0 +1,53 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "root",
+      "display_name": "平台 Root",
+      "email": "root@example.invalid",
+      "role": "root",
+      "status": "enabled",
+      "group": "default",
+      "quota": "—",
+      "used_quota": "¥0",
+      "last_login": "2026-06-03 09:12"
+    },
+    {
+      "id": 7,
+      "username": "ops_lead",
+      "display_name": "运维负责人",
+      "email": "lead@example.invalid",
+      "role": "admin",
+      "status": "enabled",
+      "group": "ops",
+      "quota": "—",
+      "used_quota": "¥860",
+      "last_login": "2026-06-02 18:40"
+    },
+    {
+      "id": 12,
+      "username": "clinic_eng",
+      "display_name": "临床工程",
+      "email": "eng@hospital.test",
+      "role": "normal",
+      "status": "enabled",
+      "group": "clinical",
+      "quota": "¥150/日",
+      "used_quota": "¥124",
+      "last_login": "2026-06-03 08:05"
+    },
+    {
+      "id": 21,
+      "username": "intern_dev",
+      "display_name": "实习开发",
+      "email": "ops@hospital.test",
+      "role": "normal",
+      "status": "disabled",
+      "group": "default",
+      "quota": "¥30/日",
+      "used_quota": "¥30",
+      "last_login": "2026-05-28 14:22"
+    }
+  ],
+  "total": 4
+}

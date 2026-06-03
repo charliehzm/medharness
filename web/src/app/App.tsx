@@ -71,7 +71,7 @@ function Screen({
       ) : id === "cost" ? (
         <Cost />
       ) : id === "access" ? (
-        <Access />
+        <Access role={role} />
       ) : id === "policy" ? (
         <Policy />
       ) : (

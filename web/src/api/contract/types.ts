@@ -297,6 +297,68 @@ export interface AdminChannelsResponse {
   channels: AdminChannel[];
 }
 
+// ── 10. /admin/users/* ─ 用户管理写代理（v0.7.2 · B2/B3 · sysadmin only）─────
+// 与只读 AdminUser 不同：这是「系统管理员」管理内部运营人员（operators，**非患者**）
+// 身份的明面视图，**合法携带 STAFF email / display_name**。患者 0 PHI 不受影响——
+// email 仅指运营人员邮箱，故此响应走 `assertNoPatientPhi`（放行 email），
+// **不**经 dashboard 级的 email-included `assertNoPhi`。仅 sysadmin 可读写（A0 401/403）。
+export type MgmtRole = "root" | "admin" | "normal";
+export type MgmtStatus = "enabled" | "disabled";
+
+/** 用户管理行——运营人员（非患者）的可管理字段。 */
+export interface MgmtUser {
+  id: number;
+  username: string;
+  display_name: string;
+  /** 运营人员（非患者）邮箱；故走 assertNoPatientPhi。 */
+  email: string;
+  role: MgmtRole;
+  status: MgmtStatus;
+  group: string;
+  quota: string;
+  used_quota: string;
+  last_login: string;
+}
+export interface MgmtUsersResponse {
+  users: MgmtUser[];
+  total: number;
+}
+export interface GroupsResponse {
+  groups: string[];
+}
+
+/** POST /admin/users — 新建用户。role 为 new-api int：1=普通 / 10=管理员。 */
+export interface MgmtUserCreate {
+  username: string;
+  password: string;
+  display_name?: string;
+  role?: number;
+  group?: string;
+}
+/** POST /admin/users/{id}/update — 编辑。role 为 new-api int（1 / 10）。 */
+export interface MgmtUserUpdate {
+  username?: string;
+  display_name?: string;
+  group?: string;
+  role?: number;
+}
+/** POST /admin/users/{id}/password — 重置密码（运营人员线下交付，不发邮件）。 */
+export interface MgmtUserPassword {
+  password: string;
+}
+/** POST /admin/users/{id}/status — 启用 / 停用。 */
+export interface MgmtUserStatus {
+  enabled: boolean;
+}
+/** POST /admin/users/{id}/role — 升级 / 降级。 */
+export interface MgmtUserRole {
+  action: "promote" | "demote";
+}
+/** 写代理统一回执（创建 / 更新 / 状态 / 角色 / 删除）。 */
+export interface MgmtOk {
+  ok: true;
+}
+
 /** 端点 key → 响应类型映射（供 api-client 泛型推导） */
 export interface ResponseByEndpoint {
   posture: PostureResponse;

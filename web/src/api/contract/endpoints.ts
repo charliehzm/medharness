@@ -32,6 +32,15 @@ export const ENDPOINTS = {
   adminChannels: { method: "GET", path: "/admin/channels", readonly: true },
   auditExport: { method: "POST", path: "/audit/export", readonly: false },
   configPropose: { method: "POST", path: "/config/{section}/propose", readonly: false },
+  // ── 用户管理写代理（v0.7.2 · B2/B3 · sysadmin only）─ 经 requestMgmt（放行 STAFF email）─
+  adminUsersManage: { method: "GET", path: "/admin/users/manage_list", readonly: true },
+  adminGroups: { method: "GET", path: "/admin/groups", readonly: true },
+  adminUserCreate: { method: "POST", path: "/admin/users", readonly: false },
+  adminUserUpdate: { method: "POST", path: "/admin/users/{id}/update", readonly: false },
+  adminUserPassword: { method: "POST", path: "/admin/users/{id}/password", readonly: false },
+  adminUserStatus: { method: "POST", path: "/admin/users/{id}/status", readonly: false },
+  adminUserRole: { method: "POST", path: "/admin/users/{id}/role", readonly: false },
+  adminUserDelete: { method: "POST", path: "/admin/users/{id}/delete", readonly: false },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
