@@ -387,3 +387,27 @@ func TestComplianceEmbeddingsInputDesensitized(t *testing.T) {
 		t.Fatalf("phi scan text = %q, want the embeddings input text", got)
 	}
 }
+
+// --- Fix#2: SSE reassembly for the streaming outbound-evasion case -------------
+
+func TestReassembleSSEContent(t *testing.T) {
+	// harmful phrase split across two delta.content frames must reassemble whole.
+	split := "data: {\"choices\":[{\"delta\":{\"content\":\"make a \"}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\"bomb\"}}]}\n\n" +
+		"data: [DONE]\n\n"
+	if got := reassembleSSEContent(split); got != "make a bomb" {
+		t.Fatalf("split reassembly = %q, want %q", got, "make a bomb")
+	}
+	// raw split frames do NOT contain the contiguous phrase (the evasion premise).
+	if strings.Contains(split, "make a bomb") {
+		t.Fatalf("test premise broken: raw frames already contain the contiguous phrase")
+	}
+	single := "data: {\"choices\":[{\"delta\":{\"content\":\"hello world\"}}]}\n\ndata: [DONE]\n\n"
+	if got := reassembleSSEContent(single); got != "hello world" {
+		t.Fatalf("single-frame reassembly = %q, want %q", got, "hello world")
+	}
+	// non-SSE (a plain JSON completion body) yields no reassembled text.
+	if got := reassembleSSEContent(`{"choices":[{"message":{"content":"not sse"}}]}`); got != "" {
+		t.Fatalf("non-SSE reassembly = %q, want empty", got)
+	}
+}

@@ -34,6 +34,7 @@ ROUTER = os.environ.get("MEDHARNESS_ROUTER_CONTAINER", "medharness-model-router"
 NET = os.environ.get("MEDHARNESS_NET", "medharness_internal")
 MOCK = os.environ.get("MEDHARNESS_MATRIX_MOCK", "mh-e2e-matrix-mock")
 ECHO_MOCK = os.environ.get("MEDHARNESS_ECHO_MOCK", "mh-e2e-echo-mock")
+SPLIT_MOCK = os.environ.get("MEDHARNESS_SPLIT_MOCK", "mh-e2e-split-mock")
 ROOT_USER = os.environ.get("MEDHARNESS_LIVE_USER", "admin")
 ROOT_PASS = os.environ.get("MEDHARNESS_LIVE_PASS", "medharness123")
 CHANNEL_MODELS = "gpt-4o,qwen-max-2026,claude-sonnet-4.6"
@@ -112,7 +113,7 @@ def model_entry(
 # new-api admin bootstrap (cookiejar login → clean channels → channel → token → key), run inside A0.
 _NEWAPI_SETUP = """
 import http.cookiejar, json, sys, urllib.request
-user, pw, mock, echo_mock, models = sys.argv[1:6]
+user, pw, mock, echo_mock, split_mock, models = sys.argv[1:7]
 BASE = "http://new-api:3000"
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 def call(path, body=None, method=None):
@@ -137,6 +138,11 @@ call("/api/channel/", {"mode": "single", "channel": {
 call("/api/channel/", {"mode": "single", "channel": {
     "type": 1, "base_url": f"http://{echo_mock}:18080", "key": "sk-mock",
     "models": "echo-model", "group": "default", "status": 1, "name": "E2EEchoMock"}})
+# Third channel -> the split-mock, serving only "split-model", for the streaming
+# chunk-split outbound-evasion case (ST3).
+call("/api/channel/", {"mode": "single", "channel": {
+    "type": 1, "base_url": f"http://{split_mock}:18080", "key": "sk-mock",
+    "models": "split-model", "group": "default", "status": 1, "name": "E2ESplitMock"}})
 call("/api/channel/fix", {})
 call("/api/token/", {"name": "e2e-matrix", "remain_quota": 9999999, "expired_time": -1, "group": "default"})
 toks = call("/api/token/?p=1&size=20"); data = toks.get("data")
@@ -231,9 +237,20 @@ def echo_mock(_relay_stack: bool):
 
 
 @pytest.fixture(scope="session")
-def relay_token(_relay_stack: bool, mock_upstream, echo_mock) -> str:
+def split_mock(_relay_stack: bool):
+    # streams the synthetic harmful trigger SPLIT across SSE chunk boundaries
+    # (env-driven, since new-api doesn't forward client X-Mock-* headers) so a naive
+    # per-frame outbound scan evades it — the ST3 streaming-evasion case.
+    mock = _start_mock(SPLIT_MOCK, extra_env=("MOCK_STREAM_SPLIT=1",))
+    yield mock
+    _docker("rm", "-f", SPLIT_MOCK)
+
+
+@pytest.fixture(scope="session")
+def relay_token(_relay_stack: bool, mock_upstream, echo_mock, split_mock) -> str:
     out = _docker(
-        "exec", "-i", A0, "python", "-", ROOT_USER, ROOT_PASS, MOCK, ECHO_MOCK, CHANNEL_MODELS, stdin=_NEWAPI_SETUP
+        "exec", "-i", A0, "python", "-",
+        ROOT_USER, ROOT_PASS, MOCK, ECHO_MOCK, SPLIT_MOCK, CHANNEL_MODELS, stdin=_NEWAPI_SETUP,
     )
     if out.returncode != 0 or not out.stdout.strip():
         pytest.skip(f"new-api channel/token setup failed: {out.stderr.strip()[:300]}")

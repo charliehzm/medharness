@@ -317,6 +317,49 @@ func rewriteEmbeddingInput(original any, desensitizedText string) any {
 	}
 }
 
+// reassembleSSEContent concatenates the streamed assistant text from an OpenAI
+// chat SSE body (choices[].delta.content across every `data:` frame) into one plain
+// string. The post-call outbound scan appends this to the raw buffered body so a
+// harmful phrase SPLIT across chunk boundaries ("make a " | "bomb") is still
+// matched — a per-frame scan of the raw SSE text alone would miss it. Returns "" for
+// non-SSE bodies. Scoped to OpenAI chat SSE; the Anthropic /v1/messages SSE schema
+// (content_block_delta / delta.text) is intentionally NOT reassembled here.
+func reassembleSSEContent(raw string) string {
+	if !strings.Contains(raw, "data:") {
+		return ""
+	}
+	var b strings.Builder
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "" || payload == "[DONE]" {
+			continue
+		}
+		var chunk map[string]any
+		if common.Unmarshal([]byte(payload), &chunk) != nil {
+			continue
+		}
+		choices, _ := chunk["choices"].([]any)
+		for _, item := range choices {
+			choice, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			delta, ok := choice["delta"].(map[string]any)
+			if !ok {
+				continue
+			}
+			if content, ok := delta["content"].(string); ok {
+				b.WriteString(content)
+			}
+		}
+	}
+	return b.String()
+}
+
 func normalizeDataLevel(value any) (string, bool) {
 	level, ok := value.(string)
 	if !ok {
@@ -808,8 +851,15 @@ func MedHarnessCompliance() gin.HandlerFunc {
 		c.Next()
 		c.Writer = originalWriter
 
+		// Scan the raw buffered body (catches in-frame PHI/harmful content) AND, for
+		// streamed SSE responses, the reassembled delta.content (catches a harmful
+		// phrase split across chunk boundaries that the per-frame text would miss).
+		scanText := bufferedWriter.body.String()
+		if reassembled := reassembleSSEContent(scanText); reassembled != "" {
+			scanText = scanText + "\n" + reassembled
+		}
 		outboundPayload, err := common.Marshal(map[string]any{
-			"text": bufferedWriter.body.String(),
+			"text": scanText,
 			"context": map[string]any{
 				"lane":       lane,
 				"data_level": tier["data_level"],
