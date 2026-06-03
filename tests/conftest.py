@@ -332,6 +332,25 @@ def mcp_post(_relay_stack: bool):
 
 
 @pytest.fixture
+def scenario_seed(_relay_stack: bool):
+    """Seed the deterministic 15-scenario _audit_log (scripts/seed_scenarios.py) inside
+    the a0 container and return the JSON manifest, so a test reads EXPECTED counts/refs
+    instead of hard-coding them. Each call resets the table first."""
+
+    def _seed() -> dict[str, Any]:
+        src = REPO_ROOT / "scripts" / "seed_scenarios.py"
+        cp = _docker("cp", str(src), f"{A0}:/tmp/seed_scenarios.py")
+        if cp.returncode != 0:
+            pytest.skip(f"cannot copy seeder into {A0}: {cp.stderr.strip()[:200]}")
+        out = _docker("exec", A0, "python", "/tmp/seed_scenarios.py", "--reset", "--emit-manifest")
+        if out.returncode != 0 or not out.stdout.strip():
+            pytest.skip(f"scenario seeder failed: {out.stderr.strip()[:200]}")
+        return json.loads(out.stdout.strip().splitlines()[-1])
+
+    return _seed
+
+
+@pytest.fixture
 def no_phi():
     """The 0-PHI deep-scan assertion, injected (avoids cross-dir conftest import collisions)."""
     return assert_no_phi
