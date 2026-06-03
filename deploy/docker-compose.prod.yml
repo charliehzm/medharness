@@ -390,7 +390,7 @@ services:
           memory: 128M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       start_period: 5s
