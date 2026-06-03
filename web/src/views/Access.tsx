@@ -225,7 +225,7 @@ export default function Access(): JSX.Element {
           {tab === "apps" ? (
             <div className="access-grid access-grid-apps">
               <Card title="接入应用">
-                <div className="access-planned">🚧 规划</div>
+                <div className="access-planned">即将推出</div>
                 <div className="access-copy">
                   当前契约未提供 apps 端点；先保留为占位，不编造应用列表。
                 </div>

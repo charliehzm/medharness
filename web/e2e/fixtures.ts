@@ -4,7 +4,7 @@ export const CONSOLE_USER = process.env.MEDHARNESS_LIVE_USER || "admin";
 export const CONSOLE_PASS = process.env.MEDHARNESS_LIVE_PASS || "medharness123";
 
 // All seven Console screens (rdlead sees all; sysadmin only the first set).
-export const SCREENS = ["总览", "流量监控", "审计与报表", "用量与成本", "接入", "策略", "系统"];
+export const SCREENS = ["总览", "流量监控", "合规与报表", "用量与成本", "接入", "策略", "系统"];
 
 // Unambiguous PHI markers — the DOM must never contain these (mirrors the Python
 // conftest 0-PHI patterns).

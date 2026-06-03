@@ -13,9 +13,9 @@ test("traffic mode tabs, filters and sankey are interactive", async ({ page }) =
   // mode tabs
   const modeTabs = page.locator(".traffic-mode-tabs button");
   await expect(modeTabs).toHaveCount(2);
-  await modeTabs.nth(1).click(); // outbound -> tab activates + shows the 🚧 planned note
+  await modeTabs.nth(1).click(); // outbound -> tab activates + shows the "即将推出" planned note
   await expect(modeTabs.nth(1)).toHaveClass(/on/);
-  await expect(page.getByText("🚧 v0.6 规划").first()).toBeVisible();
+  await expect(page.getByText("即将推出").first()).toBeVisible();
   await modeTabs.nth(0).click(); // back to inbound
 
   // event filters: clicking moves the .on selection and keeps the stream rendered

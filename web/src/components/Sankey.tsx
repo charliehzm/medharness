@@ -69,15 +69,15 @@ function SankeyBase({ mode }: SankeyProps): JSX.Element {
         <>
           <div className="snode" style={{ left: "1.111%", top: 38 }}>
             <div className="t">常规入口</div>
-            <div className="s">结构流</div>
+            <div className="s">请求入口</div>
           </div>
           <div className="snode" style={{ left: "1.111%", top: 128 }}>
             <div className="t">批处理入口</div>
-            <div className="s">结构流</div>
+            <div className="s">请求入口</div>
           </div>
           <div className="snode" style={{ left: "1.111%", top: 218 }}>
-            <div className="t">开发入口</div>
-            <div className="s">结构流</div>
+            <div className="t">开发态接入</div>
+            <div className="s">请求入口</div>
           </div>
           <div className="snode gate" style={{ left: "40.556%", top: 144, width: "18.889%" }}>
             <div className="t">🛡 安全检查</div>
@@ -96,11 +96,11 @@ function SankeyBase({ mode }: SankeyProps): JSX.Element {
         <>
           <div className="snode" style={{ left: "1.111%", top: 146 }}>
             <div className="t">模型响应</div>
-            <div className="s">待检查</div>
+            <div className="s">即将推出</div>
           </div>
           <div className="snode gate gateout" style={{ left: "40.556%", top: 142, width: "19.444%" }}>
             <div className="t">↩️ 响应安全检查</div>
-            <div className="s">🚧 隐私回流 / 有害 / 幻觉</div>
+            <div className="s">隐私回流 / 有害 / 幻觉 · 即将推出</div>
           </div>
           <div className="snode" style={{ left: "82.222%", top: 88 }}>
             <div className="t">返回应用 ✓</div>
@@ -119,7 +119,7 @@ function SankeyBase({ mode }: SankeyProps): JSX.Element {
 export default function Sankey({ mode }: SankeyProps): JSX.Element {
   return mode === "outbound" ? (
     <div className="sankey-shell">
-      <div className="sankey-wip">🚧 规划</div>
+      <div className="sankey-wip">即将推出</div>
       <SankeyBase mode={mode} />
     </div>
   ) : (

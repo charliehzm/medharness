@@ -8,7 +8,7 @@ import { gotoScreen, login, routeA0Down, switchRole } from "./fixtures";
 const SCREEN_ERRORS: ReadonlyArray<readonly [string, string]> = [
   ["总览", ".overview-error"],
   ["流量监控", ".traffic-error"],
-  ["审计与报表", ".audit-error"],
+  ["合规与报表", ".audit-error"],
   ["用量与成本", ".cost-error"],
   ["接入", ".access-error"],
   ["系统", ".system-error"],

@@ -90,7 +90,7 @@ export default function Traffic(): JSX.Element {
         <div>
           <div className="traffic-kicker">📊 流量监控</div>
           <h2>调用去向与处置</h2>
-          <div className="traffic-subtitle">实时查看大模型调用的去向与处置 · 仅显示脱敏后占位符</div>
+          <div className="traffic-subtitle">实时查看大模型调用的去向与处置 · 仅显示脱敏后的标记</div>
         </div>
         <div className="traffic-badges">
           <Tag tone="compliance">合规</Tag>
@@ -123,7 +123,7 @@ export default function Traffic(): JSX.Element {
                 role="tab"
                 aria-selected={mode === "outbound"}
               >
-                模型响应 <span className="traffic-wip">🚧</span>
+                模型响应 <span className="traffic-wip">即将推出</span>
               </button>
             </div>
             <div className="traffic-sankey-wrap">
@@ -157,7 +157,7 @@ export default function Traffic(): JSX.Element {
             <span className="traffic-window">实时 · 最近 1 小时</span>
             <EventStream events={visibleEvents} />
             <div className="traffic-note">
-              仅显示脱敏后的占位符 <span className="mono">__NAME_a1__</span> 与统计数据，不含原始信息。
+              仅显示脱敏后的标记与统计数据，不含原始信息。
             </div>
           </section>
 
@@ -183,7 +183,7 @@ export default function Traffic(): JSX.Element {
               </div>
             </Card>
             <Card title="出站能力">
-              <div className="traffic-summary-state">🚧 规划</div>
+              <div className="traffic-summary-state">即将推出</div>
               <div className="traffic-summary-text">
                 {state.traffic.outbound.built === false ? state.traffic.outbound.note : "已建"}
               </div>

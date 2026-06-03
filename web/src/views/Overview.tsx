@@ -23,7 +23,7 @@ const GATE_META: Record<string, { icon: string; label: string }> = {
 };
 
 function GateState({ built }: { built?: boolean }): JSX.Element {
-  return built === false ? <span className="overview-wip">🚧 规划</span> : <Tag tone="ok">已上线</Tag>;
+  return built === false ? <span className="overview-wip">即将推出</span> : <Tag tone="ok">已上线</Tag>;
 }
 
 function GateCard({
@@ -46,7 +46,7 @@ function GateCard({
       {gate.desc ? <div className="overview-gate-desc">{gate.desc}</div> : null}
       <div className="overview-gate-chiprow">
         <Tag tone={tone}>{gate.group === "compliance" ? "合规" : "安全"}</Tag>
-        <Tag tone="muted">{gate.status === "planned" ? "规划" : gate.status}</Tag>
+        <Tag tone="muted">{gate.status === "planned" ? "即将推出" : gate.status}</Tag>
       </div>
     </article>
   );
@@ -106,8 +106,8 @@ function PlannedTargetCard({
           <div className="overview-target-summary">{summary}</div>
         </div>
         <div className="overview-planned-body">
-          <Tag tone={tone}>🚧 数据待接入</Tag>
-          <div className="overview-target-foot">等待 A0 汇总字段接入后展示。</div>
+          <Tag tone={tone}>即将推出</Tag>
+          <div className="overview-target-foot">该指标即将上线。</div>
         </div>
       </div>
     </Card>
@@ -145,7 +145,7 @@ export default function Overview(): JSX.Element {
           <div className="overview-page-head">
             <div className="overview-kicker">🏠 总览</div>
             <h2>四目标一屏看懂</h2>
-            <div className="overview-subtitle">四目标一屏看懂 · 全程 0 PHI · 合成数据</div>
+            <div className="overview-subtitle">四目标一屏看懂 · 全程 0 PHI</div>
           </div>
 
           <section className="overview-attention">
@@ -175,8 +175,8 @@ export default function Overview(): JSX.Element {
               summary="安全"
               title="安全"
             />
-            <PlannedTargetCard summary="划算" title="划算" tone="cost" />
-            <PlannedTargetCard summary="审计" title="审计" tone="muted" />
+            <PlannedTargetCard summary="省钱" title="省钱" tone="cost" />
+            <PlannedTargetCard summary="合规" title="合规" tone="muted" />
             <PlannedTargetCard summary="稳定" title="稳定" tone="security" />
           </section>
 
@@ -192,14 +192,14 @@ export default function Overview(): JSX.Element {
           <section className="overview-grid overview-grid-2">
             <section className="overview-summary-card">
               <div className="overview-summary-title">本月安全小结</div>
-              <div className="overview-summary-text">🚧 数据待接入</div>
+              <div className="overview-summary-text">即将推出</div>
               <div className="overview-summary-tags">
                 <Tag tone="muted">待汇总</Tag>
               </div>
             </section>
             <section className="overview-summary-card">
               <div className="overview-summary-title">本月成本小结</div>
-              <div className="overview-summary-text">🚧 数据待接入</div>
+              <div className="overview-summary-text">即将推出</div>
               <div className="overview-summary-tags">
                 <Tag tone="cost">待汇总</Tag>
               </div>

@@ -64,7 +64,7 @@ const TAB_SECTIONS: Record<PolicyTab, ConfigSection[]> = {
 const TAB_META: Record<PolicyTab, { label: string; note: string }> = {
   compliance: { label: "合规", note: "场景 / 模型 / 字段 / 阈值 / 留存" },
   security: { label: "安全", note: "注入防护 / 出站输出" },
-  cost: { label: "成本护栏", note: "配额限流 · 规划中的能力一律标 🚧" },
+  cost: { label: "成本护栏", note: "配额限流 · 暂未上线的能力标注「即将推出」" },
   governance: { label: "治理审批", note: "上游 / 审批 · 改动走 DIFF 预览" },
 };
 
@@ -210,7 +210,7 @@ function SectionCard({
       <div className="policy-card">
         <div className="policy-card-top">
           <div className="policy-card-tags">
-            <Tag tone={builtPlanned ? "warn" : "ok"}>{builtPlanned ? "🚧 规划" : "已上线"}</Tag>
+            <Tag tone={builtPlanned ? "warn" : "ok"}>{builtPlanned ? "即将推出" : "已上线"}</Tag>
             <Tag tone="muted">{changed === 0 ? "无改动" : `变更 ${changed}`}</Tag>
             {submission ? <Tag tone="compliance">已提交审批·待批</Tag> : null}
           </div>
@@ -220,7 +220,7 @@ function SectionCard({
         </div>
 
         <div className="policy-card-note">
-          {builtPlanned ? "🚧 规划中 · 不冒充已建" : "读写均需走审批流；当前值来自真 ConfigSnapshot.fields。"}
+          {builtPlanned ? "即将推出 · 暂未上线" : "读写均需走审批流；当前值来自真 ConfigSnapshot.fields。"}
         </div>
 
         <Table<FieldRow>

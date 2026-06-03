@@ -2,13 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import { assertNoPhiDom, captureConsole, gotoScreen, login, switchRole } from "./fixtures";
 
-// 审计与报表: the table + search filter, a row-click that opens the lineage drawer
+// 合规与报表: the table + search filter, a row-click that opens the lineage drawer
 // (血缘 + 哈希链), and the regulator-bundle export — the full audit drill-down.
 test("audit table filters, drills lineage and exports a bundle", async ({ page }) => {
   const errors = captureConsole(page);
   await login(page);
   await switchRole(page, "研发负责人");
-  await gotoScreen(page, "审计与报表");
+  await gotoScreen(page, "合规与报表");
 
   const rows = page.locator(".dtable tbody tr");
   await expect(rows.first()).toBeVisible();
@@ -30,6 +30,6 @@ test("audit table filters, drills lineage and exports a bundle", async ({ page }
   await page.click(".audit-export-button");
   await expect(page.locator(".audit-export-result")).toBeVisible({ timeout: 10000 });
 
-  await assertNoPhiDom(page, "审计与报表");
+  await assertNoPhiDom(page, "合规与报表");
   expect(errors, errors.join("\n")).toHaveLength(0);
 });

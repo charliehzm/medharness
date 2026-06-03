@@ -11,7 +11,7 @@
   },
   "outbound": {
     "built": false,
-    "note": "🚧 v0.6 规划",
+    "note": "即将推出",
     "gate": { "phi_reflow": 0, "harmful": 0, "hallucination": 0 }
   }
 }

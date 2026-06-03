@@ -13,7 +13,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { id: "overview", label: "总览", icon: "🏠", path: "/" },
   { id: "traffic", label: "流量监控", icon: "📊", path: "/traffic", group: "security" },
-  { id: "audit", label: "审计与报表", icon: "🔍", path: "/audit", group: "security" },
+  { id: "audit", label: "合规与报表", icon: "🔍", path: "/audit", group: "security" },
   { id: "cost", label: "用量与成本", icon: "💰", path: "/cost", group: "cost" },
   { id: "access", label: "接入", icon: "🔌", path: "/access", group: "cost" },
   { id: "policy", label: "策略", icon: "⚙️", path: "/policy", group: "governance" },
@@ -22,7 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const NAV_GROUP_LABEL: Record<NavGroupId, string> = {
   security: "安全",
-  cost: "划算",
+  cost: "省钱",
   governance: "治理 / 运维",
 };
 

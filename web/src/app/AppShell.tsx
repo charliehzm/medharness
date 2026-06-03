@@ -67,9 +67,9 @@ export default function AppShell({
           })}
         </nav>
         <div className="side-foot">
-          v0.7 重设计 demo · 合成数据
+          MedHarness 合规医疗 AI 网关
           <br />
-          四目标：安全·划算·审计·稳定
+          四目标：安全 · 省钱 · 合规 · 稳定
         </div>
       </aside>
       <div className="main">

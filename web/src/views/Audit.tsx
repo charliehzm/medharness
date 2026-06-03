@@ -202,11 +202,11 @@ export default function Audit(): JSX.Element {
     <div className="audit-page">
       <div className="audit-head">
         <div>
-          <div className="audit-kicker">🔍 审计与报表</div>
+          <div className="audit-kicker">🔍 合规与报表</div>
           <h2>查得清 · 改不了 · 交得出</h2>
-          <div className="audit-subtitle">仅展示脱敏占位符、哈希引用与聚合处置结果。</div>
+          <div className="audit-subtitle">仅展示脱敏标记、哈希引用与聚合处置结果。</div>
         </div>
-        <div className="audit-badges" aria-label="审计状态">
+        <div className="audit-badges" aria-label="合规状态">
           <Tag tone="ok">防篡改链</Tag>
           <Tag tone="muted">每日校验</Tag>
           <Tag tone="compliance">全程 0 PHI</Tag>
@@ -230,7 +230,7 @@ export default function Audit(): JSX.Element {
           <section className="audit-panel">
             <div className="audit-toolbar">
               <div>
-                <div className="audit-panel-title">可检索审计列表</div>
+                <div className="audit-panel-title">可检索合规事件</div>
                 <div className="audit-panel-subtitle">
                   仅列出事件时间、类别、上游、处置与编号；安全事件只显示分类与处置。
                 </div>
@@ -238,7 +238,7 @@ export default function Audit(): JSX.Element {
               <label className="audit-search">
                 <span>检索</span>
                 <input
-                  aria-label="检索审计事件"
+                  aria-label="检索合规事件"
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="事件编号、上游、处置、分类"
                   type="search"
@@ -256,7 +256,7 @@ export default function Audit(): JSX.Element {
             />
 
             <div className="audit-footnote">
-              明细仅显示脱敏后的占位符与哈希引用；原始信息不在 Console 内反查。
+              明细仅显示脱敏后的标记与哈希引用；原始信息不在 Console 内反查。
             </div>
 
             {exportState.status === "ready" ? (
@@ -288,7 +288,7 @@ export default function Audit(): JSX.Element {
           <aside className="audit-drawer" aria-live="polite">
             <div className="audit-panel-title">血缘与哈希链</div>
             {lineage.status === "idle" ? (
-              <div className="audit-drawer-copy">选择一条审计事件后查看血缘与哈希链。</div>
+              <div className="audit-drawer-copy">选择一条合规事件后查看血缘与哈希链。</div>
             ) : lineage.status === "loading" ? (
               <>
                 <div className="audit-selected-ref">{lineage.ref}</div>
@@ -305,7 +305,7 @@ export default function Audit(): JSX.Element {
                   <div className="audit-lineage-title">{lineage.data.title}</div>
                   <div className="audit-selected-ref">{lineage.data.ref}</div>
                 </div>
-                <div className="audit-lineage" aria-label="审计血缘">
+                <div className="audit-lineage" aria-label="合规血缘">
                   {lineage.data.nodes.map((node, index) => (
                     <div className="audit-lineage-node" key={`${node.t}-${index}`}>
                       <div className="audit-lineage-icon" aria-hidden="true">

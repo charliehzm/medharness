@@ -33,6 +33,10 @@ const toneLabel: Record<EventTone, string> = {
   security: "安全",
 };
 
+function formatTime(value: string): string {
+  return value.replace(/\.\d+/, "").replace("T", " ").replace("Z", " UTC");
+}
+
 export default function EventStream({ events, maxHeight = 380 }: EventStreamProps) {
   return (
     <div className="events" style={{ maxHeight }}>
@@ -49,7 +53,7 @@ export default function EventStream({ events, maxHeight = 380 }: EventStreamProp
             <div className="ev-body">
               <div className="ev-title">{event.title}</div>
               <div className="ev-meta">
-                <span className="ev-time">{event.time}</span>
+                <span className="ev-time">{formatTime(event.time)}</span>
                 <span aria-hidden="true">·</span>
                 <span>{event.tone ? toneLabel[event.tone] : "事件"}</span>
                 <span aria-hidden="true">·</span>
