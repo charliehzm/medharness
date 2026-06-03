@@ -35,7 +35,10 @@
 
 .sankey .snode {
   position: absolute;
-  width: 148px;
+  /* Width is a % of the 900-unit SVG viewBox (148/900) so nodes scale WITH the
+     stretched flow paths (preserveAspectRatio=none). Fixed px would drift apart
+     from the paths as the panel widens — the cause of the detached right half. */
+  width: 16.444%;
   padding: 9px 12px;
   border-radius: 10px;
   font-size: 12.5px;
