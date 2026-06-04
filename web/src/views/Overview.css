@@ -50,6 +50,10 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
   padding: 16px 18px;
+  /* Reserve the height of the capped 3-alert list so the sections below
+     (目标卡 / 安全检查能力 / 月度小结) hold a fixed vertical position no matter how many
+     alerts the live audit feed surfaces — the page stops shoving content as data loads. */
+  min-height: 224px;
 }
 
 .overview-alert-row {

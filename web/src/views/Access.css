@@ -49,6 +49,16 @@
   gap: 16px;
 }
 
+/* Fixed-height, internally-scrolling data tables: the row count (tokens / channels /
+   users) drifts as admins add or remove entries, and a natural-height table would shove
+   the governance summary + page footer below it up and down on every change. A stable
+   table box keeps the page layout deterministic (and stops the live pixel baseline from
+   drifting with row count). Beyond ~6 rows the table scrolls in place. */
+.access-stack .dtable-scroll {
+  height: 300px;
+  overflow-y: auto;
+}
+
 .access-tabs {
   display: flex;
   flex-wrap: wrap;
