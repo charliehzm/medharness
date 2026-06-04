@@ -6,9 +6,14 @@ import { defineConfig, devices } from "@playwright/test";
 // offline); run explicitly: MEDHARNESS_LIVE_BASE=https://localhost:18443 bun run e2e
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 45_000,
+  // Generous timeouts + retries: this suite drives a real browser against a live
+  // Dockerized stack, often on a developer laptop that may be running other heavy
+  // containers at the same time. A starved stack can take >12s to paint a data view;
+  // retry-on-failure lets a transient slow moment self-heal rather than red the gate.
+  timeout: 90_000,
+  retries: 2,
   expect: {
-    timeout: 12_000,
+    timeout: 20_000,
     // Visual regression tolerance: kill animations (the Sankey/particle/orb views
     // never settle) and allow a small ratio for cross-render antialiasing. Baselines
     // are captured per-browser on the LOCAL render env (this suite is local-only).
@@ -16,7 +21,6 @@ export default defineConfig({
   },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
   reporter: [["list"]],
   use: {
     baseURL: process.env.MEDHARNESS_LIVE_BASE || "https://localhost:18443",

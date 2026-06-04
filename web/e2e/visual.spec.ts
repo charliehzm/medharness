@@ -26,6 +26,7 @@ test("every screen matches its visual baseline", async ({ page }) => {
   await switchRole(page, "研发负责人");
   for (const [label, maskSelectors] of SCREENS) {
     await gotoScreen(page, label);
+    await waitForScreenData(page); // data fetch resolved (loading indicator gone) — not mid-load
     await page.waitForTimeout(900); // let canvas/SVG widgets fully paint
     const mask = maskSelectors.map((s) => page.locator(s));
     // Viewport-only (not fullPage): a data-driven dashboard's total height drifts as
@@ -46,8 +47,21 @@ test("every screen matches its visual baseline at a wide viewport", async ({ pag
   await switchRole(page, "研发负责人");
   for (const [label, maskSelectors] of SCREENS) {
     await gotoScreen(page, label);
+    await waitForScreenData(page);
     await page.waitForTimeout(900);
     const mask = maskSelectors.map((s) => page.locator(s));
     await expect(page).toHaveScreenshot(`wide-${label}.png`, { mask });
   }
 });
+
+// Every screen shows a transient "加载中…" while its A0 fetch is in flight. On a
+// loaded host that fetch can take a few seconds; capturing during it yields a half-
+// painted frame (a huge false pixel diff). Wait for the indicator to clear before the
+// paint settle so the snapshot is always of the fully-loaded screen.
+async function waitForScreenData(page: import("@playwright/test").Page): Promise<void> {
+  await page
+    .locator("text=加载中…")
+    .first()
+    .waitFor({ state: "detached", timeout: 20_000 })
+    .catch(() => undefined); // already loaded (never present) — nothing to wait for
+}
