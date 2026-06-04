@@ -16,6 +16,7 @@ cd "$REPO_ROOT"
 BASE="${MEDHARNESS_LIVE_BASE:-https://localhost:18443}"
 PY="${PY:-.venv/bin/python}"
 A0="${MEDHARNESS_A0_CONTAINER:-medharness-a0-api}"
+NEW_API="${MEDHARNESS_NEWAPI_CONTAINER:-medharness-new-api}"
 COMPOSE=(-f deploy/docker-compose.prod.yml -f deploy/docker-compose.local.yml --env-file deploy/.env.production)
 UP=0; FRESH=0; UI=1
 for a in "$@"; do case "$a" in --up) UP=1;; --fresh) FRESH=1; UP=1;; --no-ui) UI=0;; esac; done
@@ -37,6 +38,21 @@ seed_scenarios() {  # seed the deterministic 15-scenario _audit_log; capture the
   docker cp scripts/seed_scenarios.py "${A0}:/tmp/seed_scenarios.py" >/dev/null 2>&1
   docker exec "$A0" python /tmp/seed_scenarios.py --reset --emit-manifest > /tmp/e2e_seed_manifest.json 2>/dev/null
 }
+bootstrap_new_api() {  # A fresh new-api (after `down -v`) has NO admin account: this fork
+  # requires POST /api/setup to create the first root (no auto root:123456). /api/setup is
+  # NOT exposed through the DMZ, so call it inside the container. Idempotent — a re-run on an
+  # already-initialised DB returns success:false, which still proves new-api is up and ready.
+  for _ in $(seq 1 30); do
+    if docker exec "$NEW_API" wget -qO- \
+        --post-data='{"username":"admin","password":"medharness123","confirmPassword":"medharness123","SelfUseModeEnabled":true,"DemoSiteEnabled":false}' \
+        --header="Content-Type: application/json" http://localhost:3000/api/setup 2>/dev/null | grep -q '"success"'; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "  WARN: new-api /api/setup bootstrap did not confirm (admin account may be missing)"
+}
+
 provision_admin_token() {  # root access_token for A0 user-management writes — generated
   # at RUNTIME from new-api (never committed). Skips if already set (normal run);
   # recreates a0-api with it on a fresh stack so the user-management e2e works OOTB.
@@ -70,6 +86,7 @@ fi
 for _ in $(seq 1 90); do [ "$(dmz_code)" = 200 ] && break; sleep 2; done
 [ "$(dmz_code)" = 200 ] || { echo "  ERROR: DMZ not healthy at $BASE"; exit 1; }
 echo "  DMZ $BASE healthy"
+bootstrap_new_api
 provision_admin_token
 
 hr; echo "[2/7] seed deterministic 15-scenario 0-PHI audit rows"
