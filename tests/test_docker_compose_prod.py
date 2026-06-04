@@ -7,9 +7,28 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE = ROOT / "deploy" / "docker-compose.prod.yml"
 NGINX_CONF = ROOT / "deploy" / "nginx" / "medharness.conf"
+NGINX_DOCKERFILE = ROOT / "deploy" / "nginx" / "Dockerfile"
 ENV_EXAMPLE = ROOT / "deploy" / ".env.production.example"
 
 ALL_SERVICES = (
+    "phi-detector",
+    "desensitize",
+    "model-router",
+    "prompt-injection-scan",
+    "outbound-safety",
+    "audit-log",
+    "ci-trigger",
+    "internal-kb",
+    "pm-bridge",
+    "vector-db",
+    "new-api",
+    "a0-api",
+    "clickhouse",
+    "redis",
+    "nginx",
+)
+
+MCP_SERVICES = (
     "phi-detector",
     "desensitize",
     "model-router",
@@ -18,10 +37,7 @@ ALL_SERVICES = (
     "internal-kb",
     "pm-bridge",
     "vector-db",
-    "nginx",
 )
-
-MCP_SERVICES = ALL_SERVICES[:-1]
 PRODUCTION_SERVICES = ("phi-detector", "desensitize", "model-router", "audit-log")
 STUB_SERVICES = ("ci-trigger", "internal-kb", "pm-bridge", "vector-db")
 
@@ -29,11 +45,17 @@ LIMITS = {
     "phi-detector": {"memory": "1024M", "cpus": "1.0"},
     "desensitize": {"memory": "512M", "cpus": "0.5"},
     "model-router": {"memory": "512M", "cpus": "0.5"},
+    "prompt-injection-scan": {"memory": "512M", "cpus": "0.5"},
+    "outbound-safety": {"memory": "512M", "cpus": "0.5"},
     "audit-log": {"memory": "512M", "cpus": "0.5"},
     "ci-trigger": {"memory": "256M", "cpus": "0.25"},
     "internal-kb": {"memory": "256M", "cpus": "0.25"},
     "pm-bridge": {"memory": "256M", "cpus": "0.25"},
     "vector-db": {"memory": "256M", "cpus": "0.25"},
+    "new-api": {"memory": "1024M", "cpus": "1.0"},
+    "a0-api": {"memory": "512M", "cpus": "0.5"},
+    "clickhouse": {"memory": "2048M", "cpus": "1.0"},
+    "redis": {"memory": "512M", "cpus": "0.5"},
     "nginx": {"memory": "128M", "cpus": "0.25"},
 }
 
@@ -58,7 +80,7 @@ def test_no_version_top_level_field() -> None:
     assert "version" not in data
 
 
-def test_has_9_services() -> None:
+def test_has_phase_a_services() -> None:
     data = _compose()
     assert list(data["services"].keys()) == list(ALL_SERVICES)
 
@@ -119,8 +141,14 @@ def test_nginx_depends_on_model_router_and_audit_log() -> None:
     assert depends_on["audit-log"]["condition"] == "service_healthy"
 
 
-def test_audit_log_has_no_depends_on() -> None:
-    assert "depends_on" not in _service("audit-log")
+def test_storage_dependent_services_wait_for_storage_health() -> None:
+    audit_depends_on = _service("audit-log").get("depends_on", {})
+    desensitize_depends_on = _service("desensitize").get("depends_on", {})
+    new_api_depends_on = _service("new-api").get("depends_on", {})
+
+    assert audit_depends_on["clickhouse"]["condition"] == "service_healthy"
+    assert desensitize_depends_on["clickhouse"]["condition"] == "service_healthy"
+    assert new_api_depends_on["redis"]["condition"] == "service_healthy"
 
 
 def test_host_volume_paths_under_data_medharness() -> None:
@@ -136,10 +164,11 @@ def test_host_volume_paths_under_data_medharness() -> None:
 
 def test_all_services_use_version_env_var() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
-    for name in ALL_SERVICES:
-        if name == "nginx":
-            continue
+    for name in MCP_SERVICES:
         assert f"image: medharness/mcp-{name}:${{VERSION}}" in text
+    assert "image: medharness/new-api:${VERSION}" in text
+    assert "image: clickhouse/clickhouse-server:24" in text
+    assert "image: redis:7-alpine" in text
 
 
 def test_resource_limits_match_adr_09() -> None:
@@ -150,13 +179,61 @@ def test_resource_limits_match_adr_09() -> None:
         assert str(limits["cpus"]) == expected["cpus"]
 
 
-def test_nginx_conf_exists_with_upstream_blocks() -> None:
+def test_nginx_conf_is_egress_allowlist() -> None:
+    # ADR-18 §5 (BE-8): the DMZ is a positive egress allowlist. Only the gated
+    # relay (/v1/*) and the A0 console API (/api/v1/*) are exposed; everything
+    # else is default-denied. The MCP control plane (model-router / audit-log)
+    # stays internal-only and is intentionally NOT proxied here.
     text = NGINX_CONF.read_text(encoding="utf-8")
-    assert "upstream model_router" in text
-    assert "upstream audit_log" in text
+    assert "location /v1/" in text
+    assert "location /api/v1/" in text
+    # explicit hard-deny of the bare control plane + a default-deny catch-all
+    assert "location /api/route" in text
+    assert "location /api/audit" in text
+    assert "return 404" in text
+    # the old dead upstream blocks were removed (MCP is never proxied at the DMZ)
+    assert "upstream model_router" not in text
+    assert "upstream audit_log" not in text
 
 
 def test_env_production_example_has_version_placeholder() -> None:
     text = ENV_EXAMPLE.read_text(encoding="utf-8")
     assert "VERSION=0.5.0-edge" in text
     assert "Copy to .env.production" in text
+
+
+def test_nginx_serves_console_spa_without_new_egress() -> None:
+    # The DMZ terminator now also serves the self-built Console as a static SPA.
+    # Serving static files must NOT widen the egress allowlist: the ONLY two
+    # proxy_pass targets remain the §D.1 relay and the A0 console API.
+    text = NGINX_CONF.read_text(encoding="utf-8")
+    assert "root /usr/share/nginx/html;" in text
+    assert "try_files $uri $uri/ /index.html;" in text
+    # all of new-api's /api/* admin surface stays denied; only /api/v1/ proxies
+    assert "location /api/ { return 404; }" in text
+    # static serving adds zero upstream egress — still exactly two proxy targets
+    # (count the directive form so comment mentions of proxy_pass don't inflate it)
+    assert text.count("proxy_pass http://") == 2
+    assert "new-api:3000" in text
+    assert "a0-api:9000" in text
+
+
+def test_nginx_service_builds_console_image() -> None:
+    nginx = _service("nginx")
+    assert nginx["build"]["context"] == ".."
+    assert nginx["build"]["dockerfile"] == "deploy/nginx/Dockerfile"
+    assert nginx["image"] == "medharness/nginx:${VERSION}"
+    # the conf is baked into the image now, not a bind mount
+    for volume in nginx.get("volumes", []):
+        assert "medharness.conf" not in str(volume)
+
+
+def test_nginx_dockerfile_builds_live_console_and_bakes_conf() -> None:
+    assert NGINX_DOCKERFILE.exists()
+    text = NGINX_DOCKERFILE.read_text(encoding="utf-8")
+    assert "oven/bun" in text  # Console build stage
+    assert "VITE_API_MODE=live" in text  # baked: Console talks to the real A0 BFF
+    assert "bun run build" in text
+    assert "nginx:1.27-alpine" in text  # serve stage
+    assert "/usr/share/nginx/html" in text
+    assert "medharness.conf" in text  # conf baked into the image

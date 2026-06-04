@@ -10,6 +10,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "mcp" / "model-router" / "server_v2.py"
+
+sys.path.insert(0, str(ROOT / "mcp" / "model-router"))
+import tier_trust  # noqa: E402
+
+_TIER_SECRET = "test-tier-secret-integration"
 FIXTURE = ROOT / "tests" / "fixtures" / "model_router_allowlists.json"
 
 
@@ -38,7 +43,7 @@ def _route_request(
     caller_vendor_family: str,
     desensitized: bool,
 ) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "model_id": model_id,
         "agent_role": agent_role,
         "data_level": data_level,
@@ -46,11 +51,14 @@ def _route_request(
         "caller_vendor_family": caller_vendor_family,
         "desensitized": desensitized,
     }
+    payload["tier_sig"] = tier_trust.sign_tier(payload, _TIER_SECRET.encode("utf-8"))
+    return payload
 
 
 def _run_route(tmp_path: Path, payload: dict[str, object]) -> dict[str, object]:
     env = os.environ.copy()
     env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    env["MODEL_ROUTER_TIER_SECRET"] = _TIER_SECRET
     proc = subprocess.run(
         [sys.executable, str(SERVER), "route"],
         input=json.dumps(payload, ensure_ascii=False),
@@ -66,6 +74,7 @@ def _run_route(tmp_path: Path, payload: dict[str, object]) -> dict[str, object]:
 def _run_stdio(tmp_path: Path, payloads: list[dict[str, object]]) -> list[dict[str, object]]:
     env = os.environ.copy()
     env["CLAUDE_PROJECT_DIR"] = str(tmp_path)
+    env["MODEL_ROUTER_TIER_SECRET"] = _TIER_SECRET
     request_text = "\n".join(
         json.dumps({"id": f"req-{index}", "method": "route", "params": payload}, ensure_ascii=False)
         for index, payload in enumerate(payloads, start=1)

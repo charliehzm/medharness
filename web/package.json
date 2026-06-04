@@ -7,25 +7,34 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "tsc": "tsc -b --pretty false"
+    "tsc": "tsc -b --pretty false",
+    "test": "vitest run",
+    "test:guard": "node --experimental-strip-types --test src/api/contract/sanitize.test.ts",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium",
+    "e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "@visactor/react-vchart": "^2.0.22",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
+    "@axe-core/playwright": "^4.11.3",
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.60.0",
     "@types/node": "^18.19.130",
     "@types/react": "^18.3.24",
     "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.4.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.44.1",
-    "vite": "^6.4.2"
+    "vite": "^6.4.2",
+    "vitest": "^4.1.8"
   }
 }

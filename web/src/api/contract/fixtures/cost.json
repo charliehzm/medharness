@@ -1,0 +1,28 @@
+{
+  "window": "month",
+  "kpi": {
+    "month_cost": "$648.00",
+    "saved_vs_direct": "即将推出",
+    "saved_ratio": "即将推出",
+    "cache_hit_ratio": "即将推出",
+    "cache_saved": "即将推出",
+    "cap_day": "即将推出",
+    "cap_used": "$24.80",
+    "cap_left_ratio": "即将推出",
+    "normal_lane_ratio": "73%"
+  },
+  "by_lane": [
+    { "name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 73, "amount": "$473.00" },
+    { "name": "敏感通道（私有）", "color_token": "lane-sensitive", "pct": 27, "amount": "$175.00" }
+  ],
+  "by_model": [
+    { "name": "qwen-max-2026", "color_token": "compliance", "pct": 43, "amount": "$280.00" },
+    { "name": "claude-sonnet", "color_token": "primary", "pct": 28, "amount": "$180.00" },
+    { "name": "deepseek-v4-pro", "color_token": "ok", "pct": 17, "amount": "$108.00" },
+    { "name": "qwen-vl-2026", "color_token": "cost", "pct": 12, "amount": "$80.00" }
+  ],
+  "trend": [58, 62, 55, 70, 64, 61, 52],
+  "tips": [
+    { "tip": "实时用量与成本来自网关聚合；较直连节省、缓存 ROI 与优化建议即将推出", "saving": "即将推出" }
+  ]
+}

@@ -1,18 +1,21 @@
+@import "./styles/tokens.css";
+
 * {
   box-sizing: border-box;
 }
 
 html {
-  color-scheme: light;
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
-    "Segoe UI", sans-serif;
-  background: #f5f7fb;
-  color: #0b1f3a;
+  font-family: var(--font-base);
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
   margin: 0;
   min-width: 320px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(15, 181, 166, 0.08), transparent 24%),
+    linear-gradient(180deg, #ffffff 0%, var(--bg) 28%, var(--bg) 100%);
 }
 
 button,
@@ -26,20 +29,20 @@ select {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 32px;
+  padding: var(--space-32);
 }
 
 .bootstrap-panel {
   width: min(560px, 100%);
-  background: #fff;
-  border: 1px solid #e5e9f2;
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(11, 31, 58, 0.08);
-  padding: 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elev-1);
+  padding: var(--space-32);
 }
 
 .bootstrap-kicker {
-  color: #0a8c81;
+  color: var(--teal-d);
   font-size: 13px;
   font-weight: 800;
 }
@@ -48,11 +51,12 @@ select {
   margin: 10px 0 12px;
   font-size: 32px;
   line-height: 1.15;
+  color: var(--primary);
 }
 
 .bootstrap-panel p {
   margin: 0;
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 15px;
   line-height: 1.7;
 }

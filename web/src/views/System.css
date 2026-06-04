@@ -1,0 +1,153 @@
+.system-page {
+  display: grid;
+  gap: 16px;
+  max-width: 1240px;
+}
+
+.system-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.system-kicker {
+  color: var(--security);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.system-head h2 {
+  margin: 6px 0 8px;
+  color: var(--navy);
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.system-subtitle,
+.system-copy,
+.system-note,
+.system-meta,
+.system-phi {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.system-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.system-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.system-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.system-list {
+  display: grid;
+  gap: 10px;
+}
+
+.system-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.system-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.system-name {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.system-meta {
+  font-size: 12px;
+}
+
+.system-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.system-phi {
+  font-family: var(--font-mono);
+}
+
+.system-planned {
+  color: var(--cost);
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.system-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.system-actions button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.system-note {
+  margin-top: 12px;
+}
+
+.system-loading,
+.system-error {
+  padding: 18px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.system-error {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
+}
+
+@media (max-width: 1120px) {
+  .system-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .system-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

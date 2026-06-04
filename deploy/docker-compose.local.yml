@@ -1,0 +1,58 @@
+# Local (macOS) override for deploy/docker-compose.prod.yml.
+#
+# The prod file uses absolute /data/medharness/* host bind mounts (a Linux prod
+# host with provisioned storage + WORM). On a dev box those need sudo dir
+# creation AND Docker-Desktop file-sharing of /data. This override swaps each
+# bind for a Docker-managed named volume (matched by container target), so the
+# full stack comes up locally with zero host-path setup. TLS stays a bind but
+# points at a repo-local dir (under a shared path) via TLS_CERT_DIR in .env.
+#
+#   docker compose -f deploy/docker-compose.prod.yml -f deploy/docker-compose.local.yml \
+#     --env-file deploy/.env.production up -d
+
+services:
+  # Console entrypoint on local high ports (host 80/443 are often taken on a dev
+  # box). !override replaces the prod 80/443 mapping rather than appending.
+  nginx:
+    ports: !override
+      - "18080:80"
+      - "18443:443"
+
+  desensitize:
+    volumes:
+      - keystore_data:/data/medharness/keystore:rw
+  model-router:
+    volumes:
+      - model_router_data:/project:rw
+  audit-log:
+    volumes:
+      - audit_data:/data/medharness/audit:rw
+  new-api:
+    # new-api stays internal-only (no host port): /api/setup is bootstrapped via
+    # `docker compose exec new-api wget …` since that endpoint is intentionally
+    # NOT reachable through the nginx DMZ (the /api/ deny).
+    volumes:
+      - new_api_data:/data:rw
+    environment:
+      # Local test stack ONLY. The automated E2E harness logs in many times per
+      # run (Console Playwright specs + pytest session setup + relay smoke).
+      # new-api's CriticalRateLimit defaults to 20 logins / 20 min (constants.go),
+      # which 429s back-to-back suite runs. Production keeps the default (enabled);
+      # this relaxes it for the local harness only. Map-merges into the prod env.
+      CRITICAL_RATE_LIMIT_ENABLE: "false"
+  clickhouse:
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse:rw
+      - clickhouse_logs:/var/log/clickhouse-server:rw
+  redis:
+    volumes:
+      - redis_data:/data:rw
+
+volumes:
+  keystore_data:
+  model_router_data:
+  audit_data:
+  new_api_data:
+  clickhouse_data:
+  clickhouse_logs:
+  redis_data:

@@ -1,0 +1,30 @@
+import { expect, test } from "@playwright/test";
+
+import { gotoScreen, login, routeA0Down, switchRole } from "./fixtures";
+
+// With the A0 data path intercepted (500), every screen must render its error state
+// gracefully — never a blank crash, never a leak. Console errors from the failed
+// fetch ARE expected here, so this spec asserts the error UI, not zero-errors.
+const SCREEN_ERRORS: ReadonlyArray<readonly [string, string]> = [
+  ["总览", ".overview-error"],
+  ["流量监控", ".traffic-error"],
+  ["合规与报表", ".audit-error"],
+  ["用量与成本", ".cost-error"],
+  ["接入", ".access-error"],
+  ["系统", ".system-error"],
+];
+
+test("every screen renders its error state when A0 is down", async ({ page }) => {
+  await login(page);
+  await switchRole(page, "研发负责人");
+  // Navigate away from the landing screen (总览) FIRST, so that re-navigating to it
+  // inside the loop re-mounts + re-fetches with A0 down (auth is in-memory, so a
+  // page.reload() would drop the session — route interception is the only option).
+  await gotoScreen(page, "系统");
+  await routeA0Down(page, "error"); // all /api/v1/* now 500
+
+  for (const [label, errorSelector] of SCREEN_ERRORS) {
+    await gotoScreen(page, label); // each screen re-mounts -> fresh fetch -> error state
+    await expect(page.locator(errorSelector), `${label} error state`).toBeVisible({ timeout: 10000 });
+  }
+});

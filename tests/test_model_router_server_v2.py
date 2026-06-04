@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import subprocess
 import sys
 from importlib import util
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -23,13 +25,17 @@ sys.modules["model_router_server_v2"] = server_v2
 assert spec.loader is not None
 spec.loader.exec_module(server_v2)
 
+import tier_trust  # noqa: E402,I001
+
 
 CHANGE_ID = "change-t3-server"
+_TIER_SECRET = "test-tier-secret-server"
 
 
 @pytest.fixture(autouse=True)
 def _reset_runtime(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(tmp_path))
+    monkeypatch.setenv("MODEL_ROUTER_TIER_SECRET", _TIER_SECRET)
     server_v2._RUNTIME = None
 
 
@@ -78,6 +84,7 @@ def _route_payload(**overrides: object) -> dict[str, object]:
         "desensitized": True,
     }
     payload.update(overrides)
+    payload["tier_sig"] = tier_trust.sign_tier(payload, _TIER_SECRET.encode("utf-8"))
     return payload
 
 
@@ -87,6 +94,54 @@ def _audit_lines(tmp_path: Path) -> list[dict[str, object]]:
     return [
         json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines() if line
     ]
+
+
+class _FakeSocket:
+    def __init__(self, request_bytes: bytes) -> None:
+        self._rfile = io.BytesIO(request_bytes)
+        self._wfile = io.BytesIO()
+
+    def makefile(self, mode: str, buffering: int | None = None) -> io.BytesIO:
+        del buffering
+        if "r" in mode:
+            return self._rfile
+        return self._wfile
+
+    def sendall(self, data: bytes) -> None:
+        self._wfile.write(data)
+
+    def close(self) -> None:
+        return None
+
+
+def _invoke_http_request(
+    method: str,
+    path: str,
+    payload: dict[str, object] | None = None,
+    raw_body: bytes | None = None,
+) -> tuple[int, dict[str, object]]:
+    server_v2._RUNTIME = None
+    body = raw_body or b""
+    headers = ["Host: 127.0.0.1", "Connection: close"]
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        headers.append("Content-Type: application/json")
+        headers.append(f"Content-Length: {len(body)}")
+    elif raw_body is not None:
+        headers.append("Content-Type: application/json")
+        headers.append(f"Content-Length: {len(body)}")
+    request_bytes = (
+        f"{method} {path} HTTP/1.1\r\n" + "\r\n".join(headers) + "\r\n\r\n"
+    ).encode("utf-8") + body
+    fake_socket = _FakeSocket(request_bytes)
+    server = SimpleNamespace(server_name="127.0.0.1", server_port=0)
+    server_v2._ModelRouterHTTPHandler(fake_socket, ("127.0.0.1", 12345), server)
+    response = fake_socket._wfile.getvalue()
+    status_line, _, remainder = response.partition(b"\r\n")
+    headers_blob, _, body_bytes = remainder.partition(b"\r\n\r\n")
+    del headers_blob
+    status_code = int(status_line.split()[1])
+    return status_code, json.loads(body_bytes.decode("utf-8"))
 
 
 def test_route_health_and_stdio_smoke(tmp_path: Path) -> None:
@@ -148,6 +203,86 @@ def test_route_health_and_stdio_smoke(tmp_path: Path) -> None:
     assert "prompt" not in audit_text
 
 
+def test_http_health_and_signed_route_response(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    health_code, health = _invoke_http_request("GET", "/health")
+    route_code, result = _invoke_http_request("POST", "/route", _route_payload())
+
+    signed_fields = {
+        key: result[key]
+        for key in (
+            "decision",
+            "reason",
+            "layer_failed",
+            "policy_version",
+            "duration_us",
+            "allowed_model_set",
+            "lane",
+            "max_data_level",
+            "map_id",
+        )
+    }
+
+    assert health_code == 200
+    assert route_code == 200
+    assert health["status"] == "ok-v2"
+    assert result["decision"] == "allow"
+    assert result["routing_log_id"]
+    assert result["sig"]
+    assert tier_trust.verify_decision(signed_fields, result["sig"], _TIER_SECRET.encode("utf-8"))
+    assert result["vendor_family"] == "alibaba"
+    assert result["deployment"] == "private://qwen-max"
+
+
+def test_http_deny_is_generic_and_reason_free(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    payload = {
+        "model_id": "qwen-max",
+        "agent_role": "coder",
+        "data_level": "L2",
+        "change_id": CHANGE_ID,
+        "desensitized": True,
+    }
+
+    status, result = _invoke_http_request("POST", "/route", payload)
+
+    assert status == 200
+    assert result["decision"] == "deny"
+    assert result["error"]["code"] == "route_denied"
+    assert result["error"]["msg"] == "request denied by routing policy"
+    assert "reason" not in result["error"]
+    assert "layer_failed" not in result["error"]
+    assert "reason" not in json.dumps(result, ensure_ascii=False)
+    assert "layer_failed" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_http_forged_tier_denies_generic(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+    payload = _route_payload(data_level="L4")
+    payload["data_level"] = "L1"
+
+    status, result = _invoke_http_request("POST", "/route", payload)
+
+    assert status == 200
+    assert result["decision"] == "deny"
+    assert result["error"]["code"] == "route_denied"
+    assert "reason" not in result["error"]
+
+
+def test_http_bad_json_rejects_without_echo(tmp_path: Path) -> None:
+    _allowlist_path(tmp_path)
+
+    status, body = _invoke_http_request(
+        "POST", "/route", raw_body=b'{"model_id": "broken"'
+    )
+
+    assert status == 400
+    assert body["error"]["code"] == "bad_request"
+    assert "broken" not in json.dumps(body, ensure_ascii=False)
+
+
 def test_missing_desensitized_marker_denies(tmp_path: Path) -> None:
     _allowlist_path(tmp_path)
     denied = server_v2.route_v2(_route_payload(desensitized=False))
@@ -155,7 +290,41 @@ def test_missing_desensitized_marker_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "marker"
     assert denied["error"]["type"] == "PolicyDenyError"
-    assert "must route through mcp-desensitize first" in denied["error"]["message"]
+    # H2: detail is in the audit record, NOT the external error message
+    assert any(
+        "must route through mcp-desensitize first" in str(r.get("reason", ""))
+        for r in _audit_lines(tmp_path)
+    )
+
+
+def test_unsigned_tier_denied(tmp_path: Path) -> None:
+    """B1: a caller cannot self-assert tier — unsigned tier is rejected (fail-closed)."""
+    _allowlist_path(tmp_path)
+    payload = {
+        "model_id": "qwen-max",
+        "agent_role": "coder",
+        "data_level": "L2",
+        "change_id": CHANGE_ID,
+        "caller_vendor_family": "openai",
+        "desensitized": True,
+        # no tier_sig — caller is not the trusted gate middleware
+    }
+    denied = server_v2.route_v2(payload)
+
+    assert denied["decision"] == "deny"
+    assert denied["error"]["layer_failed"] == "tier"
+
+
+def test_forged_tier_denied(tmp_path: Path) -> None:
+    """B1: tampering a signed tier field (downgrade L4->L1) breaks the signature -> deny."""
+    _allowlist_path(tmp_path)
+    payload = _route_payload(data_level="L4")  # validly signed for L4
+    payload["data_level"] = "L1"  # caller forges a downgrade after signing
+
+    denied = server_v2.route_v2(payload)
+
+    assert denied["decision"] == "deny"
+    assert denied["error"]["layer_failed"] == "tier"
 
 
 def test_allowlist_miss_denies(tmp_path: Path) -> None:
@@ -164,7 +333,7 @@ def test_allowlist_miss_denies(tmp_path: Path) -> None:
 
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "allowlist"
-    assert "missing-model" in denied["error"]["message"]
+    assert any("missing-model" in str(r.get("reason", "")) for r in _audit_lines(tmp_path))
 
 
 def test_data_level_over_policy_denies(tmp_path: Path) -> None:
@@ -174,7 +343,10 @@ def test_data_level_over_policy_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "data_level"
     assert denied["error"]["type"] == "PolicyDenyError"
-    assert "data_level='L4'" in denied["error"]["message"]
+    assert any("data_level='L4'" in str(r.get("reason", "")) for r in _audit_lines(tmp_path))
+    # H2: external message is generic — must NOT leak the tier value or policy trace
+    assert "L4" not in denied["error"]["message"]
+    assert denied["error"]["message"] == "request denied by routing policy"
 
 
 def test_same_family_compliance_call_denies(tmp_path: Path) -> None:
@@ -189,7 +361,9 @@ def test_same_family_compliance_call_denies(tmp_path: Path) -> None:
     assert denied["decision"] == "deny"
     assert denied["error"]["layer_failed"] == "heterogeneity"
     assert denied["error"]["severity"] == "WARN"
-    assert "heterogeneity policy denied" in denied["error"]["message"]
+    assert any(
+        "heterogeneity policy denied" in str(r.get("reason", "")) for r in _audit_lines(tmp_path)
+    )
 
 
 def test_five_denies_open_circuit_and_sixth_is_sev2(tmp_path: Path) -> None:

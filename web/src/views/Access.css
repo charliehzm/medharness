@@ -1,0 +1,349 @@
+.access-page {
+  display: grid;
+  gap: 16px;
+  max-width: 1240px;
+}
+
+.access-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.access-kicker {
+  color: var(--compliance);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.access-head h2 {
+  margin: 6px 0 8px;
+  color: var(--navy);
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.access-subtitle,
+.access-footnote,
+.access-banner-text,
+.access-copy,
+.access-summary-copy,
+.access-summary-list span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.access-badges,
+.access-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-stack {
+  display: grid;
+  gap: 16px;
+}
+
+/* Fixed-height, internally-scrolling data tables: the row count (tokens / channels /
+   users) drifts as admins add or remove entries, and a natural-height table would shove
+   the governance summary + page footer below it up and down on every change. A stable
+   table box keeps the page layout deterministic (and stops the live pixel baseline from
+   drifting with row count). Beyond ~6 rows the table scrolls in place. */
+.access-stack .dtable-scroll {
+  height: 300px;
+  overflow-y: auto;
+}
+
+.access-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-tabs button,
+.access-banner-actions button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.access-tabs button.on {
+  background: var(--teal-bg);
+  border-color: var(--compliance-border);
+  color: var(--teal-d);
+}
+
+.access-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-elev-1);
+}
+
+.access-banner-title {
+  color: var(--navy);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.access-grid,
+.access-summary-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.access-grid-apps,
+.access-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.access-planned {
+  color: var(--cost);
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.access-note-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.access-note-list div {
+  padding-left: 12px;
+  border-left: 3px solid var(--teal);
+}
+
+.access-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.access-models {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.access-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.access-summary-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.access-summary-list b {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.access-summary-copy {
+  font-size: 13px;
+}
+
+.access-loading,
+.access-error {
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.access-error {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
+}
+
+/* ── 用户管理（sysadmin）· 行内操作 + 弹窗表单 ──────────────────── */
+.access-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.access-row-actions button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.access-row-actions button:hover {
+  border-color: var(--compliance-border);
+}
+
+.access-row-actions button.access-row-danger {
+  color: var(--bad-d);
+  border-color: var(--bad-border);
+  background: var(--bad-bg);
+}
+
+.access-modal {
+  width: min(560px, 100%);
+}
+
+.access-modal-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.access-form-row {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.access-form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.access-form-field label {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.access-form-field input,
+.access-form-field select {
+  width: 100%;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 12px;
+  font: inherit;
+}
+
+.access-form-field input:focus,
+.access-form-field select:focus {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+
+.access-check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 32px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.access-check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--teal);
+}
+
+.access-confirm-copy {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.access-field-hint {
+  margin-top: 6px;
+  color: var(--text-muted, var(--muted-d));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.access-form-error {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bad-bg);
+  border: 1px solid var(--bad-border);
+  color: var(--bad-d);
+  font-size: 13px;
+}
+
+.access-test-result {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.access-test-result.is-ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-d);
+}
+
+.access-test-result.is-bad {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
+}
+
+.access-modal-danger {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
+}
+
+@media (max-width: 1120px) {
+  .access-grid-apps,
+  .access-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .access-head,
+  .access-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .access-form-row {
+    grid-template-columns: 1fr;
+  }
+}

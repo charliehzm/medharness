@@ -52,6 +52,10 @@ mkdocs.yml
 # Node and frontend caches
 node_modules/
 
+# Vendored fork: built from its own context (../vendor/new-api); never needed
+# by the repo-root build contexts (mcp/* images, the nginx+Console image).
+vendor/
+
 # OS, editor, and transient files
 .DS_Store
 .vscode/

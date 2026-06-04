@@ -5,6 +5,9 @@
 services:
   phi-detector:
     image: medharness/mcp-phi-detector:${VERSION}
+    # §D.1 gate services run as HTTP servers (the image default CMD is stdio MCP,
+    # which would EOF + exit in a detached container).
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     container_name: medharness-phi-detector
     restart: unless-stopped
     networks:
@@ -23,12 +26,56 @@ services:
 
   desensitize:
     image: medharness/mcp-desensitize:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     container_name: medharness-desensitize
     restart: unless-stopped
     networks:
       - medharness_internal
     volumes:
       - /data/medharness/keystore:/data/medharness/keystore:rw
+    environment:
+      MEDHARNESS_KEYSTORE_ROOT: /data/medharness/keystore
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "python server_v2.py health >/dev/null && python -c \"import os, urllib.request; req=urllib.request.Request('http://%s:%s/?database=%s&query=SELECT%%201' % (os.environ['CLICKHOUSE_HOST'], os.environ['CLICKHOUSE_HTTP_PORT'], os.environ['CLICKHOUSE_DATABASE']), headers={'X-ClickHouse-User': os.environ['CLICKHOUSE_USER'], 'X-ClickHouse-Key': os.environ['CLICKHOUSE_PASSWORD']}); urllib.request.urlopen(req, timeout=2).read()\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  model-router:
+    image: medharness/mcp-model-router:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
+    container_name: medharness-model-router
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    environment:
+      # B1: must match the new-api gate's tier secret (the only signer/verifier pair).
+      MODEL_ROUTER_TIER_SECRET: ${MODEL_ROUTER_TIER_SECRET}
+      # model-router loads the active allowlist from
+      # $CLAUDE_PROJECT_DIR/openspec/changes/<change_id>/MODEL_ALLOWLIST.json and
+      # writes its routing audit to $CLAUDE_PROJECT_DIR/.audit/ (needs write).
+      CLAUDE_PROJECT_DIR: /project
+    volumes:
+      - /data/medharness/model-router:/project:rw
+    depends_on:
+      phi-detector:
+        condition: service_healthy
+      desensitize:
+        condition: service_healthy
     deploy:
       resources:
         limits:
@@ -41,17 +88,32 @@ services:
       start_period: 10s
       retries: 3
 
-  model-router:
-    image: medharness/mcp-model-router:${VERSION}
-    container_name: medharness-model-router
+  prompt-injection-scan:
+    image: medharness/mcp-prompt-injection-scan:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
+    container_name: medharness-prompt-injection-scan
     restart: unless-stopped
     networks:
       - medharness_internal
-    depends_on:
-      phi-detector:
-        condition: service_healthy
-      desensitize:
-        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "detector.py", "health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  outbound-safety:
+    image: medharness/mcp-outbound-safety:${VERSION}
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
+    container_name: medharness-outbound-safety
+    restart: unless-stopped
+    networks:
+      - medharness_internal
     deploy:
       resources:
         limits:
@@ -72,13 +134,27 @@ services:
       - medharness_internal
     volumes:
       - /data/medharness/audit:/data/medharness/audit:rw
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      MEDHARNESS_AUDIT_FALLBACK_DIR: /data/medharness/audit
+    depends_on:
+      clickhouse:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "python", "-c", "from server_v2 import AuditLogServerV2"]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"from pathlib import Path; from clickhouse_writer import ClickHouseUnavailable; from server_v2 import AuditLogServerV2; DummyFallbackWriter = type('DummyFallbackWriter', (), {'append': lambda self, event: {'event_id': event['event_id'], 'row_id': event['row_id'], 'prev_hash': event['prev_hash'], 'current_hash': event['current_hash'], 'fallback_path': '/dev/null'}}); ch_factory = lambda **kwargs: (_ for _ in ()).throw(ClickHouseUnavailable('unavailable')); server = AuditLogServerV2({}, Path('/tmp'), clickhouse_writer_factory=ch_factory, fallback_writer_factory=lambda base_dir: DummyFallbackWriter()); event = {'event_id': '00000000-0000-0000-0000-000000000001', 'timestamp': '2026-05-31T00:00:00Z', 'actor': {'agent_role': 'system', 'model_id': 'mock', 'vendor_family': 'mock', 'session_id': 'healthcheck'}, 'action': {'tool': 'healthcheck', 'operation': 'ping'}, 'context': {'change_id': 'healthcheck', 'step': 0, 'data_levels': ['L1']}, 'result': {'status': 'ok', 'reason': 'ok', 'duration_ms': 0.0}, 'input_hash': '0000000000000000000000000000000000000000000000000000000000000000', 'output_hash': '1111111111111111111111111111111111111111111111111111111111111111'}; result = server.append(event); assert server.health()['state'] == 'fallback'; assert result['state'] == 'fallback'; assert server.query('SELECT 1')['degraded'] is True\""
+        ]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -87,6 +163,9 @@ services:
   ci-trigger:
     image: medharness/mcp-ci-trigger:${VERSION}
     container_name: medharness-ci-trigger
+    # stub placeholders run a minimal HTTP health server (not stdio, which EOFs
+    # and restart-loops in a detached container).
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -96,7 +175,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -105,6 +184,7 @@ services:
   internal-kb:
     image: medharness/mcp-internal-kb:${VERSION}
     container_name: medharness-internal-kb
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -114,7 +194,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -123,6 +203,7 @@ services:
   pm-bridge:
     image: medharness/mcp-pm-bridge:${VERSION}
     container_name: medharness-pm-bridge
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -132,7 +213,7 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
       interval: 30s
       timeout: 10s
       start_period: 10s
@@ -141,6 +222,7 @@ services:
   vector-db:
     image: medharness/mcp-vector-db:${VERSION}
     container_name: medharness-vector-db
+    command: ["serve", "--http", "--host", "0.0.0.0", "--port", "9000"]
     restart: unless-stopped
     networks:
       - medharness_internal
@@ -150,14 +232,157 @@ services:
           memory: 256M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "python", "-c", "import server"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  new-api:
+    build:
+      context: ../vendor/new-api
+    image: medharness/new-api:${VERSION}
+    container_name: medharness-new-api
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    volumes:
+      - /data/medharness/new-api:/data:rw
+    environment:
+      PORT: "3000"
+      GIN_MODE: release
+      MEMORY_CACHE_ENABLED: "true"
+      REDIS_CONN_STRING: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CRYPTO_SECRET: ${NEW_API_CRYPTO_SECRET}
+      MEDHARNESS_DISABLE_RESALE_SURFACE: "true"
+      # §D.1 compliance gate: pre-call phi -> desensitize -> model-router ->
+      # injection, then base relay, then post-call outbound-safety. The tier
+      # secret MUST match model-router (B1 zero-trust).
+      MODEL_ROUTER_TIER_SECRET: ${MODEL_ROUTER_TIER_SECRET}
+      PHI_DETECTOR_URL: http://phi-detector:9000
+      DESENSITIZE_URL: http://desensitize:9000
+      MODEL_ROUTER_URL: http://model-router:9000
+      INJECTION_URL: http://prompt-injection-scan:9000
+      OUTBOUND_SAFETY_URL: http://outbound-safety:9000
+    depends_on:
+      redis:
+        condition: service_healthy
+      phi-detector:
+        condition: service_healthy
+      desensitize:
+        condition: service_healthy
+      model-router:
+        condition: service_healthy
+      prompt-injection-scan:
+        condition: service_healthy
+      outbound-safety:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -q '\"success\":true'"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  a0-api:
+    build:
+      context: ..
+      dockerfile: mcp/a0-api/Dockerfile
+    image: medharness/mcp-a0-api:${VERSION}
+    container_name: medharness-a0-api
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_HTTP_PORT: "8123"
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      NEW_API_URL: http://new-api:3000
+      # Console session signing — A0 mints/verifies the Bearer token the browser
+      # persists (survives refresh) and uses to gate admin-write endpoints. Production
+      # MUST set A0_SESSION_SECRET (≥32 bytes) in the env-file; the default is LOCAL-ONLY.
+      A0_SESSION_SECRET: "${A0_SESSION_SECRET:-medharness-local-session-secret-change-in-prod-0001}"
+      A0_SESSION_TTL_SECONDS: "${A0_SESSION_TTL_SECONDS:-43200}"
+      # A0 -> new-api admin writes (user management): a root access_token + its user id,
+      # sent as Authorization + New-Api-User over the internal network (never the DMZ).
+      NEW_API_ADMIN_TOKEN: "${NEW_API_ADMIN_TOKEN:-}"
+      NEW_API_ADMIN_USER_ID: "${NEW_API_ADMIN_USER_ID:-1}"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=5).status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24
+    container_name: medharness-clickhouse
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - /data/medharness/clickhouse:/var/lib/clickhouse:rw
+      - /data/medharness/clickhouse-logs:/var/log/clickhouse-server:rw
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user \"$${CLICKHOUSE_USER}\" --password \"$${CLICKHOUSE_PASSWORD}\" --database \"$${CLICKHOUSE_DB}\" --query \"SELECT 1\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: medharness-redis
+    restart: unless-stopped
+    networks:
+      - medharness_internal
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - /data/medharness/redis:/data:rw
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep -q PONG"]
       interval: 30s
       timeout: 10s
       start_period: 10s
       retries: 3
 
   nginx:
-    image: nginx:1.27-alpine
+    build:
+      context: ..
+      dockerfile: deploy/nginx/Dockerfile
+    image: medharness/nginx:${VERSION}
     container_name: medharness-nginx
     restart: unless-stopped
     networks:
@@ -167,12 +392,13 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/medharness.conf:/etc/nginx/conf.d/default.conf:ro
       - ${TLS_CERT_DIR:-/etc/medharness/tls}:/etc/medharness/tls:ro
     depends_on:
       model-router:
         condition: service_healthy
       audit-log:
+        condition: service_healthy
+      a0-api:
         condition: service_healthy
     deploy:
       resources:
@@ -180,7 +406,7 @@ services:
           memory: 128M
           cpus: "0.25"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/health"]
       interval: 30s
       timeout: 10s
       start_period: 5s

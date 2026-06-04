@@ -1,0 +1,90 @@
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.ev {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--ev-bg);
+  border-left: 3px solid var(--line);
+}
+
+.ev.comp {
+  border-left-color: var(--teal);
+}
+
+.ev.sec {
+  border-left-color: var(--violet);
+}
+
+.ev-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ev-title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ev-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ev-time {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.ev-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ev-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
+  background: var(--line);
+}
+
+.ev-dot.comp {
+  background: var(--teal);
+}
+
+.ev-dot.sec {
+  background: var(--violet);
+}
+
+.ev-empty {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ev-bg);
+  color: var(--muted);
+  border: 1px dashed var(--line);
+}

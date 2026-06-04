@@ -35,7 +35,25 @@ jobs:
           python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements.txt -r requirements-dev.txt
-      - run: pytest tests/integration -v
+      # tools/mock_upstream is the LLM simulator (Layer 5): stdlib-only and fully
+      # offline, so it runs here. test_medical_presets validates the deploy/presets
+      # compliance invariants (offline). The live E2E layers (tests/e2e_live, tests/sim)
+      # are intentionally NOT collected — they self-skip without a running stack.
+      - run: pytest tests/integration tools/mock_upstream tests/test_medical_presets.py -v
+
+  gate-go:
+    # Offline Go unit tests for the §D.1 compliance gate pure functions
+    # (extractPromptText / rewriteDesensitizedBody / reassembleSSEContent / tier sign).
+    # No stack needed — these run the embeddings + streaming bug regressions in CI.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vendor/new-api/go.mod
+          cache-dependency-path: vendor/new-api/go.sum
+      - run: go test ./middleware/ -count=1
+        working-directory: vendor/new-api
 
   dryrun:
     runs-on: ubuntu-latest

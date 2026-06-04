@@ -5,12 +5,18 @@
  * 后端 ready 后切真实 fetch。所有 fixture 均为合成数据，0 PHI。
  */
 import type {
+  AdminChannelsResponse,
+  AdminTokensResponse,
+  AdminUsersResponse,
   ApiError,
   AuditExportResponse,
   AuditLineageResponse,
+  ChannelsResponse,
   ConfigProposeResponse,
   ConfigSnapshot,
+  CostResponse,
   EventsResponse,
+  MgmtOk,
   PostureResponse,
   TrafficResponse,
   UpstreamsResponse,
@@ -22,7 +28,12 @@ import traffic from "./fixtures/traffic.json";
 import events from "./fixtures/events.json";
 import audit from "./fixtures/audit.json";
 import upstreams from "./fixtures/upstreams.json";
+import cost from "./fixtures/cost.json";
+import channels from "./fixtures/channels.json";
 import config from "./fixtures/config.json";
+import adminUsers from "./fixtures/admin_users.json";
+import adminTokens from "./fixtures/admin_tokens.json";
+import adminChannels from "./fixtures/admin_channels.json";
 import exportRes from "./fixtures/export.json";
 import propose from "./fixtures/propose.json";
 
@@ -55,6 +66,15 @@ export function resolveMock(method: string, rawPath: string): MockResult<unknown
   if (m === "GET" && path === "/events") return ok(events as EventsResponse, "GET /events");
   if (m === "GET" && path === "/upstreams")
     return ok(upstreams as UpstreamsResponse, "GET /upstreams");
+  if (m === "GET" && path === "/cost") return ok(cost as CostResponse, "GET /cost");
+  if (m === "GET" && path === "/channels")
+    return ok(channels as ChannelsResponse, "GET /channels");
+  if (m === "GET" && path === "/admin/users")
+    return ok(adminUsers as AdminUsersResponse, "GET /admin/users");
+  if (m === "GET" && path === "/admin/tokens")
+    return ok(adminTokens as AdminTokensResponse, "GET /admin/tokens");
+  if (m === "GET" && path === "/admin/channels")
+    return ok(adminChannels as AdminChannelsResponse, "GET /admin/channels");
 
   const auditM = path.match(/^\/audit\/(.+)$/);
   if (m === "GET" && auditM) {
@@ -72,6 +92,18 @@ export function resolveMock(method: string, rawPath: string): MockResult<unknown
     return ok(exportRes as AuditExportResponse, "POST /audit/export");
   if (m === "POST" && /^\/config\/[^/]+\/propose$/.test(path)) {
     return ok(propose as ConfigProposeResponse, "POST /config/{section}/propose");
+  }
+  if (m === "POST" && path === "/admin/channels") {
+    return ok({ ok: true } as MgmtOk, "POST /admin/channels");
+  }
+  if (m === "POST" && /^\/admin\/channels\/[^/]+\/(?:update|delete|test)$/.test(path)) {
+    return ok({ ok: true } as MgmtOk, "POST /admin/channels/{id}/*");
+  }
+  if (m === "POST" && path === "/admin/tokens") {
+    return ok({ ok: true } as MgmtOk, "POST /admin/tokens");
+  }
+  if (m === "POST" && /^\/admin\/tokens\/[^/]+\/(?:update|delete)$/.test(path)) {
+    return ok({ ok: true } as MgmtOk, "POST /admin/tokens/{id}/*");
   }
 
   return notFound();

@@ -95,7 +95,7 @@ def test_audit_log_schema_has_required_shape_and_clauses() -> None:
         "ENGINE = MergeTree",
         "PARTITION BY toYYYYMM(timestamp)",
         "ORDER BY (timestamp, row_id)",
-        "TTL timestamp + INTERVAL 7 YEAR",
+        "TTL toDateTime(timestamp) + INTERVAL 7 YEAR",
         "SETTINGS index_granularity = 8192",
         "GRANT INSERT, SELECT ON _audit_log TO medharness_audit_writer;",
         "REVOKE ALTER UPDATE, ALTER DELETE FROM medharness_audit_writer;",

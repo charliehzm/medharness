@@ -68,9 +68,9 @@ if [[ -n "${DRY_RUN}" ]]; then
   c_warn "[DRY RUN] No migration actions will be executed"
 fi
 
-if [[ "${CURRENT_VERSION}" == "0.5.0-edge" && ( -z "${FROM}" || "${FROM}" == "${CURRENT_VERSION}" ) && "${TO}" == "${CURRENT_VERSION}" ]]; then
-  c_pass "MedHarness v0.5.0-edge is the first release · no upgrade needed"
-  c_warn "v0.6+ migration script will be implemented when 0.6 ships"
+if [[ ( -z "${FROM}" || "${FROM}" == "${CURRENT_VERSION}" ) && "${TO}" == "${CURRENT_VERSION}" ]]; then
+  c_pass "MedHarness v${CURRENT_VERSION} is the first release · no upgrade needed"
+  c_warn "cross-version migration scripts will be added when a newer release ships"
   exit 0
 fi
 

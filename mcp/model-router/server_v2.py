@@ -20,10 +20,14 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).parent))
+import tier_trust  # noqa: E402
 from allowlist import AllowlistError, HotAllowlist  # noqa: E402
 from heterogeneity import HeterogeneityPolicy  # noqa: E402
 from limits import CircuitBreaker, RateLimiter  # noqa: E402
@@ -32,6 +36,9 @@ from vendor_families import DEFAULT_VENDOR_FAMILIES_PATH, load_vendor_families  
 
 LOGGER = logging.getLogger(__name__)
 VENDOR_FAMILIES_PATH = DEFAULT_VENDOR_FAMILIES_PATH
+DEFAULT_HTTP_HOST = "0.0.0.0"
+DEFAULT_HTTP_PORT = 9000
+DEFAULT_HTTP_MAX_BODY_BYTES = 1_048_576
 
 
 def _project_root() -> Path:
@@ -183,8 +190,12 @@ def _build_request(payload: dict[str, Any]) -> RouteRequest:
     if missing:
         raise ValueError(f"missing required field(s): {', '.join(missing)}")
 
+    # Tier fields are only trusted when signed by the gate middleware (B1 / ADR-18 §3).
+    # Fail-closed: no secret or no/invalid signature => tier_trusted False => PolicyCore deny.
+    secret = tier_trust.load_secret()
     metadata: dict[str, object] = {
         "desensitized": bool(payload.get("desensitized", False)),
+        "tier_trusted": tier_trust.verify_tier(payload, payload.get("tier_sig"), secret),  # type: ignore[arg-type]
     }
     if "caller_vendor_family" in payload and payload["caller_vendor_family"] is not None:
         metadata["caller_vendor_family"] = str(payload["caller_vendor_family"])
@@ -219,6 +230,22 @@ def _base_response(
     }
 
 
+# H2: external error responses must NOT leak the internal policy reason / traces
+# (model_id, agent_role, change_id, data_level values, circuit detail). The caller
+# gets a stable code + generic message; the detailed reason stays only in the audit record.
+_GENERIC_ERROR_MESSAGE = {
+    "PolicyDenyError": "request denied by routing policy",
+    "InvalidRequestError": "invalid routing request",
+    "CircuitOpenError": "model temporarily unavailable",
+    "RateLimitError": "rate limit exceeded",
+    "AllowlistError": "request denied by routing policy",
+}
+
+
+def _external_message(error_type: str) -> str:
+    return _GENERIC_ERROR_MESSAGE.get(error_type, "request denied")
+
+
 def _error_response(
     *,
     decision: str,
@@ -229,7 +256,7 @@ def _error_response(
     policy_version: str,
     duration_ms: float,
     error_type: str,
-    message: str,
+    message: str,  # retained for the audit record / caller intent; NOT sent to the client (H2)
     layer_failed: str,
     severity: str | None = None,
 ) -> dict[str, Any]:
@@ -242,7 +269,11 @@ def _error_response(
         policy_version=policy_version,
         duration_ms=duration_ms,
     )
-    error = {"type": error_type, "message": message, "layer_failed": layer_failed}
+    error = {
+        "type": error_type,
+        "message": _external_message(error_type),
+        "layer_failed": layer_failed,
+    }
     if severity is not None:
         error["severity"] = severity
     response["error"] = error
@@ -282,6 +313,39 @@ def _audit_record(
         "target_model_id": model_id,
         "vendor_family": vendor_family,
         "deployment": deployment,
+    }
+
+
+def _decision_payload(decision: RouteDecision) -> dict[str, object]:
+    return {
+        "decision": decision.decision,
+        "reason": decision.reason,
+        "layer_failed": decision.layer_failed,
+        "policy_version": decision.policy_version,
+        "duration_us": decision.duration_us,
+        "allowed_model_set": list(decision.allowed_model_set),
+        "lane": decision.lane,
+        "max_data_level": decision.max_data_level,
+        "map_id": decision.map_id,
+    }
+
+
+def _sign_decision_payload(payload: dict[str, object]) -> str | None:
+    secret = tier_trust.load_secret()
+    if secret is None:
+        return None
+    return tier_trust.sign_decision(payload, secret)
+
+
+def _http_denied_response(*, routing_log_id: str, policy_version: str) -> dict[str, object]:
+    return {
+        "decision": "deny",
+        "routing_log_id": routing_log_id,
+        "policy_version": policy_version,
+        "error": {
+            "code": "route_denied",
+            "msg": "request denied by routing policy",
+        },
     }
 
 
@@ -379,29 +443,108 @@ def _open_circuit_response(request: RouteRequest, duration_ms: float) -> dict[st
     )
 
 
-def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
+@dataclass(frozen=True)
+class _RouteEvaluation:
+    request: RouteRequest
+    decision: RouteDecision
+    routing_log_id: str
+    model_id: str
+    vendor_family: str
+    deployment: str
+    duration_ms: float
+    error_type: str | None = None
+    severity: str | None = None
+    legacy_layer_failed: str | None = None
+
+
+def _deny_decision(
+    *,
+    reason: str,
+    layer_failed: Any,
+    policy_version: str,
+    started: float,
+) -> RouteDecision:
+    return RouteDecision(
+        decision="deny",
+        reason=reason,
+        layer_failed=layer_failed,
+        policy_version=policy_version,
+        duration_us=max(0, int((time.perf_counter() - started) * 1_000_000)),
+    )
+
+
+def _evaluate_route(payload: dict[str, Any], *, started: float | None = None) -> _RouteEvaluation:
     runtime = _runtime()
-    started = time.perf_counter()
-    try:
-        request = _build_request(payload)
-    except ValueError as exc:
-        return _invalid_request_response(payload, message=str(exc), started=started)
+    started = started or time.perf_counter()
+    request = _build_request(payload)
 
     if runtime.circuit_breaker.is_open(request.agent_role, request.change_id):
-        return _open_circuit_response(request, (time.perf_counter() - started) * 1000)
+        duration_ms = (time.perf_counter() - started) * 1000
+        allowlist = None
+        vendor_family = ""
+        deployment = ""
+        policy_version = runtime.last_policy_version
+        try:
+            allowlist = runtime.allowlist_for(request.change_id).get_allowlist()
+            policy_version = allowlist.active_policy_version()
+            entry = allowlist.lookup(request.model_id)
+            if entry is not None:
+                vendor_family = entry.vendor_family
+                deployment = entry.deployment
+        except Exception:
+            pass
+
+        routing_log_id = uuid.uuid4().hex
+        reason = (
+            f"circuit open for agent_role='{request.agent_role}' "
+            f"change_id='{request.change_id}'"
+        )
+        record = _audit_record(
+            routing_log_id=routing_log_id,
+            request=request,
+            decision="deny",
+            reason=reason,
+            policy_version=policy_version,
+            duration_ms=duration_ms,
+            layer_failed="circuit",
+            severity="SEV-2",
+            model_id=request.model_id,
+            vendor_family=vendor_family,
+            deployment=deployment,
+            error_type="CircuitOpenError",
+        )
+        runtime.audit_adapter.write_routing_decision(record)
+        return _RouteEvaluation(
+            request=request,
+            decision=_deny_decision(
+                reason=reason,
+                layer_failed="circuit",
+                policy_version=policy_version,
+                started=started,
+            ),
+            routing_log_id=routing_log_id,
+            model_id=request.model_id,
+            vendor_family=vendor_family,
+            deployment=deployment,
+            duration_ms=duration_ms,
+            error_type="CircuitOpenError",
+            severity="SEV-2",
+            legacy_layer_failed="circuit",
+        )
 
     try:
         allowlist = runtime.allowlist_for(request.change_id).get_allowlist()
     except AllowlistError as exc:
         routing_log_id = uuid.uuid4().hex
         policy_version = runtime.last_policy_version
+        duration_ms = (time.perf_counter() - started) * 1000
         record = _audit_record(
             routing_log_id=routing_log_id,
             request=request,
             decision="deny",
             reason=str(exc),
             policy_version=policy_version,
-            duration_ms=(time.perf_counter() - started) * 1000,
+            duration_ms=duration_ms,
             layer_failed="allowlist",
             severity="WARN",
             model_id=request.model_id,
@@ -411,18 +554,22 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
         )
         runtime.circuit_breaker.record_reject(request.agent_role, request.change_id)
         runtime.audit_adapter.write_routing_decision(record)
-        return _error_response(
-            decision="deny",
+        return _RouteEvaluation(
+            request=request,
+            decision=_deny_decision(
+                reason=str(exc),
+                layer_failed="allowlist",
+                policy_version=policy_version,
+                started=started,
+            ),
+            routing_log_id=routing_log_id,
             model_id=request.model_id,
             vendor_family="",
             deployment="",
-            routing_log_id=routing_log_id,
-            policy_version=policy_version,
             duration_ms=(time.perf_counter() - started) * 1000,
             error_type="AllowlistError",
-            message=str(exc),
-            layer_failed="allowlist",
             severity="WARN",
+            legacy_layer_failed="allowlist",
         )
 
     runtime.last_policy_version = allowlist.active_policy_version()
@@ -433,13 +580,14 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
             f"model_id='{request.model_id}' not present in active allowlist "
             f"agent_role='{request.agent_role}' data_level='{request.data_level}'"
         )
+        duration_ms = (time.perf_counter() - started) * 1000
         record = _audit_record(
             routing_log_id=routing_log_id,
             request=request,
             decision="deny",
             reason=reason,
             policy_version=allowlist.active_policy_version(),
-            duration_ms=(time.perf_counter() - started) * 1000,
+            duration_ms=duration_ms,
             layer_failed="allowlist",
             severity="WARN",
             model_id=request.model_id,
@@ -449,18 +597,22 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
         )
         runtime.circuit_breaker.record_reject(request.agent_role, request.change_id)
         runtime.audit_adapter.write_routing_decision(record)
-        return _error_response(
-            decision="deny",
+        return _RouteEvaluation(
+            request=request,
+            decision=_deny_decision(
+                reason=reason,
+                layer_failed="allowlist",
+                policy_version=allowlist.active_policy_version(),
+                started=started,
+            ),
+            routing_log_id=routing_log_id,
             model_id=request.model_id,
             vendor_family="",
             deployment="",
-            routing_log_id=routing_log_id,
-            policy_version=allowlist.active_policy_version(),
-            duration_ms=(time.perf_counter() - started) * 1000,
+            duration_ms=duration_ms,
             error_type="AllowlistError",
-            message=reason,
-            layer_failed="allowlist",
             severity="WARN",
+            legacy_layer_failed="allowlist",
         )
 
     rate_limiter = runtime.rate_limiter_for(request.model_id, entry.rate_limit_qps)
@@ -473,13 +625,14 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
         event = runtime.circuit_breaker.record_reject(request.agent_role, request.change_id)
         if event is not None:
             severity = event.severity
+        duration_ms = (time.perf_counter() - started) * 1000
         record = _audit_record(
             routing_log_id=routing_log_id,
             request=request,
             decision="deny",
             reason=reason,
             policy_version=allowlist.active_policy_version(),
-            duration_ms=(time.perf_counter() - started) * 1000,
+            duration_ms=duration_ms,
             layer_failed="rate",
             severity=severity,
             model_id=request.model_id,
@@ -488,18 +641,22 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
             error_type="RateLimitError",
         )
         runtime.audit_adapter.write_routing_decision(record)
-        return _error_response(
-            decision="deny",
+        return _RouteEvaluation(
+            request=request,
+            decision=_deny_decision(
+                reason=reason,
+                layer_failed="rate",
+                policy_version=allowlist.active_policy_version(),
+                started=started,
+            ),
+            routing_log_id=routing_log_id,
             model_id=request.model_id,
             vendor_family=entry.vendor_family,
             deployment=entry.deployment,
-            routing_log_id=routing_log_id,
-            policy_version=allowlist.active_policy_version(),
-            duration_ms=(time.perf_counter() - started) * 1000,
+            duration_ms=duration_ms,
             error_type="RateLimitError",
-            message=reason,
-            layer_failed="rate",
             severity=severity,
+            legacy_layer_failed="rate",
         )
 
     core = PolicyCore(
@@ -529,24 +686,23 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
             error_type="PolicyDenyError",
         )
         runtime.audit_adapter.write_routing_decision(record)
-        return _error_response(
-            decision="deny",
+        return _RouteEvaluation(
+            request=request,
+            decision=decision,
+            routing_log_id=routing_log_id,
             model_id=request.model_id,
             vendor_family=entry.vendor_family,
             deployment=entry.deployment,
-            routing_log_id=routing_log_id,
-            policy_version=decision.policy_version,
             duration_ms=elapsed_ms,
             error_type="PolicyDenyError",
-            message=decision.reason,
-            layer_failed=str(decision.layer_failed or "policy"),
             severity=severity,
+            legacy_layer_failed=str(decision.layer_failed or "policy"),
         )
 
     record = _audit_record(
         routing_log_id=routing_log_id,
         request=request,
-        decision="allow",
+        decision=decision.decision,
         reason=decision.reason,
         policy_version=decision.policy_version,
         duration_ms=elapsed_ms,
@@ -558,15 +714,215 @@ def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
         error_type=None,
     )
     runtime.audit_adapter.write_routing_decision(record)
-    return _base_response(
-        decision="allow",
+    return _RouteEvaluation(
+        request=request,
+        decision=decision,
+        routing_log_id=routing_log_id,
         model_id=request.model_id,
         vendor_family=entry.vendor_family,
         deployment=entry.deployment,
-        routing_log_id=routing_log_id,
-        policy_version=decision.policy_version,
         duration_ms=elapsed_ms,
     )
+
+
+def _legacy_route_response(evaluation: _RouteEvaluation) -> dict[str, Any]:
+    if evaluation.decision.decision == "deny":
+        return _error_response(
+            decision="deny",
+            model_id=evaluation.model_id,
+            vendor_family=evaluation.vendor_family,
+            deployment=evaluation.deployment,
+            routing_log_id=evaluation.routing_log_id,
+            policy_version=evaluation.decision.policy_version,
+            duration_ms=evaluation.duration_ms,
+            error_type=evaluation.error_type or "PolicyDenyError",
+            message=evaluation.decision.reason,
+            layer_failed=evaluation.legacy_layer_failed
+            or str(evaluation.decision.layer_failed or "policy"),
+            severity=evaluation.severity,
+        )
+
+    return _base_response(
+        decision=evaluation.decision.decision,
+        model_id=evaluation.model_id,
+        vendor_family=evaluation.vendor_family,
+        deployment=evaluation.deployment,
+        routing_log_id=evaluation.routing_log_id,
+        policy_version=evaluation.decision.policy_version,
+        duration_ms=evaluation.duration_ms,
+    )
+
+
+def route_v2(payload: dict[str, Any]) -> dict[str, Any]:
+    started = time.perf_counter()
+    try:
+        evaluation = _evaluate_route(payload, started=started)
+    except ValueError as exc:
+        return _invalid_request_response(payload, message=str(exc), started=started)
+    return _legacy_route_response(evaluation)
+
+
+def route_http(payload: dict[str, Any]) -> dict[str, object]:
+    started = time.perf_counter()
+    try:
+        evaluation = _evaluate_route(payload, started=started)
+    except ValueError as exc:
+        denied = _invalid_request_response(payload, message=str(exc), started=started)
+        return _http_denied_response(
+            routing_log_id=str(denied.get("routing_log_id", "")),
+            policy_version=str(denied.get("policy_version", "")),
+        )
+
+    if evaluation.decision.decision == "deny":
+        return _http_denied_response(
+            routing_log_id=evaluation.routing_log_id,
+            policy_version=evaluation.decision.policy_version,
+        )
+
+    decision_payload = _decision_payload(evaluation.decision)
+    signature = _sign_decision_payload(decision_payload)
+    if signature is None:
+        raise RuntimeError("decision signing unavailable")
+    return {
+        **decision_payload,
+        "sig": signature,
+        "routing_log_id": evaluation.routing_log_id,
+        "model_id": evaluation.model_id,
+        "vendor_family": evaluation.vendor_family,
+        "deployment": evaluation.deployment,
+        "_meta": {"duration_ms": round(evaluation.duration_ms, 3)},
+    }
+
+
+class _ModelRouterHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+
+class _ModelRouterHTTPHandler(BaseHTTPRequestHandler):
+    server_version = "MedHarnessModelRouterHTTP"
+    sys_version = ""
+    protocol_version = "HTTP/1.1"
+
+    def version_string(self) -> str:
+        return self.server_version
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _send_json(self, status: HTTPStatus, payload: dict[str, object]) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(self, status: HTTPStatus, code: str, message: str) -> None:
+        self._send_json(status, {"error": {"code": code, "msg": message}})
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length_header = self.headers.get("Content-Length")
+        if length_header is None:
+            raise ValueError("missing content length")
+        try:
+            content_length = int(length_header)
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if content_length < 0 or content_length > DEFAULT_HTTP_MAX_BODY_BYTES:
+            raise ValueError("request body too large")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("request body truncated")
+        payload = json.loads(body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        return payload
+
+    def _handle_health(self) -> None:
+        self._send_json(HTTPStatus.OK, health_v2())
+
+    def _handle_route(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except Exception:
+            self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
+            return
+
+        try:
+            response = route_http(payload)
+        except Exception:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "model_router_failed_closed",
+                "model-router failed closed",
+            )
+            return
+
+        self._send_json(HTTPStatus.OK, response)
+
+    def do_GET(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self._handle_health()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_POST(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/route":
+            self._handle_route()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_HEAD(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def _parse_serve_args(argv: list[str]) -> tuple[str, int]:
+    host = DEFAULT_HTTP_HOST
+    port = DEFAULT_HTTP_PORT
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--http":
+            index += 1
+            continue
+        if arg == "--host":
+            if index + 1 >= len(argv):
+                raise ValueError("--host requires a value")
+            host = argv[index + 1]
+            index += 2
+            continue
+        if arg == "--port":
+            if index + 1 >= len(argv):
+                raise ValueError("--port requires a value")
+            try:
+                port = int(argv[index + 1])
+            except ValueError as exc:
+                raise ValueError("invalid --port value") from exc
+            index += 2
+            continue
+        raise ValueError(f"unknown serve option: {arg}")
+    return host, port
+
+
+def _serve_http(host: str, port: int) -> int:
+    server = _ModelRouterHTTPServer((host, port), _ModelRouterHTTPHandler)
+    try:
+        server.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        server.server_close()
+    return 0
 
 
 def health_v2() -> dict[str, Any]:
@@ -610,6 +966,14 @@ def _dispatch_method(method: str, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] == "serve" and "--http" in sys.argv[2:]:
+        try:
+            host, port = _parse_serve_args(sys.argv[2:])
+        except ValueError as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 2
+        return _serve_http(host, port)
+
     if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
         for line in sys.stdin:
             line = line.strip()

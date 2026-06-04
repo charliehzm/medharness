@@ -32,12 +32,18 @@ WORKDIR /app
 
 COPY --from=builder /wheels /usr/local/lib/python3.11/site-packages
 COPY --chown=medharness:medharness mcp/model-router/server_v2.py /app/server_v2.py
+COPY --chown=medharness:medharness mcp/model-router/tier_trust.py /app/tier_trust.py
 COPY --chown=medharness:medharness mcp/model-router/allowlist.py /app/allowlist.py
 COPY --chown=medharness:medharness mcp/model-router/heterogeneity.py /app/heterogeneity.py
 COPY --chown=medharness:medharness mcp/model-router/limits.py /app/limits.py
 COPY --chown=medharness:medharness mcp/model-router/policy.py /app/policy.py
 COPY --chown=medharness:medharness mcp/model-router/vendor_families.py /app/vendor_families.py
 COPY --chown=medharness:medharness mcp/model-router/vendor_families.yml /app/vendor_families.yml
+
+# /project (CLAUDE_PROJECT_DIR) owned by the runtime uid so a fresh named volume
+# inherits 9000 ownership — the router writes .audit/routing_log.jsonl there and
+# reads per-change allowlists; a root-owned mount blocks the routing audit write.
+RUN mkdir -p /project/openspec/changes /project/.audit && chown -R medharness:medharness /project
 
 USER medharness:medharness
 

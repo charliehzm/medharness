@@ -1,0 +1,215 @@
+.traffic-page {
+  display: grid;
+  gap: 16px;
+  max-width: 1240px;
+}
+
+.traffic-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.traffic-kicker {
+  color: var(--cost);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.traffic-head h2 {
+  margin: 6px 0 8px;
+  color: var(--navy);
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.traffic-subtitle {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.traffic-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.traffic-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.traffic-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.traffic-mode-tabs,
+.traffic-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.traffic-mode-tabs button,
+.traffic-filters button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.traffic-mode-tabs button.on,
+.traffic-filters button.on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--surface);
+}
+
+.traffic-wip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  margin-left: 4px;
+  background: var(--warn-bg);
+  color: var(--warn-d);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.traffic-sankey-wrap {
+  overflow-x: auto;
+}
+
+.traffic-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.traffic-panel-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.traffic-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.traffic-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.traffic-dot.comp {
+  background: var(--teal);
+}
+
+.traffic-dot.sec {
+  background: var(--violet);
+}
+
+.traffic-window {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.traffic-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.traffic-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.traffic-summary-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.traffic-summary-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.traffic-summary-value {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.traffic-summary-state {
+  color: var(--warn-d);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.traffic-summary-text {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.traffic-loading,
+.traffic-error {
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.traffic-error {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+@media (max-width: 980px) {
+  .traffic-head,
+  .traffic-row-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .traffic-summary {
+    grid-template-columns: 1fr;
+  }
+}

@@ -15,6 +15,9 @@ ALL_MCPS = (
     "desensitize",
     "model-router",
     "audit-log",
+    "outbound-safety",
+    "prompt-injection-scan",
+    "a0-api",
     "ci-trigger",
     "internal-kb",
     "pm-bridge",
@@ -58,7 +61,7 @@ def test_script_uses_strict_mode_and_repo_root_discovery() -> None:
     assert "VERSION_FILE" in text
 
 
-def test_script_lists_all_8_mcps_and_size_targets() -> None:
+def test_script_lists_all_mcps_and_size_targets() -> None:
     text = _script_text()
 
     for mcp in ALL_MCPS:
@@ -97,7 +100,7 @@ def test_script_builds_with_version_commit_args_and_json_report() -> None:
     assert '"uid":' in text
 
 
-def test_workflow_parses_and_matrix_covers_all_8_mcps() -> None:
+def test_workflow_parses_and_matrix_covers_all_mcps() -> None:
     data = yaml.safe_load(_workflow_text())
 
     matrix = data["jobs"]["build-and-scan"]["strategy"]["matrix"]["mcp"]

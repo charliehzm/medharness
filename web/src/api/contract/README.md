@@ -3,7 +3,7 @@
 > **单 owner：charliehzm**（前后端的「缝」）。FE 只 `import`，**不改**；BE 照此实现端点。
 > 契约变更走「单 owner 改 + 版本号 bump + 双 lane 通知」。Codex 改到此目录会被 review 打回。
 
-当前版本：`CONTRACT_VERSION = 0.6.1`（见 `version.ts`）。0.6.1 为 additive · 非破坏：加运行时 0 PHI 守卫（finding #1）。
+当前版本：`CONTRACT_VERSION = 0.7.1`（见 `version.ts`）。0.7.x 均为 additive · 非破坏：0.7.0 加 cost/channels 成本端点；0.7.1 加管理面只读代理 `/admin/{users\|tokens\|channels}`（B5 · 字段白名单·禁 email/display_name/明文密钥）。
 
 ## 这是什么
 
@@ -23,7 +23,7 @@ Console 调用的全部端点的 request / response 类型 + 合成 mock fixture
 | `fixtures/*.json` | 合成数据（0 PHI），同时被 FE 与 `api-phi-exfil` drill 消费 |
 | `index.ts` | barrel |
 
-## 端点（6 GET + 2 POST）
+## 端点（11 GET + 2 POST · v0.7.1）
 
 | key | 方法 | 路径 | 说明 |
 |---|---|---|---|
@@ -32,7 +32,12 @@ Console 调用的全部端点的 request / response 类型 + 合成 mock fixture
 | events | GET | `/events?cat=&ctx=&limit=` | 合规事件（带 level）/ 安全事件（带 sec_type，payload 恒 null） |
 | audit | GET | `/audit/{ref}` | 血缘（ref 如 `routing#a1b2`），未命中 404 |
 | upstreams | GET | `/upstreams` | 上游状态 + 聚合 PHI 摘要 |
+| cost | GET | `/cost?window=` | 成本 KPI/构成/趋势/省钱建议（聚合·0 PHI · v0.7.0） |
+| channels | GET | `/channels` | 渠道比价择优（价/延迟/区域/权重/健康 · v0.7.0） |
 | config | GET | `/config/{section}` | 只读策略快照（10 section） |
+| adminUsers | GET | `/admin/users` | 管理面用户只读代理（白名单·**禁 email/display_name** · v0.7.1 · B5） |
+| adminTokens | GET | `/admin/tokens` | 管理面令牌只读代理（白名单·**禁明文 key** · v0.7.1） |
+| adminChannels | GET | `/admin/channels` | 管理面渠道只读代理（白名单·**禁 key/base_url** · v0.7.1） |
 | auditExport | POST | `/audit/export` | 导出 AUDIT_BUNDLE（**必落审计**） |
 | configPropose | POST | `/config/{section}/propose` | 配置变更**唯一写口**（提交审批，不旁路 Hook） |
 

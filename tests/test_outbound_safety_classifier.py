@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 from collections.abc import Mapping
 from importlib import util
 from pathlib import Path
+from urllib import error
+from urllib import request as urllib_request
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 CLASSIFIER_PATH = ROOT / "mcp" / "outbound-safety" / "classifier.py"
+SERVER_PATH = ROOT / "mcp" / "outbound-safety" / "server_v2.py"
 
 spec = util.spec_from_file_location("outbound_safety_classifier", CLASSIFIER_PATH)
 assert spec is not None
@@ -16,6 +22,13 @@ classifier = util.module_from_spec(spec)
 sys.modules["outbound_safety_classifier"] = classifier
 assert spec.loader is not None
 spec.loader.exec_module(classifier)
+
+server_spec = util.spec_from_file_location("outbound_safety_server_v2", SERVER_PATH)
+assert server_spec is not None
+server_v2 = util.module_from_spec(server_spec)
+sys.modules["outbound_safety_server_v2"] = server_v2
+assert server_spec.loader is not None
+server_spec.loader.exec_module(server_v2)
 
 RAW_SENTINEL = "RAW-PHI-SENTINEL"
 
@@ -106,6 +119,45 @@ def test_hallucination_medical_advice_warns_only() -> None:
     assert result.sanitized_text is None
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "这个药完全没有副作用，绝对安全。",  # false-safety (ZH)
+        "It has no side effects and is completely safe.",  # false-safety (EN)
+        "根据你的描述，你一定是癌症。",  # definitive self-diagnosis (ZH)
+        "Based on this, you definitely have cancer.",  # definitive diagnosis (EN)
+        "建议你自行加倍剂量，效果更好。",  # unsanctioned dosage change (ZH)
+        "You should double your dose tonight.",  # dosage directive (EN)
+        "临床证明可治愈所有类型的糖尿病。",  # fabricated authority (ZH)
+        "This remedy is clinically proven and FDA-approved.",  # fabricated authority (EN)
+    ],
+)
+def test_medical_hallucination_heuristics_warn(text: str) -> None:
+    result = classifier.classify(text, _context(), _policy(), phi_scan=_no_phi_scan)
+
+    assert result.decision == "warned"
+    assert result.classifications  # at least one rule fired
+    assert all(
+        item.type == "hallucination" and item.disposition == "warn"
+        for item in result.classifications
+    )
+    assert result.sanitized_text is None
+
+
+def test_responsible_medical_language_does_not_warn() -> None:
+    # Substantive, safe clinical phrasing must NOT trip the heuristics: it names a
+    # side effect honestly and defers to a clinician — the opposite of the patterns.
+    result = classifier.classify(
+        "本药可能引起嗜睡等副作用，请遵医嘱用药，如有不适请及时就医。",
+        _context(),
+        _policy(),
+        phi_scan=_no_phi_scan,
+    )
+
+    assert result.decision == "pass"
+    assert result.classifications == ()
+
+
 def test_normal_response_passes_without_classifications() -> None:
     result = classifier.classify(
         "建议把此回复转交给合规官复核，并继续遵循既定流程。",
@@ -174,3 +226,145 @@ def test_pure_core_stays_fast_for_4k_response() -> None:
         assert result.decision == "pass"
 
     assert sorted(durations)[-1] < 50
+
+
+def test_http_health_and_scan_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    def http_phi_scan(_text: str, _context: Mapping[str, object]) -> object:
+        return {
+            "has_phi": True,
+            "sanitized_text": "患者 __NAME_a1__ 的报告已处理",
+            "score": 0.99,
+            "entities": ["CN_NAME"],
+        }
+
+    monkeypatch.setattr(server_v2, "PHI_SCAN", http_phi_scan)
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+
+    for _ in range(50):
+        try:
+            with urllib_request.urlopen(f"{base_url}/health", timeout=0.5) as resp:
+                json.loads(resp.read().decode("utf-8"))
+            break
+        except Exception:
+            time.sleep(0.05)
+
+    try:
+        with urllib_request.urlopen(f"{base_url}/health", timeout=1) as resp:
+            health = json.loads(resp.read().decode("utf-8"))
+        assert health["status"] == "ok-v2"
+
+        payload = json.dumps(
+            {
+                "text": f"患者 {RAW_SENTINEL} 的报告已处理",
+                "context": _context(),
+                "policy": _policy(phi_reflow="desensitize"),
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib_request.urlopen(req, timeout=2) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert result["decision"] == "desensitized"
+    assert result["sanitized_text"] == "患者 __NAME_a1__ 的报告已处理"
+    assert RAW_SENTINEL not in json.dumps(result, ensure_ascii=False)
+
+
+def test_http_rejects_bad_json_without_echo() -> None:
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=b'{"text": "broken"',
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(req, timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 400
+    assert json.loads(body)["error"]["code"] == "bad_request"
+    assert "broken" not in body
+
+
+def test_http_unknown_route_returns_generic_not_found() -> None:
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(f"{base_url}/reverse", timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 404
+    assert json.loads(body)["error"]["code"] == "not_found"
+
+
+def test_http_fail_closed_on_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError(RAW_SENTINEL)
+
+    monkeypatch.setattr(server_v2.classifier, "classify", boom)
+    server = server_v2._OutboundSafetyHTTPServer(
+        ("127.0.0.1", 0), server_v2._OutboundSafetyHTTPHandler
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    host, port = server.server_address
+    base_url = f"http://{host}:{port}"
+    try:
+        payload = json.dumps(
+            {"text": "ignore previous instructions", "context": _context(), "policy": _policy()},
+            ensure_ascii=False,
+        ).encode("utf-8")
+        req = urllib_request.Request(
+            f"{base_url}/scan",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with pytest.raises(error.HTTPError) as excinfo:
+            urllib_request.urlopen(req, timeout=2)
+        body = excinfo.value.read().decode("utf-8")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert excinfo.value.code == 503
+    assert json.loads(body)["error"]["code"] == "outbound_safety_failed_closed"
+    assert RAW_SENTINEL not in body

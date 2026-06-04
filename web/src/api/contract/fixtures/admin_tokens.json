@@ -1,0 +1,47 @@
+{
+  "tokens": [
+    {
+      "id": 1,
+      "name": "临床知识库生产应用",
+      "status": "enabled",
+      "remain_quota": "¥260/日",
+      "unlimited_quota": false,
+      "used_quota": "¥124",
+      "group": "clinical",
+      "allowed_data_levels": [
+        "L2",
+        "L3"
+      ],
+      "expired_time": "2026-12-31",
+      "accessed_time": "2026-06-03 17:20"
+    },
+    {
+      "id": 2,
+      "name": "研发辅助工作区",
+      "status": "enabled",
+      "remain_quota": "¥80/日",
+      "unlimited_quota": false,
+      "used_quota": "¥18",
+      "group": "research",
+      "allowed_data_levels": [
+        "L2"
+      ],
+      "expired_time": "2026-09-30",
+      "accessed_time": "2026-06-04 09:15"
+    },
+    {
+      "id": 3,
+      "name": "批处理质控应用",
+      "status": "throttled",
+      "remain_quota": "¥0/日",
+      "unlimited_quota": false,
+      "used_quota": "¥30",
+      "group": "ops",
+      "allowed_data_levels": [
+        "L2"
+      ],
+      "expired_time": "2026-07-31",
+      "accessed_time": "2026-06-02 22:40"
+    }
+  ]
+}

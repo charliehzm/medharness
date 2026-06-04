@@ -8,7 +8,7 @@ readonly DEFAULT_REGISTRY="medharness"
 readonly REGISTRY="${MEDHARNESS_DOCKER_REGISTRY:-${DEFAULT_REGISTRY}}"
 readonly VERSION_FILE="${VERSION_FILE:-${REPO_ROOT}/VERSION}"
 readonly REPORT_DIR="${MEDHARNESS_BUILD_REPORT_DIR:-/tmp/medharness-build}"
-readonly AVAILABLE_MCPS="phi-detector desensitize model-router audit-log ci-trigger internal-kb pm-bridge vector-db"
+readonly AVAILABLE_MCPS="phi-detector desensitize model-router audit-log outbound-safety prompt-injection-scan a0-api ci-trigger internal-kb pm-bridge vector-db"
 
 c_pass() { printf "\033[1;32m✅ %s\033[0m\n" "$*"; }
 c_warn() { printf "\033[1;33m⚠️  %s\033[0m\n" "$*"; }
@@ -28,7 +28,7 @@ USAGE
 
 mcp_size_target_mb() {
   case "$1" in
-    phi-detector|desensitize|model-router|audit-log)
+    phi-detector|desensitize|model-router|audit-log|outbound-safety|prompt-injection-scan|a0-api)
       echo 500
       ;;
     ci-trigger|internal-kb|pm-bridge|vector-db)
@@ -49,7 +49,7 @@ main() {
   local push_flag="${2:-}"
 
   case "${mcp}" in
-    phi-detector|desensitize|model-router|audit-log|ci-trigger|internal-kb|pm-bridge|vector-db)
+    phi-detector|desensitize|model-router|audit-log|outbound-safety|prompt-injection-scan|a0-api|ci-trigger|internal-kb|pm-bridge|vector-db)
       ;;
     *)
       c_fail "unknown MCP: ${mcp}"

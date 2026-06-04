@@ -3,14 +3,21 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import json
 import os
 import sys
 import uuid
 from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib import error, parse, request
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -30,14 +37,347 @@ from server import SUBSTITUTIONS  # noqa: E402
 DEFAULT_KEY_ID = "active"
 DEFAULT_REVERSE_TOKEN_ENV = "COMPLIANCE_REVERSE_TOKEN"
 PLACEHOLDER_PREFIX = "PHI"
+DEFAULT_CLICKHOUSE_HTTP_PORT = 8123
+DEFAULT_CLICKHOUSE_DATABASE = "medharness"
+DEFAULT_HTTP_HOST = "0.0.0.0"
+DEFAULT_HTTP_PORT = 9000
+DEFAULT_HTTP_MAX_BODY_BYTES = 1_048_576
+DEFAULT_PHI_LOOKUP_SCHEMA_PATH = Path(__file__).with_name("sql") / "phi_lookup.sql"
+
+
+class ClickHouseUnavailable(Exception):
+    """Raised when ClickHouse client init or query fails."""
 
 
 def _provider() -> FileKeyProvider:
-    return FileKeyProvider()
+    return FileKeyProvider.from_env()
 
 
 def _safe_error(exc: Exception) -> dict[str, str]:
     return {"type": exc.__class__.__name__, "message": str(exc)}
+
+
+def _iso_timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    # ClickHouse DateTime64 (JSONEachRow) needs 'YYYY-MM-DD HH:MM:SS.fff' (space
+    # separator, no 'T'/'Z'); an ISO-8601 'Z' value is rejected (Cannot parse).
+    return value.astimezone(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
+
+
+def _sql_quote(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def _load_phi_lookup_schema() -> str:
+    return DEFAULT_PHI_LOOKUP_SCHEMA_PATH.read_text(encoding="utf-8")
+
+
+def _clickhouse_config_from_env() -> dict[str, Any] | None:
+    host = os.environ.get("CLICKHOUSE_HOST")
+    port = os.environ.get("CLICKHOUSE_HTTP_PORT")
+    database = os.environ.get("CLICKHOUSE_DATABASE")
+    user = os.environ.get("CLICKHOUSE_USER")
+    password = os.environ.get("CLICKHOUSE_PASSWORD")
+    required_values = {
+        "CLICKHOUSE_HOST": host,
+        "CLICKHOUSE_USER": user,
+        "CLICKHOUSE_PASSWORD": password,
+    }
+    if not any(value is not None and str(value).strip() for value in required_values.values()):
+        return None
+    missing = [
+        name for name, value in required_values.items() if not value or not str(value).strip()
+    ]
+    if missing:
+        joined = ", ".join(missing)
+        raise ClickHouseUnavailable(f"clickhouse configuration incomplete: {joined}")
+    try:
+        port_value = int(str(port or DEFAULT_CLICKHOUSE_HTTP_PORT))
+    except ValueError as exc:
+        raise ClickHouseUnavailable("invalid clickhouse HTTP port") from exc
+    return {
+        "host": str(host),
+        "port": port_value,
+        "user": str(user),
+        "password": str(password),
+        "database": str(database or DEFAULT_CLICKHOUSE_DATABASE),
+    }
+
+
+def _request_map_id(request_payload: dict[str, Any]) -> str | None:
+    context = request_payload.get("context")
+    if isinstance(context, dict):
+        map_id = context.get("map_id")
+        if map_id not in (None, ""):
+            return str(map_id)
+    map_id = request_payload.get("map_id")
+    if map_id not in (None, ""):
+        return str(map_id)
+    return None
+
+
+def _phi_lookup_row_values(
+    context: EncryptionContext,
+    metadata: EncryptedEnvelopeMetadata,
+    ciphertext_b64: str,
+    key_generation: int,
+    *,
+    now: datetime | None = None,
+) -> tuple[Any, ...]:
+    current = now or datetime.now(timezone.utc)
+    ciphertext = base64.urlsafe_b64decode(ciphertext_b64.encode("ascii"))
+    retention_until = current + timedelta(days=365 * 6)
+    return (
+        str(context.map_id),
+        str(context.change_id),
+        str(context.key_id),
+        int(key_generation),
+        metadata.algorithm,
+        metadata.schema_version,
+        metadata.nonce_b64,
+        metadata.aad_sha256,
+        ciphertext_b64,
+        hashlib.sha256(ciphertext).hexdigest(),
+        _iso_timestamp(current),
+        _iso_timestamp(retention_until),
+        _iso_timestamp(current),
+    )
+
+
+class _ClickHouseHttpResult:
+    def __init__(self, result_rows: list[tuple[Any, ...]]) -> None:
+        self.result_rows = result_rows
+
+
+class _ClickHouseHttpClient:
+    """Tiny ClickHouse HTTP client using only Python stdlib."""
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str,
+        timeout: float = 5.0,
+    ) -> None:
+        self._url = f"http://{host}:{int(port)}/?{parse.urlencode({'database': database})}"
+        self._auth_header = self._basic_auth(user, password)
+        self._timeout = timeout
+
+    @staticmethod
+    def _basic_auth(user: str, password: str) -> str:
+        token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+        return f"Basic {token}"
+
+    @staticmethod
+    def _has_format(sql: str) -> bool:
+        return " FORMAT " in f" {sql.upper()} "
+
+    def _post(self, sql: str) -> str:
+        req = request.Request(
+            self._url,
+            data=sql.encode("utf-8"),
+            method="POST",
+            headers={"Authorization": self._auth_header},
+        )
+        try:
+            with request.urlopen(req, timeout=self._timeout) as resp:
+                return resp.read().decode("utf-8")
+        except error.HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")[:240]
+            raise ClickHouseUnavailable(f"HTTP {exc.code}: {body}") from exc
+        except OSError as exc:
+            raise ClickHouseUnavailable(f"HTTP request failed: {exc}") from exc
+
+    def command(self, sql: str) -> None:
+        self._post(sql)
+
+    def query(self, sql: str) -> _ClickHouseHttpResult:
+        query_sql = sql if self._has_format(sql) else f"{sql} FORMAT JSONCompact"
+        payload = self._post(query_sql)
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise ClickHouseUnavailable("query response was not JSON") from exc
+
+        data = parsed.get("data", [])
+        if not isinstance(data, list):
+            raise ClickHouseUnavailable("query response data was invalid")
+        rows = [tuple(row.values()) if isinstance(row, dict) else tuple(row) for row in data]
+        return _ClickHouseHttpResult(rows)
+
+    def insert(
+        self, table: str, rows: list[tuple[Any, ...]], column_names: tuple[str, ...]
+    ) -> None:
+        columns = ", ".join(column_names)
+        sql_prefix = f"INSERT INTO {table} ({columns}) FORMAT JSONEachRow"
+        payload = "\n".join(
+            json.dumps(dict(zip(column_names, row, strict=True)), ensure_ascii=False)
+            for row in rows
+        )
+        self._post(f"{sql_prefix}\n{payload}")
+
+
+class ClickHousePhiLookupStore:
+    COLUMN_ORDER = (
+        "map_id",
+        "change_id",
+        "key_id",
+        "key_generation",
+        "algorithm",
+        "schema_version",
+        "nonce_b64",
+        "aad_sha256",
+        "ciphertext_b64",
+        "ciphertext_sha256",
+        "created_at",
+        "retention_until",
+        "inserted_at",
+    )
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str = DEFAULT_CLICKHOUSE_DATABASE,
+        client_factory: Any | None = None,
+        schema_sql: str | None = None,
+    ) -> None:
+        self._database = database
+        self._client = self._init_client(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            database=database,
+            client_factory=client_factory,
+        )
+        if schema_sql is not None:
+            self.ensure_schema(schema_sql)
+
+    @staticmethod
+    def _default_client_factory(**kwargs: Any) -> Any:
+        return _ClickHouseHttpClient(**kwargs)
+
+    def _init_client(
+        self,
+        *,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str,
+        client_factory: Any | None,
+    ) -> Any:
+        factory = client_factory or self._default_client_factory
+        try:
+            return factory(host=host, port=port, user=user, password=password, database=database)
+        except Exception as exc:
+            raise ClickHouseUnavailable(f"client init failed: {exc}") from exc
+
+    @staticmethod
+    def _idempotent_schema_statement(statement: str) -> str:
+        upper = statement.upper()
+        marker = "CREATE TABLE "
+        if marker in upper and "CREATE TABLE IF NOT EXISTS " not in upper:
+            index = upper.index(marker)
+            return (
+                f"{statement[:index]}CREATE TABLE IF NOT EXISTS {statement[index + len(marker) :]}"
+            )
+        return statement
+
+    def ensure_schema(self, sql: str) -> None:
+        statements = [
+            self._idempotent_schema_statement(statement.strip())
+            for statement in sql.split(";")
+            if statement.strip() and not statement.lstrip().upper().startswith(("GRANT", "REVOKE"))
+        ]
+        try:
+            for statement in statements:
+                self._client.command(statement)
+        except Exception as exc:
+            raise ClickHouseUnavailable(f"schema init failed: {exc}") from exc
+
+    def persist_envelope(
+        self,
+        *,
+        context: EncryptionContext,
+        metadata: EncryptedEnvelopeMetadata,
+        ciphertext_b64: str,
+        key_generation: int,
+    ) -> None:
+        row = _phi_lookup_row_values(
+            context,
+            metadata,
+            ciphertext_b64,
+            key_generation,
+        )
+        try:
+            self._client.insert("_phi_lookup", [row], column_names=self.COLUMN_ORDER)
+        except Exception as exc:
+            raise ClickHouseUnavailable(f"insert failed: {exc}") from exc
+
+    def fetch_envelope(
+        self, *, map_id: str | None = None, ciphertext_b64: str | None = None
+    ) -> dict[str, Any]:
+        if map_id is None and ciphertext_b64 is None:
+            raise KeyProviderError("missing phi lookup key")
+        if map_id is not None:
+            where_clause = f"map_id = {_sql_quote(map_id)}"
+        else:
+            where_clause = f"ciphertext_b64 = {_sql_quote(str(ciphertext_b64))}"
+        sql = (
+            "SELECT " + ", ".join(self.COLUMN_ORDER) + f" FROM _phi_lookup WHERE {where_clause}"
+            " ORDER BY inserted_at DESC LIMIT 1"
+        )
+        try:
+            result = self._client.query(sql)
+        except Exception as exc:
+            raise ClickHouseUnavailable(f"lookup failed: {exc}") from exc
+        if not getattr(result, "result_rows", None):
+            raise KeyProviderError("phi lookup not found")
+        row = dict(zip(self.COLUMN_ORDER, result.result_rows[0], strict=True))
+        try:
+            ciphertext = base64.urlsafe_b64decode(str(row["ciphertext_b64"]).encode("ascii"))
+        except Exception as exc:
+            raise KeyProviderError("invalid encrypted envelope encoding") from exc
+        if hashlib.sha256(ciphertext).hexdigest() != str(row["ciphertext_sha256"]):
+            raise KeyProviderError("ciphertext integrity mismatch")
+        return row
+
+
+_PHI_LOOKUP_STORE: ClickHousePhiLookupStore | None = None
+_PHI_LOOKUP_STORE_FINGERPRINT: tuple[str, str, str, str, str] | None = None
+
+
+def _phi_lookup_store() -> ClickHousePhiLookupStore | None:
+    global _PHI_LOOKUP_STORE, _PHI_LOOKUP_STORE_FINGERPRINT
+    config = _clickhouse_config_from_env()
+    if config is None:
+        _PHI_LOOKUP_STORE = None
+        _PHI_LOOKUP_STORE_FINGERPRINT = None
+        return None
+
+    fingerprint = (
+        config["host"],
+        str(config["port"]),
+        config["user"],
+        config["password"],
+        config["database"],
+    )
+    if _PHI_LOOKUP_STORE is not None and fingerprint == _PHI_LOOKUP_STORE_FINGERPRINT:
+        return _PHI_LOOKUP_STORE
+
+    store = ClickHousePhiLookupStore(**config, schema_sql=_load_phi_lookup_schema())
+    _PHI_LOOKUP_STORE = store
+    _PHI_LOOKUP_STORE_FINGERPRINT = fingerprint
+    return store
 
 
 def _metadata_from_dict(payload: dict[str, Any]) -> EncryptedEnvelopeMetadata:
@@ -140,6 +480,53 @@ def _active_key(provider: FileKeyProvider, key_id: str) -> tuple[bytes, int]:
     return key, active_generation
 
 
+def _persist_phi_lookup_envelope(
+    context: EncryptionContext,
+    metadata: EncryptedEnvelopeMetadata,
+    map_ref: str,
+    key_generation: int,
+) -> None:
+    store = _phi_lookup_store()
+    if store is None:
+        return
+    store.persist_envelope(
+        context=context,
+        metadata=metadata,
+        ciphertext_b64=map_ref,
+        key_generation=key_generation,
+    )
+
+
+def _reverse_payload_from_lookup(request_payload: dict[str, Any]) -> dict[str, Any] | None:
+    store = _phi_lookup_store()
+    if store is None:
+        return None
+    map_id = _request_map_id(request_payload)
+    ciphertext_b64 = request_payload.get("map_ref")
+    row = store.fetch_envelope(
+        map_id=map_id,
+        ciphertext_b64=str(ciphertext_b64) if ciphertext_b64 is not None else None,
+    )
+    metadata = {
+        "key_id": row["key_id"],
+        "algorithm": row["algorithm"],
+        "schema_version": row["schema_version"],
+        "nonce_b64": row["nonce_b64"],
+        "aad_sha256": row["aad_sha256"],
+        "key_generation": row["key_generation"],
+    }
+    context = {
+        "change_id": row["change_id"],
+        "map_id": row["map_id"],
+        "key_id": row["key_id"],
+    }
+    return {
+        "map_ref": row["ciphertext_b64"],
+        "metadata": metadata,
+        "context": context,
+    }
+
+
 def desensitize(request: dict[str, Any], provider: FileKeyProvider | None = None) -> dict[str, Any]:
     provider = provider or _provider()
     text = request.get("text", request.get("payload", ""))
@@ -158,10 +545,15 @@ def desensitize(request: dict[str, Any], provider: FileKeyProvider | None = None
     desensitized_text, mapping = _build_desensitized_text_and_mapping(text, spans)
     key, key_generation = _active_key(provider, str(context.key_id))
     map_ref, metadata = encrypt_mapping(mapping, key, context)
+    _persist_phi_lookup_envelope(context, metadata, map_ref, key_generation)
     metadata_dict = asdict(metadata)
     metadata_dict["key_generation"] = key_generation
 
     result: dict[str, Any] = {
+        # §D.1 gate contract: a successful envelope IS desensitized, and the map
+        # reverse-lookup ref is the map_id the gate threads to the router.
+        "desensitized": True,
+        "map_id": map_ref,
         "desensitized_text": desensitized_text,
         "map_ref": map_ref,
         "metadata": metadata_dict,
@@ -169,7 +561,7 @@ def desensitize(request: dict[str, Any], provider: FileKeyProvider | None = None
     try:
         if (
             key_generation - provider.list_generations(str(context.key_id))[0] + 1
-            >= provider._max_generations
+            >= provider.max_generations
         ):
             result["warning"] = "old key generations must be migrated before prune"
     except Exception:
@@ -183,7 +575,12 @@ def _reverse_allowed(request: dict[str, Any]) -> bool:
     context = request.get("context")
     if token is None and isinstance(context, dict):
         token = context.get("kms_token")
-    return bool(expected) and token == expected
+    return (
+        isinstance(token, str)
+        and isinstance(expected, str)
+        and bool(expected)
+        and hmac.compare_digest(token, expected)
+    )
 
 
 def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) -> dict[str, Any]:
@@ -197,11 +594,13 @@ def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) ->
 
     provider = provider or _provider()
     try:
-        metadata_payload = request.get("metadata")
+        lookup_payload = _reverse_payload_from_lookup(request)
+        envelope_payload = lookup_payload or request
+        metadata_payload = envelope_payload.get("metadata")
         if not isinstance(metadata_payload, dict):
             raise KeyProviderError("missing envelope metadata")
         metadata = _metadata_from_dict(metadata_payload)
-        context_payload = request.get("context")
+        context_payload = envelope_payload.get("context")
         if not isinstance(context_payload, dict):
             raise KeyProviderError("missing reverse context")
         context = _context_from_payload(context_payload, metadata_payload)
@@ -210,7 +609,7 @@ def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) ->
             key = provider.get_key(str(context.key_id))
         else:
             key = provider.get_key_by_generation(str(context.key_id), int(generation))
-        mapping = decrypt_mapping(str(request.get("map_ref", "")), metadata, key, context)
+        mapping = decrypt_mapping(str(envelope_payload.get("map_ref", "")), metadata, key, context)
     except Exception as exc:
         return {"error": _safe_error(exc)}
     return {"mapping": mapping}
@@ -218,6 +617,160 @@ def reverse(request: dict[str, Any], provider: FileKeyProvider | None = None) ->
 
 def health() -> dict[str, str]:
     return {"status": "ok-v2", "crypto": "AES-256-GCM", "key_provider": "FileKeyProvider"}
+
+
+class _DesensitizeHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def __init__(
+        self, server_address: tuple[str, int], RequestHandlerClass: type[BaseHTTPRequestHandler]
+    ) -> None:
+        super().__init__(server_address, RequestHandlerClass)
+        self.provider_factory = _provider
+
+
+class _DesensitizeHTTPHandler(BaseHTTPRequestHandler):
+    server_version = "MedHarnessDesensitizeHTTP/1.0"
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _send_json(
+        self,
+        status: HTTPStatus,
+        payload: dict[str, Any],
+        *,
+        extra_headers: dict[str, str] | None = None,
+    ) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        for header, value in (extra_headers or {}).items():
+            self.send_header(header, value)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _error(
+        self,
+        status: HTTPStatus,
+        code: str,
+        message: str,
+    ) -> None:
+        self._send_json(status, {"error": {"code": code, "msg": message}})
+
+    def _read_json_body(self) -> dict[str, Any]:
+        length_header = self.headers.get("Content-Length")
+        if length_header is None:
+            raise ValueError("missing content length")
+        try:
+            content_length = int(length_header)
+        except ValueError as exc:
+            raise ValueError("invalid content length") from exc
+        if content_length < 0 or content_length > DEFAULT_HTTP_MAX_BODY_BYTES:
+            raise ValueError("request body too large")
+        body = self.rfile.read(content_length)
+        if len(body) != content_length:
+            raise ValueError("request body truncated")
+        payload = json.loads(body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("request body must be a JSON object")
+        return payload
+
+    def _handle_health(self) -> None:
+        self._send_json(HTTPStatus.OK, health())
+
+    def _handle_encrypt(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except Exception:
+            self._error(HTTPStatus.BAD_REQUEST, "bad_request", "invalid JSON request")
+            return
+
+        try:
+            provider_factory = getattr(self.server, "provider_factory", _provider)
+            provider = provider_factory()
+            result = desensitize(payload, provider)
+        except Exception:
+            self._error(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                "desensitize_failed_closed",
+                "desensitize failed closed",
+            )
+            return
+
+        self._send_json(HTTPStatus.OK, result)
+
+    def do_GET(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self._handle_health()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_POST(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/encrypt":
+            self._handle_encrypt()
+            return
+        self._error(HTTPStatus.NOT_FOUND, "not_found", "route not found")
+
+    def do_HEAD(self) -> None:
+        path = urlsplit(self.path).path
+        if path == "/health":
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NOT_FOUND)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def _parse_serve_args(argv: list[str]) -> tuple[str, str, int]:
+    mode = "stdio"
+    host = DEFAULT_HTTP_HOST
+    port = DEFAULT_HTTP_PORT
+    index = 0
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--stdio":
+            mode = "stdio"
+            index += 1
+            continue
+        if arg == "--http":
+            mode = "http"
+            index += 1
+            continue
+        if arg == "--host":
+            if index + 1 >= len(argv):
+                raise ValueError("--host requires a value")
+            host = argv[index + 1]
+            index += 2
+            continue
+        if arg == "--port":
+            if index + 1 >= len(argv):
+                raise ValueError("--port requires a value")
+            try:
+                port = int(argv[index + 1])
+            except ValueError as exc:
+                raise ValueError("invalid --port value") from exc
+            index += 2
+            continue
+        raise ValueError(f"unknown serve option: {arg}")
+    return mode, host, port
+
+
+def _serve_http(host: str, port: int) -> int:
+    server = _DesensitizeHTTPServer((host, port), _DesensitizeHTTPHandler)
+    try:
+        server.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        server.server_close()
+    return 0
 
 
 def _response_for_request(
@@ -237,7 +790,14 @@ def _response_for_request(
 
 
 def main() -> int:
-    if len(sys.argv) >= 3 and sys.argv[1] == "serve" and sys.argv[2] == "--stdio":
+    if len(sys.argv) > 1 and sys.argv[1] == "serve":
+        try:
+            mode, host, port = _parse_serve_args(sys.argv[2:])
+        except ValueError as exc:
+            print(json.dumps({"error": str(exc)}), file=sys.stderr)
+            return 2
+        if mode == "http":
+            return _serve_http(host, port)
         for line in sys.stdin:
             line = line.strip()
             if not line:

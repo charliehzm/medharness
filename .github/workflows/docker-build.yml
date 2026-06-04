@@ -35,6 +35,9 @@ jobs:
           - desensitize
           - model-router
           - audit-log
+          - outbound-safety
+          - prompt-injection-scan
+          - a0-api
           - ci-trigger
           - internal-kb
           - pm-bridge

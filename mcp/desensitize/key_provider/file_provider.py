@@ -20,6 +20,7 @@ from key_provider import KeyId, KeyNotFoundError, KeyPermissionError, KeyProvide
 KEY_BYTES = 32
 KEY_FILE_SUFFIX = ".key"
 DEFAULT_MAX_GENERATIONS = 6
+DEFAULT_MAX_GENERATIONS_ENV = "MEDHARNESS_KEY_MAX_GENERATIONS"
 SAFE_KEY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 GEN_FILE_RE = re.compile(r"^(?P<key_id>[A-Za-z0-9][A-Za-z0-9._-]*)\.(?P<gen>\d+)\.key$")
 
@@ -68,6 +69,18 @@ class FileKeyProvider(KeyProvider):
         )
         self._max_generations = max_generations
         self._ensure_root()
+
+    @classmethod
+    def from_env(cls, keystore_root: str | Path | None = None) -> FileKeyProvider:
+        raw_max_generations = os.environ.get(DEFAULT_MAX_GENERATIONS_ENV)
+        if raw_max_generations is None or not raw_max_generations.strip():
+            max_generations = DEFAULT_MAX_GENERATIONS
+        else:
+            try:
+                max_generations = int(raw_max_generations)
+            except ValueError as exc:
+                raise KeyPermissionError("invalid key generation limit") from exc
+        return cls(keystore_root=keystore_root, max_generations=max_generations)
 
     @property
     def max_generations(self) -> int:

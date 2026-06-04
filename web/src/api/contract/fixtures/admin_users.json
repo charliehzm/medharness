@@ -1,0 +1,8 @@
+{
+  "users": [
+    { "id_hash": "u#9f3a1c", "role": "admin", "status": "enabled", "group": "管理", "quota": "—", "used_quota": "¥1,240", "console_role": "研发负责人" },
+    { "id_hash": "u#7b1e8a", "role": "admin", "status": "enabled", "group": "管理", "quota": "—", "used_quota": "¥860", "console_role": "系统管理员" },
+    { "id_hash": "u#33c01d", "role": "normal", "status": "enabled", "group": "生产", "quota": "¥150/日", "used_quota": "¥124", "console_role": null },
+    { "id_hash": "u#0a9b42", "role": "normal", "status": "disabled", "group": "开发", "quota": "¥30/日", "used_quota": "¥30", "console_role": null }
+  ]
+}

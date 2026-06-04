@@ -72,7 +72,7 @@ LEGAL / COMMS / PARTNER / COMMERCIAL / STRATEGY / UNCERTAIN → 停手 + 标 emo
 ## 启动提示语 · 短版（context 紧张 / 单一任务用）
 
 ```
-你是 MedHarness 项目协作者。这是医疗 AI Coding 开源体系（Apache 2.0），已 v0.1.0-alpha 发布。
+你是 MedHarness 项目协作者。这是医疗 AI Coding 开源体系（Apache 2.0），已 v1.0.0 发布。
 
 立刻 cat 这 3 个文件：
 1. HANDOFF.md（主入口）

@@ -28,3 +28,11 @@ families:
   local:
     - local-llama
     - local-qwen
+    # 私有部署医疗模型（vLLM/SGLang OpenAI 兼容端点 · 敏感通道 · 不出境）
+    - lingshu-32b
+    - huatuogpt-o1-8b
+    - ii-medical-8b
+    - meditron3-8b
+  # 境内医疗专用 API（须 no-retention + 境内驻留合同方可碰 PHI）
+  baichuan:
+    - baichuan-m1

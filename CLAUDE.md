@@ -133,5 +133,5 @@ PRD 系列 2（v2.1 合并后）：prd-implementation-precheck / prd
 
 ## 11. 版本
 
-- v0.1.0-alpha（current）— 首次开源发布
+- v1.0.0（current）— 社区版首个稳定发布
 - 维护：MedHarness Maintainers + Skill Owner 网络

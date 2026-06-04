@@ -1,0 +1,61 @@
+{
+  "channels": [
+    {
+      "id": 1,
+      "name": "境内推理主通道",
+      "type": "openai",
+      "status": "green",
+      "weight": 70,
+      "models": [
+        "deepseek-v4-pro"
+      ],
+      "group": "clinical",
+      "region": "境内",
+      "lane": "normal",
+      "used_quota": "¥1,240"
+    },
+    {
+      "id": 2,
+      "name": "境内推理备通道",
+      "type": "openai",
+      "status": "green",
+      "weight": 30,
+      "models": [
+        "deepseek-v4-pro"
+      ],
+      "group": "clinical",
+      "region": "境内",
+      "lane": "normal",
+      "used_quota": "¥860"
+    },
+    {
+      "id": 3,
+      "name": "高敏任务专用通道",
+      "type": "openai",
+      "status": "yellow",
+      "weight": 100,
+      "models": [
+        "qwen-max-2026",
+        "qwen-vl-2026"
+      ],
+      "group": "secure",
+      "region": "境内",
+      "lane": "sensitive",
+      "used_quota": "¥420"
+    },
+    {
+      "id": 4,
+      "name": "脱敏外部通道",
+      "type": "anthropic",
+      "status": "green",
+      "weight": 100,
+      "models": [
+        "claude-sonnet"
+      ],
+      "group": "research",
+      "region": "境外·仅脱敏",
+      "lane": "normal",
+      "used_quota": "¥310"
+    }
+  ]
+}

@@ -48,25 +48,35 @@ export class PhiLeakError extends Error {
   }
 }
 
+type PhiPattern = { kind: PhiKind; re: RegExp };
+
 // ── PHI 形状（与 drill_api_phi_exfil.py 同口径）──────────────────────
-const PHI_PATTERNS: { kind: PhiKind; re: RegExp }[] = [
+const PHI_PATTERNS: PhiPattern[] = [
   { kind: "cn_id", re: /(?<!\d)\d{17}[\dXx](?!\d)/ },
   { kind: "cn_phone", re: /(?<!\d)1[3-9]\d{9}(?!\d)/ },
   { kind: "email", re: /[\w.+-]+@[\w-]+\.[\w.-]+/ },
   { kind: "bank_card", re: /(?<!\d)\d{16,19}(?!\d)/ },
   { kind: "cn_passport", re: /\b[EeGgDdSsPpHh]\d{8}\b/ },
 ];
+
+/**
+ * 患者 PHI 形状 = 全量 PHI 形状 **减去 email**（与 A0 后端的 split 同口径）。
+ * 仅用于「合法携带运营人员（非患者）邮箱」的管理面响应——即 `requestMgmt` /
+ * 用户管理列表。患者标识（身份证 / 手机 / 卡号 / 护照）仍一律拦截。
+ * 其余所有路径（dashboard / relay / audit）继续走 email-included `assertNoPhi`。
+ */
+const PATIENT_PHI_PATTERNS: PhiPattern[] = PHI_PATTERNS.filter((p) => p.kind !== "email");
 /** 纯哈希（hex ≥ 32，如 sha256）不算 PHI */
 const HEXISH = /^[0-9a-fA-F]{32,}$/;
 /** 占位符形式 `__NAME_a1__` —— 显式 0 PHI */
 const PLACEHOLDER = /^__[A-Z]+_[a-z0-9]+__$/;
 
 /** 扫单个字符串，返回命中的类别（不含原文）。逐 token 判，跳过占位符 / 纯哈希。 */
-function scanString(value: string): PhiKind[] {
+function scanString(value: string, patterns: PhiPattern[]): PhiKind[] {
   if (HEXISH.test(value)) return [];
   const tokens = value.split(/\s+/).filter(Boolean);
   const hits: PhiKind[] = [];
-  for (const { kind, re } of PHI_PATTERNS) {
+  for (const { kind, re } of patterns) {
     for (const tok of tokens) {
       if (PLACEHOLDER.test(tok)) continue;
       if (re.test(tok)) {
@@ -78,13 +88,13 @@ function scanString(value: string): PhiKind[] {
   return hits;
 }
 
-function walk(node: unknown, path: string, out: PhiViolation[]): void {
+function walk(node: unknown, path: string, out: PhiViolation[], patterns: PhiPattern[]): void {
   if (typeof node === "string") {
-    for (const kind of scanString(node)) out.push({ path, kind });
+    for (const kind of scanString(node, patterns)) out.push({ path, kind });
     return;
   }
   if (Array.isArray(node)) {
-    node.forEach((v, i) => walk(v, `${path}[${i}]`, out));
+    node.forEach((v, i) => walk(v, `${path}[${i}]`, out, patterns));
     return;
   }
   if (node !== null && typeof node === "object") {
@@ -93,14 +103,21 @@ function walk(node: unknown, path: string, out: PhiViolation[]): void {
     if ("payload" in obj && obj.payload !== null) {
       out.push({ path: `${path}.payload`, kind: "payload_not_null" });
     }
-    for (const [k, v] of Object.entries(obj)) walk(v, `${path}.${k}`, out);
+    for (const [k, v] of Object.entries(obj)) walk(v, `${path}.${k}`, out, patterns);
   }
 }
 
 /** 扫描但不抛——返回违规清单（测试 / 非致命场景用）。 */
 export function findPhi(value: unknown): PhiViolation[] {
   const out: PhiViolation[] = [];
-  walk(value, "$", out);
+  walk(value, "$", out, PHI_PATTERNS);
+  return out;
+}
+
+/** `findPhi` 的患者-only 变体：扫同一套形状但放行运营人员邮箱。 */
+export function findPatientPhi(value: unknown): PhiViolation[] {
+  const out: PhiViolation[] = [];
+  walk(value, "$", out, PATIENT_PHI_PATTERNS);
   return out;
 }
 
@@ -115,4 +132,21 @@ export function assertNoPhi<T>(value: T, where?: string): Sanitized<T> {
   const violations = findPhi(value);
   if (violations.length > 0) throw new PhiLeakError(violations, where);
   return value as Sanitized<T>;
+}
+
+/**
+ * 患者 0 PHI 守卫——**仅**用于合法携带运营人员邮箱的管理面响应
+ * （用户管理列表 · STAFF email 非患者）。扫与 `assertNoPhi` 同一套形状但放行
+ * email；患者标识（身份证 / 手机 / 卡号 / 护照）与 `payload != null` 仍一律拦截。
+ *
+ * 返回**普通**类型（非 `Sanitized<T>`）：这条响应没过全量守卫，不该被当作
+ * 「dashboard 级 0 PHI」复用，故刻意不打 `Sanitized` 品牌。命中仍抛 `PhiLeakError`。
+ *
+ * @param value 待校验的管理面响应体
+ * @param where 端点标签（如 `GET /admin/users/manage_list`），仅用于定位
+ */
+export function assertNoPatientPhi<T>(value: T, where?: string): T {
+  const violations = findPatientPhi(value);
+  if (violations.length > 0) throw new PhiLeakError(violations, where);
+  return value;
 }

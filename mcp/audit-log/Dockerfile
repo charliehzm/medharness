@@ -37,6 +37,10 @@ COPY --chown=medharness:medharness mcp/audit-log/fallback_writer.py /app/fallbac
 COPY --chown=medharness:medharness mcp/audit-log/hashchain.py /app/hashchain.py
 COPY --chown=medharness:medharness mcp/audit-log/sql/audit_log.sql /app/sql/audit_log.sql
 
+# Audit fallback dir owned by the runtime uid so a fresh named volume inherits
+# 9000 ownership (the WORM/fallback writer appends here when ClickHouse is down).
+RUN mkdir -p /data/medharness/audit && chown -R medharness:medharness /data/medharness
+
 USER medharness:medharness
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \

@@ -10,7 +10,9 @@ export { CONTRACT_VERSION, API_BASE } from "./version";
 export { resolveMock, type MockResult } from "./mock";
 export {
   assertNoPhi,
+  assertNoPatientPhi,
   findPhi,
+  findPatientPhi,
   PhiLeakError,
   type Sanitized,
   type PhiViolation,

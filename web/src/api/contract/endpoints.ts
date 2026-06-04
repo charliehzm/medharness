@@ -24,9 +24,31 @@ export const ENDPOINTS = {
   events: { method: "GET", path: "/events", readonly: true },
   audit: { method: "GET", path: "/audit/{ref}", readonly: true },
   upstreams: { method: "GET", path: "/upstreams", readonly: true },
+  cost: { method: "GET", path: "/cost", readonly: true },
+  channels: { method: "GET", path: "/channels", readonly: true },
   config: { method: "GET", path: "/config/{section}", readonly: true },
+  adminUsers: { method: "GET", path: "/admin/users", readonly: true },
+  adminTokens: { method: "GET", path: "/admin/tokens", readonly: true },
+  adminChannels: { method: "GET", path: "/admin/channels", readonly: true },
   auditExport: { method: "POST", path: "/audit/export", readonly: false },
   configPropose: { method: "POST", path: "/config/{section}/propose", readonly: false },
+  // ── 用户管理写代理（v0.7.2 · B2/B3 · sysadmin only）─ 经 requestMgmt（放行 STAFF email）─
+  adminUsersManage: { method: "GET", path: "/admin/users/manage_list", readonly: true },
+  adminGroups: { method: "GET", path: "/admin/groups", readonly: true },
+  adminUserCreate: { method: "POST", path: "/admin/users", readonly: false },
+  adminUserUpdate: { method: "POST", path: "/admin/users/{id}/update", readonly: false },
+  adminUserPassword: { method: "POST", path: "/admin/users/{id}/password", readonly: false },
+  adminUserStatus: { method: "POST", path: "/admin/users/{id}/status", readonly: false },
+  adminUserRole: { method: "POST", path: "/admin/users/{id}/role", readonly: false },
+  adminUserDelete: { method: "POST", path: "/admin/users/{id}/delete", readonly: false },
+  // ── 渠道 / 令牌管理写代理（v0.9.0 · sysadmin only）─ 经 requestMgmt ─
+  adminChannelCreate: { method: "POST", path: "/admin/channels", readonly: false },
+  adminChannelUpdate: { method: "POST", path: "/admin/channels/{id}/update", readonly: false },
+  adminChannelDelete: { method: "POST", path: "/admin/channels/{id}/delete", readonly: false },
+  adminChannelTest: { method: "POST", path: "/admin/channels/{id}/test", readonly: false },
+  adminTokenCreate: { method: "POST", path: "/admin/tokens", readonly: false },
+  adminTokenUpdate: { method: "POST", path: "/admin/tokens/{id}/update", readonly: false },
+  adminTokenDelete: { method: "POST", path: "/admin/tokens/{id}/delete", readonly: false },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
