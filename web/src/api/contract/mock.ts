@@ -16,6 +16,7 @@ import type {
   ConfigSnapshot,
   CostResponse,
   EventsResponse,
+  MgmtOk,
   PostureResponse,
   TrafficResponse,
   UpstreamsResponse,
@@ -91,6 +92,18 @@ export function resolveMock(method: string, rawPath: string): MockResult<unknown
     return ok(exportRes as AuditExportResponse, "POST /audit/export");
   if (m === "POST" && /^\/config\/[^/]+\/propose$/.test(path)) {
     return ok(propose as ConfigProposeResponse, "POST /config/{section}/propose");
+  }
+  if (m === "POST" && path === "/admin/channels") {
+    return ok({ ok: true } as MgmtOk, "POST /admin/channels");
+  }
+  if (m === "POST" && /^\/admin\/channels\/[^/]+\/(?:update|delete|test)$/.test(path)) {
+    return ok({ ok: true } as MgmtOk, "POST /admin/channels/{id}/*");
+  }
+  if (m === "POST" && path === "/admin/tokens") {
+    return ok({ ok: true } as MgmtOk, "POST /admin/tokens");
+  }
+  if (m === "POST" && /^\/admin\/tokens\/[^/]+\/(?:update|delete)$/.test(path)) {
+    return ok({ ok: true } as MgmtOk, "POST /admin/tokens/{id}/*");
   }
 
   return notFound();

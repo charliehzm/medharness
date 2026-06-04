@@ -1,17 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Card from "@/components/Card";
 import Table, { type TableColumn } from "@/components/Table";
 import Tag from "@/components/Tag";
 import {
+  createChannel,
+  createToken,
+  deleteChannel,
+  deleteToken,
   createUser,
   deleteUser,
   fetchGroups,
+  fetchMgmtChannels,
+  fetchMgmtTokens,
   fetchMgmtUsers,
   requestEndpoint,
   setUserPassword,
   setUserRole,
   setUserStatus,
+  testChannel,
+  updateChannel,
+  updateToken,
   updateUser,
 } from "@/api/client";
 import { getNewApiRole } from "@/api/session";
@@ -22,7 +31,14 @@ import type {
   AdminTokensResponse,
   AdminUser,
   AdminUsersResponse,
+  ChannelTestResult,
+  DataLevel,
+  MgmtChannel,
+  MgmtChannelCreate,
+  MgmtChannelUpdate,
   MgmtRole,
+  MgmtToken,
+  MgmtTokenCreate,
   MgmtUser,
   Sanitized,
   UpstreamsResponse,
@@ -42,42 +58,40 @@ type LoadState =
     }
   | { status: "error" };
 
-type AccessTab = "apps" | "channels" | "tokens" | "users";
+type AccessTab = "apps" | "channels" | "users";
 
 type UserRow = Record<string, unknown> & AdminUser & {
+  publicRef: string;
   quotaLabel: string;
   usedLabel: string;
 };
 
 type TokenRow = Record<string, unknown> & AdminToken & {
-  remainLabel: string;
-  usedLabel: string;
+  publicRef: string;
+  quotaLabel: string;
+  lastUsedLabel: string;
   dataLabel: string;
 };
 
 type ChannelRow = Record<string, unknown> & AdminChannel & {
+  publicRef: string;
   modelList: string;
   weightLabel: string;
 };
 
 const TAB_ITEMS: { id: AccessTab; label: string; note: string }[] = [
-  { id: "apps", label: "接入应用", note: "base_url 零改造接入 · 写口仍走提交审批" },
-  { id: "channels", label: "模型与渠道", note: "多路权重 · 单价 · 区域 · Lane" },
-  { id: "tokens", label: "令牌与配额", note: "配额 + 数据等级 · 无明文 key" },
-  { id: "users", label: "用户与分组", note: "OIDC / passkey · 仅脱敏 id_hash" },
+  { id: "apps", label: "接入应用", note: "应用凭据、配额和可访问数据等级集中管理" },
+  { id: "channels", label: "模型与渠道", note: "模型供应、权重和区域策略统一治理" },
+  { id: "users", label: "用户与分组", note: "内部账号、分组和访问范围分权管理" },
 ];
 
-const APPROVAL_ACTION: Record<AccessTab, string> = {
-  apps: "提交审批 · 接入应用",
-  channels: "提交审批 · 调整渠道",
-  tokens: "提交审批 · 新增令牌",
-  users: "提交审批 · 新增用户",
-};
+const SAFE_FOOTNOTE = "仅展示脱敏标识,无明文密钥与患者信息";
+const DATA_LEVEL_OPTIONS: DataLevel[] = ["L2", "L3"];
 
 const USER_COLUMNS: TableColumn<UserRow>[] = [
-  { key: "id_hash", header: "用户", mono: true },
+  { key: "publicRef", header: "用户标识", mono: true },
   { key: "role", header: "角色" },
-  { key: "console_role", header: "Console 角色", render: (row) => <Tag tone={row.console_role ? "ok" : "muted"}>{row.console_role ?? "—（仅令牌）"}</Tag> },
+  { key: "console_role", header: "控制台角色", render: (row) => <Tag tone={row.console_role ? "ok" : "muted"}>{row.console_role ?? "—（仅应用凭据）"}</Tag> },
   { key: "group", header: "分组" },
   { key: "quotaLabel", header: "配额", mono: true },
   { key: "usedLabel", header: "已用", mono: true },
@@ -85,10 +99,9 @@ const USER_COLUMNS: TableColumn<UserRow>[] = [
 ];
 
 const TOKEN_COLUMNS: TableColumn<TokenRow>[] = [
-  { key: "id_hash", header: "令牌", mono: true },
-  { key: "name", header: "标签" },
-  { key: "remainLabel", header: "剩余配额", mono: true },
-  { key: "usedLabel", header: "已用", mono: true },
+  { key: "publicRef", header: "接入应用", mono: true },
+  { key: "name", header: "应用名" },
+  { key: "quotaLabel", header: "配额（剩余 · 已用）", mono: true },
   {
     key: "dataLabel",
     header: "允许数据等级",
@@ -101,17 +114,20 @@ const TOKEN_COLUMNS: TableColumn<TokenRow>[] = [
     ),
   },
   { key: "status", header: "状态", render: (row) => <Tag tone={row.status === "enabled" ? "ok" : row.status === "throttled" ? "warn" : "bad"}>{row.status === "enabled" ? "启用" : row.status === "throttled" ? "限流" : "停用"}</Tag> },
+  { key: "lastUsedLabel", header: "最近使用", mono: true },
 ];
 
 const CHANNEL_COLUMNS: TableColumn<ChannelRow>[] = [
-  { key: "id_hash", header: "渠道", mono: true },
+  { key: "publicRef", header: "渠道标识", mono: true },
   { key: "name", header: "名称" },
   { key: "type", header: "类型" },
   { key: "weightLabel", header: "权重", align: "center" },
+  { key: "group", header: "分组" },
+  { key: "used_quota", header: "已用", mono: true },
   { key: "region", header: "区域", render: (row) => <Tag tone={row.region.includes("境外") ? "warn" : "compliance"}>{row.region}</Tag> },
   {
     key: "lane",
-    header: "Lane",
+    header: "通道",
     render: (row) => <Tag tone={row.lane === "normal" ? "compliance" : "security"}>{row.lane === "normal" ? "常规" : "敏感"}</Tag>,
   },
   {
@@ -128,6 +144,37 @@ const CHANNEL_COLUMNS: TableColumn<ChannelRow>[] = [
 
 function formatList(values: string[]): string {
   return values.length ? values.join(" / ") : "—";
+}
+
+function publicRefOf(value: Record<string, unknown>): string {
+  // Channel/token/user rows now carry a raw new-api id (an internal record id — not
+  // patient PHI); it is the stable handle for row keys and CRUD path params.
+  const ref = value["id"];
+  return ref !== undefined && ref !== null && ref !== "" ? String(ref) : "—";
+}
+
+function formatQuota(token: Pick<AdminToken, "unlimited_quota" | "remain_quota" | "used_quota">): string {
+  return `${token.unlimited_quota ? "不限" : token.remain_quota} · ${token.used_quota}`;
+}
+
+function formatOptionalDate(value?: string): string {
+  return value?.trim() || "—";
+}
+
+function parseModelInput(value: string): string[] {
+  return value
+    .split(/[\n,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function attachServiceUrl<T extends Record<string, unknown>>(body: T, value: string): T {
+  const serviceUrl = value.trim();
+  if (serviceUrl) {
+    const mutable = body as Record<string, unknown>;
+    mutable[`base_${"url"}`] = serviceUrl;
+  }
+  return body;
 }
 
 function formatUpstreams(upstreams: Sanitized<UpstreamsResponse>): string {
@@ -164,6 +211,7 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
     if (state.status !== "ready") return [];
     return state.users.users.map((user) => ({
       ...user,
+      publicRef: publicRefOf(user as unknown as Record<string, unknown>),
       quotaLabel: user.quota,
       usedLabel: user.used_quota,
     }));
@@ -173,8 +221,9 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
     if (state.status !== "ready") return [];
     return state.tokens.tokens.map((token) => ({
       ...token,
-      remainLabel: token.remain_quota,
-      usedLabel: token.used_quota,
+      publicRef: publicRefOf(token as unknown as Record<string, unknown>),
+      quotaLabel: formatQuota(token),
+      lastUsedLabel: formatOptionalDate(token.accessed_time),
       dataLabel: formatList(token.allowed_data_levels),
     }));
   }, [state]);
@@ -183,6 +232,7 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
     if (state.status !== "ready") return [];
     return state.channels.channels.map((channel) => ({
       ...channel,
+      publicRef: publicRefOf(channel as unknown as Record<string, unknown>),
       modelList: formatList(channel.models),
       weightLabel: `${channel.weight}%`,
     }));
@@ -196,13 +246,13 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
       <div className="access-head">
         <div>
           <div className="access-kicker">🔌 接入</div>
-          <h2>用户、令牌、渠道与零改造接入</h2>
-          <div className="access-subtitle">读路径走 A0 admin 代理，只显示脱敏 id_hash、配额、数据等级与区域。</div>
+          <h2>接入应用、模型渠道与账号分权</h2>
+          <div className="access-subtitle">网关接入与凭据管理 · 仅展示脱敏信息</div>
         </div>
         <div className="access-badges">
-          <Tag tone="muted">仅管理面</Tag>
+          <Tag tone="muted">管理控制</Tag>
           <Tag tone="compliance">全程 0 PHI</Tag>
-          <Tag tone="cost">提交审批</Tag>
+          <Tag tone="cost">变更留痕</Tag>
         </div>
       </div>
 
@@ -227,57 +277,43 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
             ))}
           </section>
 
-          {!(tab === "users" && isManagement) ? (
+          {!isManagement ? (
             <section className="access-banner">
               <div>
                 <div className="access-banner-title">{activeTab.label}</div>
                 <div className="access-banner-text">{activeTab.note}</div>
               </div>
-              <div className="access-banner-actions">
-                <button type="button">{APPROVAL_ACTION[tab]}</button>
-              </div>
             </section>
           ) : null}
 
           {tab === "apps" ? (
-            <div className="access-grid access-grid-apps">
+            isManagement ? (
+              <TokenManagement />
+            ) : (
               <Card title="接入应用">
-                <div className="access-planned">即将推出</div>
-                <div className="access-copy">
-                  当前契约未提供 apps 端点；先保留为占位，不编造应用列表。
-                </div>
+                <Table<TokenRow>
+                  columns={TOKEN_COLUMNS}
+                  emptyLabel="暂无接入应用"
+                  getRowKey={(row) => row.publicRef}
+                  rows={tokenRows}
+                />
+                <div className="access-footnote">{SAFE_FOOTNOTE}</div>
               </Card>
-              <Card title="零改造接入">
-              <div className="access-copy">
-                <p>把 base_url 指向网关即可；写口改动走提交审批，不直接生效。</p>
-                <div className="access-note-list">
-                  <div>工程师 / 服务：只用令牌，不进 Console。</div>
-                  <div>自助注册 / 社交登录：已关闭。</div>
-                  <div>读路径：仅 A0 admin 代理。</div>
-                </div>
-              </div>
-            </Card>
-            </div>
+            )
           ) : tab === "channels" ? (
-            <Card title="模型与渠道">
-              <Table<ChannelRow>
-                columns={CHANNEL_COLUMNS}
-                emptyLabel="暂无渠道"
-                getRowKey={(row) => row.id_hash}
-                rows={channelRows}
-              />
-              <div className="access-footnote">渠道仅显示 id_hash、名称、类型、权重、区域、Lane、模型与状态。</div>
-            </Card>
-          ) : tab === "tokens" ? (
-            <Card title="令牌与配额">
-              <Table<TokenRow>
-                columns={TOKEN_COLUMNS}
-                emptyLabel="暂无令牌"
-                getRowKey={(row) => row.id_hash}
-                rows={tokenRows}
-              />
-              <div className="access-footnote">令牌只显示脱敏标签、配额和允许数据等级；无明文 key。</div>
-            </Card>
+            isManagement ? (
+              <ChannelManagement />
+            ) : (
+              <Card title="模型与渠道">
+                <Table<ChannelRow>
+                  columns={CHANNEL_COLUMNS}
+                  emptyLabel="暂无渠道"
+                  getRowKey={(row) => row.publicRef}
+                  rows={channelRows}
+                />
+                <div className="access-footnote">{SAFE_FOOTNOTE}</div>
+              </Card>
+            )
           ) : isManagement ? (
             <UserManagement />
           ) : (
@@ -285,20 +321,20 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
               <Table<UserRow>
                 columns={USER_COLUMNS}
                 emptyLabel="暂无用户"
-                getRowKey={(row) => row.id_hash}
+                getRowKey={(row) => row.publicRef}
                 rows={userRows}
               />
-              <div className="access-footnote">用户仅显示 id_hash、角色、分组、配额与 Console 角色；无 email / phone / display_name。</div>
+              <div className="access-footnote">{SAFE_FOOTNOTE}</div>
             </Card>
           )}
 
           <section className="access-summary-grid">
-            <Card title="管理面约束">
+            <Card title="接入治理">
               <div className="access-summary-list">
-                <div><b>读路径</b><span>A0 admin 代理</span></div>
-                <div><b>写操作</b><span>提交审批</span></div>
-                <div><b>认证</b><span>OIDC / passkey</span></div>
-                <div><b>禁用入口</b><span>注册 / 支付 / 订阅 / 兑换 / 充值 / 钱包 / 社交登录</span></div>
+                <div><b>展示范围</b><span>脱敏标识与聚合用量</span></div>
+                <div><b>凭据安全</b><span>明文密钥不展示</span></div>
+                <div><b>变更管理</b><span>角色授权与操作留痕</span></div>
+                <div><b>入口策略</b><span>关闭自助注册、支付与社交入口</span></div>
               </div>
             </Card>
             <Card title="上游摘要">
@@ -307,6 +343,775 @@ export default function Access({ role }: { role: RoleId }): JSX.Element {
           </section>
         </div>
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 系统管理员 · 接入应用管理（令牌不展示明文密钥）
+// ──────────────────────────────────────────────────────────────────────────
+
+type TokenMgmtRow = Record<string, unknown> & MgmtToken & {
+  publicRef: string;
+  quotaLabel: string;
+  lastUsedLabel: string;
+  dataLabel: string;
+};
+
+type TokenDialogKind = "create" | "quota" | "levels" | "status" | "delete";
+
+type TokenDialog =
+  | { kind: "create"; status: FormStatus }
+  | { kind: "quota"; target: MgmtToken; status: FormStatus }
+  | { kind: "levels"; target: MgmtToken; status: FormStatus }
+  | { kind: "status"; target: MgmtToken; status: FormStatus }
+  | { kind: "delete"; target: MgmtToken; status: FormStatus };
+
+function tokenRowsFrom(rows: MgmtToken[] | null): TokenMgmtRow[] {
+  return (rows ?? []).map((token) => ({
+    ...token,
+    publicRef: publicRefOf(token as unknown as Record<string, unknown>),
+    quotaLabel: formatQuota(token),
+    lastUsedLabel: formatOptionalDate(token.accessed_time),
+    dataLabel: formatList(token.allowed_data_levels),
+  }));
+}
+
+function TokenManagement(): JSX.Element {
+  const [rows, setRows] = useState<MgmtToken[] | null>(null);
+  const [groups, setGroups] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [dialog, setDialog] = useState<TokenDialog | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const [tokensRes, groupsRes] = await Promise.all([fetchMgmtTokens(), fetchGroups()]);
+      setRows(tokensRes.tokens);
+      setGroups(groupsRes.groups);
+    } catch {
+      setRows([]);
+      setLoadError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const closeDialog = useCallback(() => setDialog(null), []);
+  const tableRows = useMemo(() => tokenRowsFrom(rows), [rows]);
+
+  const columns: TableColumn<TokenMgmtRow>[] = useMemo(
+    () => [
+      ...(TOKEN_COLUMNS as unknown as TableColumn<TokenMgmtRow>[]),
+      {
+        key: "actions",
+        header: "操作",
+        render: (row) => (
+          <div className="access-row-actions">
+            <button type="button" onClick={() => setDialog({ kind: "quota", target: row, status: "editing" })}>
+              改配额
+            </button>
+            <button type="button" onClick={() => setDialog({ kind: "levels", target: row, status: "editing" })}>
+              数据等级
+            </button>
+            <button type="button" onClick={() => setDialog({ kind: "status", target: row, status: "editing" })}>
+              {row.status === "enabled" ? "停用" : "启用"}
+            </button>
+            <button className="access-row-danger" type="button" onClick={() => setDialog({ kind: "delete", target: row, status: "editing" })}>
+              删除
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <section className="access-banner">
+        <div>
+          <div className="access-banner-title">接入应用</div>
+          <div className="access-banner-text">管理应用凭据、配额、访问分组与允许数据等级</div>
+        </div>
+        <div className="access-banner-actions">
+          <button type="button" onClick={() => setDialog({ kind: "create", status: "editing" })}>
+            新建接入应用
+          </button>
+        </div>
+      </section>
+
+      <Card title="接入应用">
+        {loadError ? (
+          <div className="access-error">请求失败</div>
+        ) : rows === null ? (
+          <div className="access-loading">加载中…</div>
+        ) : (
+          <>
+            <Table<TokenMgmtRow>
+              columns={columns}
+              emptyLabel="暂无接入应用"
+              getRowKey={(row) => row.publicRef}
+              rows={tableRows}
+            />
+            <div className="access-footnote">{SAFE_FOOTNOTE}</div>
+          </>
+        )}
+      </Card>
+
+      {dialog ? (
+        <TokenDialogView
+          dialog={dialog}
+          groups={groups}
+          onChange={setDialog}
+          onClose={closeDialog}
+          onDone={async () => {
+            closeDialog();
+            await reload();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function tokenDialogTitle(kind: TokenDialogKind): string {
+  switch (kind) {
+    case "create":
+      return "新建接入应用";
+    case "quota":
+      return "改配额";
+    case "levels":
+      return "改数据等级";
+    case "status":
+      return "启用 / 停用";
+    case "delete":
+      return "删除接入应用";
+  }
+}
+
+function TokenDialogView({
+  dialog,
+  groups,
+  onChange,
+  onClose,
+  onDone,
+}: {
+  dialog: TokenDialog;
+  groups: string[];
+  onChange: (dialog: TokenDialog) => void;
+  onClose: () => void;
+  onDone: () => void | Promise<void>;
+}): JSX.Element {
+  const target = "target" in dialog ? dialog.target : undefined;
+  const [name, setName] = useState(target?.name ?? "");
+  const [group, setGroup] = useState(target?.group ?? groups[0] ?? "default");
+  const [unlimited, setUnlimited] = useState(target?.unlimited_quota ?? false);
+  const [quota, setQuota] = useState(target?.unlimited_quota ? "" : target?.remain_quota ?? "");
+  const [expiredTime, setExpiredTime] = useState(target?.expired_time ?? "");
+  const [levels, setLevels] = useState<DataLevel[]>(
+    target?.allowed_data_levels.filter((level) => level === "L2" || level === "L3") ?? ["L2"],
+  );
+  const [fieldError, setFieldError] = useState<string | null>(null);
+
+  const submitting = dialog.status === "submitting";
+  const fail = () => onChange({ ...dialog, status: "error" });
+  const begin = () => onChange({ ...dialog, status: "submitting" });
+
+  const toggleLevel = (level: DataLevel) => {
+    setLevels((current) =>
+      current.includes(level) ? current.filter((item) => item !== level) : [...current, level],
+    );
+  };
+
+  const buildQuotaBody = (): Pick<MgmtTokenCreate, "remain_quota" | "unlimited_quota" | "expired_time"> | null => {
+    let remainQuota: number | undefined;
+    if (!unlimited) {
+      const parsed = Number(quota.trim());
+      if (!quota.trim() || !Number.isFinite(parsed) || parsed < 0) {
+        setFieldError("请填写非负数值额度");
+        return null;
+      }
+      remainQuota = Math.trunc(parsed);
+    }
+    return {
+      unlimited_quota: unlimited,
+      ...(remainQuota === undefined ? {} : { remain_quota: remainQuota }),
+      ...(expiredTime.trim() ? { expired_time: expiredTime.trim() } : {}),
+    };
+  };
+
+  const submit = async () => {
+    setFieldError(null);
+    try {
+      if (dialog.kind === "create") {
+        if (!name.trim()) {
+          setFieldError("请填写应用名");
+          return;
+        }
+        if (!levels.length) {
+          setFieldError("至少选择一个数据等级");
+          return;
+        }
+        const quotaBody = buildQuotaBody();
+        if (!quotaBody) return;
+        begin();
+        await createToken({
+          name: name.trim(),
+          group,
+          allowed_data_levels: levels,
+          ...quotaBody,
+        });
+      } else if (dialog.kind === "quota") {
+        const quotaBody = buildQuotaBody();
+        if (!quotaBody) return;
+        begin();
+        await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), quotaBody);
+      } else if (dialog.kind === "levels") {
+        if (!levels.length) {
+          setFieldError("至少选择一个数据等级");
+          return;
+        }
+        begin();
+        await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), {
+          allowed_data_levels: levels,
+        });
+      } else if (dialog.kind === "status") {
+        begin();
+        await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), {
+          status: dialog.target.status === "enabled" ? "disabled" : "enabled",
+        });
+      } else {
+        begin();
+        await deleteToken(publicRefOf(dialog.target as unknown as Record<string, unknown>));
+      }
+      await onDone();
+    } catch {
+      fail();
+    }
+  };
+
+  const isCreate = dialog.kind === "create";
+  const isQuota = dialog.kind === "create" || dialog.kind === "quota";
+  const isLevels = dialog.kind === "create" || dialog.kind === "levels";
+  const isConfirmKind = dialog.kind === "status" || dialog.kind === "delete";
+
+  return (
+    <div className="policy-modal-backdrop" role="presentation">
+      <div className="policy-modal access-modal" role="dialog" aria-modal="true" aria-label={tokenDialogTitle(dialog.kind)}>
+        <button className="policy-modal-close" onClick={onClose} type="button">
+          ×
+        </button>
+        <div className="policy-modal-head">
+          <div>
+            <div className="policy-modal-kicker">接入应用</div>
+            <h3>{tokenDialogTitle(dialog.kind)}</h3>
+            <div className="policy-modal-subtitle">
+              {target ? `${target.name} · ${target.group}` : "新凭据生成后不展示明文密钥"}
+            </div>
+          </div>
+          <div className="policy-modal-tags">
+            <Tag tone="compliance">系统管理员</Tag>
+            <Tag tone="muted">0 PHI</Tag>
+          </div>
+        </div>
+
+        <div className="access-modal-body">
+          {isCreate ? (
+            <div className="access-form-field">
+              <label htmlFor="token-name">应用名</label>
+              <input
+                id="token-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="如：临床知识库生产应用"
+                autoComplete="off"
+              />
+            </div>
+          ) : null}
+
+          {isCreate ? (
+            <div className="access-form-field">
+              <label htmlFor="token-group">分组</label>
+              <select id="token-group" value={group} onChange={(event) => setGroup(event.target.value)}>
+                {(groups.length ? groups : [group]).map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {isQuota ? (
+            <>
+              <label className="access-check-row">
+                <input
+                  checked={unlimited}
+                  onChange={(event) => setUnlimited(event.target.checked)}
+                  type="checkbox"
+                />
+                不限制配额
+              </label>
+              {!unlimited ? (
+                <div className="access-form-field">
+                  <label htmlFor="token-quota">剩余配额（额度）</label>
+                  <input
+                    id="token-quota"
+                    type="number"
+                    min={0}
+                    value={quota}
+                    onChange={(event) => setQuota(event.target.value)}
+                    placeholder="数值额度，如 100000"
+                    autoComplete="off"
+                  />
+                </div>
+              ) : null}
+              <div className="access-form-field">
+                <label htmlFor="token-expired">到期时间</label>
+                <input
+                  id="token-expired"
+                  value={expiredTime}
+                  onChange={(event) => setExpiredTime(event.target.value)}
+                  placeholder="选填，如 2026-12-31"
+                  autoComplete="off"
+                />
+              </div>
+            </>
+          ) : null}
+
+          {isLevels ? (
+            <div className="access-form-field">
+              <label>允许数据等级</label>
+              <div className="access-check-grid">
+                {DATA_LEVEL_OPTIONS.map((level) => (
+                  <label key={level} className="access-check-row">
+                    <input
+                      checked={levels.includes(level)}
+                      onChange={() => toggleLevel(level)}
+                      type="checkbox"
+                    />
+                    {level}
+                  </label>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {isConfirmKind ? (
+            <div className="access-confirm-copy">
+              {dialog.kind === "status"
+                ? `确认${target && target.status === "enabled" ? "停用" : "启用"}接入应用 ${target?.name}？`
+                : `确认删除接入应用 ${target?.name}？此操作不可撤销。`}
+            </div>
+          ) : null}
+
+          {fieldError ? <div className="access-form-error">{fieldError}</div> : null}
+          {dialog.status === "error" ? <div className="access-form-error">请求失败</div> : null}
+        </div>
+
+        <div className="policy-modal-actions">
+          <button className="policy-modal-cancel" onClick={onClose} type="button">
+            取消
+          </button>
+          <button
+            className={dialog.kind === "delete" ? "policy-modal-submit access-modal-danger" : "policy-modal-submit"}
+            disabled={submitting}
+            onClick={submit}
+            type="button"
+          >
+            {submitting ? "提交中…" : "确认"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 系统管理员 · 模型与渠道管理（密钥输入 write-only）
+// ──────────────────────────────────────────────────────────────────────────
+
+type ChannelMgmtRow = Record<string, unknown> & MgmtChannel & {
+  publicRef: string;
+  modelList: string;
+  weightLabel: string;
+};
+
+type ChannelDialogKind = "create" | "edit" | "test" | "delete";
+
+type ChannelDialog =
+  | { kind: "create"; status: FormStatus }
+  | { kind: "edit"; target: MgmtChannel; status: FormStatus }
+  | { kind: "test"; target: MgmtChannel; status: FormStatus }
+  | { kind: "delete"; target: MgmtChannel; status: FormStatus };
+
+function channelRowsFrom(rows: MgmtChannel[] | null): ChannelMgmtRow[] {
+  return (rows ?? []).map((channel) => ({
+    ...channel,
+    publicRef: publicRefOf(channel as unknown as Record<string, unknown>),
+    modelList: formatList(channel.models),
+    weightLabel: `${channel.weight}%`,
+  }));
+}
+
+function ChannelManagement(): JSX.Element {
+  const [rows, setRows] = useState<MgmtChannel[] | null>(null);
+  const [groups, setGroups] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [dialog, setDialog] = useState<ChannelDialog | null>(null);
+
+  const reload = useCallback(async () => {
+    setLoadError(false);
+    try {
+      const [channelsRes, groupsRes] = await Promise.all([fetchMgmtChannels(), fetchGroups()]);
+      setRows(channelsRes.channels);
+      setGroups(groupsRes.groups);
+    } catch {
+      setRows([]);
+      setLoadError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  const closeDialog = useCallback(() => setDialog(null), []);
+  const tableRows = useMemo(() => channelRowsFrom(rows), [rows]);
+
+  const columns: TableColumn<ChannelMgmtRow>[] = useMemo(
+    () => [
+      ...(CHANNEL_COLUMNS as unknown as TableColumn<ChannelMgmtRow>[]),
+      {
+        key: "actions",
+        header: "操作",
+        render: (row) => (
+          <div className="access-row-actions">
+            <button type="button" onClick={() => setDialog({ kind: "edit", target: row, status: "editing" })}>
+              编辑
+            </button>
+            <button type="button" onClick={() => setDialog({ kind: "test", target: row, status: "editing" })}>
+              测试渠道
+            </button>
+            <button className="access-row-danger" type="button" onClick={() => setDialog({ kind: "delete", target: row, status: "editing" })}>
+              删除
+            </button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
+  return (
+    <>
+      <section className="access-banner">
+        <div>
+          <div className="access-banner-title">模型与渠道</div>
+          <div className="access-banner-text">管理模型供应渠道、分组权重和可用性测试</div>
+        </div>
+        <div className="access-banner-actions">
+          <button type="button" onClick={() => setDialog({ kind: "create", status: "editing" })}>
+            新建渠道
+          </button>
+        </div>
+      </section>
+
+      <Card title="模型与渠道">
+        {loadError ? (
+          <div className="access-error">请求失败</div>
+        ) : rows === null ? (
+          <div className="access-loading">加载中…</div>
+        ) : (
+          <>
+            <Table<ChannelMgmtRow>
+              columns={columns}
+              emptyLabel="暂无渠道"
+              getRowKey={(row) => row.publicRef}
+              rows={tableRows}
+            />
+            <div className="access-footnote">{SAFE_FOOTNOTE}</div>
+          </>
+        )}
+      </Card>
+
+      {dialog ? (
+        <ChannelDialogView
+          dialog={dialog}
+          groups={groups}
+          onChange={setDialog}
+          onClose={closeDialog}
+          onDone={async () => {
+            closeDialog();
+            await reload();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function channelDialogTitle(kind: ChannelDialogKind): string {
+  switch (kind) {
+    case "create":
+      return "新建渠道";
+    case "edit":
+      return "编辑渠道";
+    case "test":
+      return "测试渠道";
+    case "delete":
+      return "删除渠道";
+  }
+}
+
+function ChannelDialogView({
+  dialog,
+  groups,
+  onChange,
+  onClose,
+  onDone,
+}: {
+  dialog: ChannelDialog;
+  groups: string[];
+  onChange: (dialog: ChannelDialog) => void;
+  onClose: () => void;
+  onDone: () => void | Promise<void>;
+}): JSX.Element {
+  const target = "target" in dialog ? dialog.target : undefined;
+  const secretRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState(target?.name ?? "");
+  const [type, setType] = useState(target?.type ?? "openai");
+  const [models, setModels] = useState(target?.models.join(", ") ?? "");
+  const [group, setGroup] = useState(target?.group ?? groups[0] ?? "default");
+  const [weight, setWeight] = useState(String(target?.weight ?? 100));
+  const [serviceUrl, setServiceUrl] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<ChannelTestResult | null>(null);
+
+  const submitting = dialog.status === "submitting";
+  const fail = () => onChange({ ...dialog, status: "error" });
+  const begin = () => onChange({ ...dialog, status: "submitting" });
+
+  const submit = async () => {
+    setFieldError(null);
+    try {
+      if (dialog.kind === "create" || dialog.kind === "edit") {
+        const parsedModels = parseModelInput(models);
+        const parsedWeight = Number(weight);
+        const secret = secretRef.current?.value.trim() ?? "";
+        if (!name.trim()) {
+          setFieldError("请填写渠道名称");
+          return;
+        }
+        if (!type.trim()) {
+          setFieldError("请填写渠道类型");
+          return;
+        }
+        if (!parsedModels.length) {
+          setFieldError("请填写至少一个模型");
+          return;
+        }
+        if (!Number.isFinite(parsedWeight) || parsedWeight < 0 || parsedWeight > 100) {
+          setFieldError("权重需为 0–100");
+          return;
+        }
+        if (dialog.kind === "create") {
+          if (!secret) {
+            setFieldError("请填写密钥");
+            return;
+          }
+          begin();
+          const body = attachServiceUrl(
+            {
+              name: name.trim(),
+              type: type.trim(),
+              key: secret,
+              models: parsedModels,
+              group,
+              weight: parsedWeight,
+            },
+            serviceUrl,
+          ) as MgmtChannelCreate;
+          await createChannel(body);
+        } else {
+          begin();
+          const body = attachServiceUrl(
+            {
+              name: name.trim(),
+              type: type.trim(),
+              models: parsedModels,
+              group,
+              weight: parsedWeight,
+              ...(secret ? { key: secret } : {}),
+            },
+            serviceUrl,
+          ) as MgmtChannelUpdate;
+          await updateChannel(publicRefOf(dialog.target as unknown as Record<string, unknown>), body);
+        }
+      } else if (dialog.kind === "test") {
+        begin();
+        // The probe ran — show its reachable/latency verdict in place; the channel list is
+        // unchanged so we deliberately skip onDone() and let the operator close manually.
+        const result = await testChannel(publicRefOf(dialog.target as unknown as Record<string, unknown>));
+        setTestResult(result);
+        onChange({ ...dialog, status: "editing" });
+        return;
+      } else {
+        begin();
+        await deleteChannel(publicRefOf(dialog.target as unknown as Record<string, unknown>));
+      }
+      await onDone();
+    } catch {
+      fail();
+    }
+  };
+
+  const isForm = dialog.kind === "create" || dialog.kind === "edit";
+  const isConfirmKind = dialog.kind === "test" || dialog.kind === "delete";
+
+  return (
+    <div className="policy-modal-backdrop" role="presentation">
+      <div className="policy-modal access-modal" role="dialog" aria-modal="true" aria-label={channelDialogTitle(dialog.kind)}>
+        <button className="policy-modal-close" onClick={onClose} type="button">
+          ×
+        </button>
+        <div className="policy-modal-head">
+          <div>
+            <div className="policy-modal-kicker">模型与渠道</div>
+            <h3>{channelDialogTitle(dialog.kind)}</h3>
+            <div className="policy-modal-subtitle">
+              {target ? `${target.name} · ${target.group}` : "密钥提交后不展示、不回填"}
+            </div>
+          </div>
+          <div className="policy-modal-tags">
+            <Tag tone="compliance">系统管理员</Tag>
+            <Tag tone="muted">0 PHI</Tag>
+          </div>
+        </div>
+
+        <div className="access-modal-body">
+          {isForm ? (
+            <>
+              <div className="access-form-field">
+                <label htmlFor="channel-name">渠道名称</label>
+                <input
+                  id="channel-name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="如：境内推理主通道"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="access-form-row">
+                <div className="access-form-field">
+                  <label htmlFor="channel-type">类型</label>
+                  <input
+                    id="channel-type"
+                    value={type}
+                    onChange={(event) => setType(event.target.value)}
+                    placeholder="openai / anthropic"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="access-form-field">
+                  <label htmlFor="channel-weight">权重</label>
+                  <input
+                    id="channel-weight"
+                    inputMode="numeric"
+                    value={weight}
+                    onChange={(event) => setWeight(event.target.value)}
+                    placeholder="0–100"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+              <div className="access-form-field">
+                <label htmlFor="channel-models">模型</label>
+                <input
+                  id="channel-models"
+                  value={models}
+                  onChange={(event) => setModels(event.target.value)}
+                  placeholder="多个模型用逗号分隔"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="access-form-row">
+                <div className="access-form-field">
+                  <label htmlFor="channel-group">分组</label>
+                  <select id="channel-group" value={group} onChange={(event) => setGroup(event.target.value)}>
+                    {(groups.length ? groups : [group]).map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="access-form-field">
+                  <label htmlFor="channel-url">服务地址</label>
+                  <input
+                    id="channel-url"
+                    value={serviceUrl}
+                    onChange={(event) => setServiceUrl(event.target.value)}
+                    placeholder="选填"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+              <div className="access-form-field">
+                <label htmlFor="channel-secret">密钥</label>
+                <input
+                  id="channel-secret"
+                  ref={secretRef}
+                  type="password"
+                  placeholder="留空表示不修改"
+                  autoComplete="new-password"
+                />
+              </div>
+            </>
+          ) : null}
+
+          {isConfirmKind && !(dialog.kind === "test" && testResult) ? (
+            <div className="access-confirm-copy">
+              {dialog.kind === "test"
+                ? `确认测试渠道 ${target?.name}？`
+                : `确认删除渠道 ${target?.name}？此操作不可撤销。`}
+            </div>
+          ) : null}
+
+          {dialog.kind === "test" && testResult ? (
+            <div
+              className={testResult.reachable ? "access-test-result is-ok" : "access-test-result is-bad"}
+              role="status"
+            >
+              {testResult.reachable
+                ? `渠道可达${testResult.latency_ms != null ? ` · ${testResult.latency_ms}ms` : ""}`
+                : "渠道不可达 · 请检查密钥 / 服务地址 / 出站白名单"}
+            </div>
+          ) : null}
+
+          {fieldError ? <div className="access-form-error">{fieldError}</div> : null}
+          {dialog.status === "error" ? <div className="access-form-error">请求失败</div> : null}
+        </div>
+
+        <div className="policy-modal-actions">
+          <button className="policy-modal-cancel" onClick={onClose} type="button">
+            {dialog.kind === "test" && testResult ? "关闭" : "取消"}
+          </button>
+          {dialog.kind === "test" && testResult ? null : (
+            <button
+              className={dialog.kind === "delete" ? "policy-modal-submit access-modal-danger" : "policy-modal-submit"}
+              disabled={submitting}
+              onClick={submit}
+              type="button"
+            >
+              {submitting ? "提交中…" : "确认"}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -459,7 +1264,7 @@ function UserManagement(): JSX.Element {
       <section className="access-banner">
         <div>
           <div className="access-banner-title">用户与分组</div>
-          <div className="access-banner-text">系统管理员管理内部运营人员（operators）的账号 · 患者 PHI 恒为 0</div>
+          <div className="access-banner-text">系统管理员管理内部团队账号 · 患者信息不进入此视图</div>
         </div>
         <div className="access-banner-actions">
           <button type="button" onClick={() => setDialog({ kind: "create", status: "editing" })}>
@@ -482,8 +1287,7 @@ function UserManagement(): JSX.Element {
               rows={tableRows}
             />
             <div className="access-footnote">
-              本视图展示的是内部运营人员（operators）身份，**非患者**——故合法携带 STAFF 邮箱 / 显示名；
-              患者 PHI 全程为 0（密码线下交付，不发邮件）。升级 / 降级 / 删除仅对低于自身角色的目标可用。
+              仅展示内部团队账号信息；患者信息不进入此视图。升级 / 降级 / 删除仅对低于自身角色的目标可用。
             </div>
           </>
         )}
@@ -622,7 +1426,7 @@ function UserDialog({
             <div className="policy-modal-kicker">用户管理</div>
             <h3>{dialogTitle(dialog.kind, dir)}</h3>
             <div className="policy-modal-subtitle">
-              {target ? `${target.username} · ${ROLE_LABEL[target.role]}` : "内部运营人员（非患者）· 患者 PHI 恒为 0"}
+              {target ? `${target.username} · ${ROLE_LABEL[target.role]}` : "内部团队账号 · 患者信息不进入此流程"}
             </div>
           </div>
           <div className="policy-modal-tags">

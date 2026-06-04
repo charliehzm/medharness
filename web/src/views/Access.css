@@ -243,6 +243,29 @@
   outline-offset: 1px;
 }
 
+.access-check-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.access-check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 32px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.access-check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--teal);
+}
+
 .access-confirm-copy {
   padding: 14px 16px;
   border-radius: var(--radius-md);
@@ -260,6 +283,27 @@
   border: 1px solid var(--bad-border);
   color: var(--bad-d);
   font-size: 13px;
+}
+
+.access-test-result {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.access-test-result.is-ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-d);
+}
+
+.access-test-result.is-bad {
+  background: var(--bad-bg);
+  border-color: var(--bad-border);
+  color: var(--bad-d);
 }
 
 .access-modal-danger {

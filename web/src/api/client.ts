@@ -13,7 +13,16 @@ import {
   type ApiError,
   type GroupsResponse,
   type HttpMethod,
+  type MgmtChannel,
+  type MgmtChannelCreate,
+  type MgmtChannelsResponse,
+  type MgmtChannelUpdate,
+  type ChannelTestResult,
   type MgmtOk,
+  type MgmtToken,
+  type MgmtTokenCreate,
+  type MgmtTokensResponse,
+  type MgmtTokenUpdate,
   type MgmtUserCreate,
   type MgmtUserPassword,
   type MgmtUserRole,
@@ -25,6 +34,8 @@ import {
   type TrafficQuery,
 } from "@/api/contract";
 import { getToken, saveSession } from "@/api/session";
+import mgmtChannelsFixture from "@/api/contract/fixtures/admin_channels.json";
+import mgmtTokensFixture from "@/api/contract/fixtures/admin_tokens.json";
 import mgmtUsersFixture from "@/api/contract/fixtures/admin_users_mgmt.json";
 
 export type ApiMode = "mock" | "live";
@@ -254,19 +265,163 @@ export interface MgmtRequestOptions {
   fetchImpl?: FetchLike;
 }
 
-const MGMT_GROUPS: GroupsResponse = { groups: ["default", "clinical", "ops"] };
+const MGMT_GROUPS: GroupsResponse = { groups: ["default", "clinical", "ops", "research", "secure"] };
 const MGMT_WRITE_OK: MgmtOk = { ok: true };
 
+let mockChannels: MgmtChannel[] = cloneContractShape<MgmtChannelsResponse>(mgmtChannelsFixture).channels;
+let mockTokens: MgmtToken[] = cloneContractShape<MgmtTokensResponse>(mgmtTokensFixture).tokens;
+// Start above the fixture ids (1..N) so a mock-created row never collides.
+let mockChannelSeq = 1000;
+let mockTokenSeq = 1000;
+
+function decodePathId(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeModels(value?: string[]): string[] {
+  const models = (value ?? []).map((item) => item.trim()).filter(Boolean);
+  return models.length ? models : ["model-default"];
+}
+
+function createMockChannel(body: unknown): void {
+  const input = body as Partial<MgmtChannelCreate>;
+  mockChannels = [
+    {
+      id: mockChannelSeq++,
+      name: input.name?.trim() || "未命名渠道",
+      type: input.type?.trim() || "openai",
+      status: "green",
+      weight: Number.isFinite(input.weight) ? Number(input.weight) : 100,
+      models: normalizeModels(input.models),
+      group: input.group?.trim() || "default",
+      region: "境内",
+      lane: "normal",
+      used_quota: "¥0",
+    },
+    ...mockChannels,
+  ];
+}
+
+function updateMockChannel(id: string, body: unknown): void {
+  const input = body as MgmtChannelUpdate;
+  mockChannels = mockChannels.map((channel) =>
+    String(channel.id) === id
+      ? {
+          ...channel,
+          name: input.name?.trim() || channel.name,
+          type: input.type?.trim() || channel.type,
+          weight: input.weight === undefined ? channel.weight : Number(input.weight),
+          models: input.models === undefined ? channel.models : normalizeModels(input.models),
+          group: input.group?.trim() || channel.group,
+        }
+      : channel,
+  );
+}
+
+function deleteMockChannel(id: string): void {
+  mockChannels = mockChannels.filter((channel) => String(channel.id) !== id);
+}
+
+function normalizeLevels(value?: MgmtToken["allowed_data_levels"]): MgmtToken["allowed_data_levels"] {
+  const levels = (value ?? []).filter((level) => level === "L2" || level === "L3");
+  return levels.length ? levels : ["L2"];
+}
+
+function createMockToken(body: unknown): void {
+  const input = body as Partial<MgmtTokenCreate>;
+  const unlimited = Boolean(input.unlimited_quota);
+  mockTokens = [
+    {
+      id: mockTokenSeq++,
+      name: input.name?.trim() || "未命名接入应用",
+      status: "enabled",
+      remain_quota: unlimited ? "不限" : input.remain_quota != null ? String(input.remain_quota) : "0",
+      unlimited_quota: unlimited,
+      used_quota: "¥0",
+      group: input.group?.trim() || "default",
+      allowed_data_levels: normalizeLevels(input.allowed_data_levels),
+      expired_time: input.expired_time?.trim() || "—",
+      accessed_time: "—",
+    },
+    ...mockTokens,
+  ];
+}
+
+function updateMockToken(id: string, body: unknown): void {
+  const input = body as MgmtTokenUpdate;
+  mockTokens = mockTokens.map((token) => {
+    if (String(token.id) !== id) return token;
+    const unlimited = input.unlimited_quota ?? token.unlimited_quota;
+    return {
+      ...token,
+      name: input.name?.trim() || token.name,
+      remain_quota: unlimited ? "不限" : input.remain_quota != null ? String(input.remain_quota) : token.remain_quota,
+      unlimited_quota: unlimited,
+      group: input.group?.trim() || token.group,
+      allowed_data_levels: input.allowed_data_levels
+        ? normalizeLevels(input.allowed_data_levels)
+        : token.allowed_data_levels,
+      expired_time: input.expired_time?.trim() || token.expired_time,
+      status: input.status ?? token.status,
+    };
+  });
+}
+
+function deleteMockToken(id: string): void {
+  mockTokens = mockTokens.filter((token) => String(token.id) !== id);
+}
+
 /** mock 模式下解析一个管理面请求（无后端）。读返回 fixture，写返回 {ok:true}。 */
-function resolveMgmtMock<T>(method: HttpMethod, path: string): T {
+function resolveMgmtMock<T>(method: HttpMethod, path: string, body?: unknown): T {
   const clean = path.replace(/^\/api\/v1/, "").split("?")[0];
   if (method === "GET" && clean === "/admin/users/manage_list") {
     return cloneContractShape<T>(mgmtUsersFixture);
   }
+  if (method === "GET" && clean === "/admin/channels") {
+    return cloneContractShape<T>({ channels: mockChannels });
+  }
+  if (method === "GET" && clean === "/admin/tokens") {
+    return cloneContractShape<T>({ tokens: mockTokens });
+  }
   if (method === "GET" && clean === "/admin/groups") {
     return cloneContractShape<T>(MGMT_GROUPS);
   }
-  // 其余（创建 / 更新 / 密码 / 状态 / 角色 / 删除）均为写口 → 统一 {ok:true}
+  if (method === "POST" && clean === "/admin/channels") {
+    createMockChannel(body);
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  const channelUpdate = clean.match(/^\/admin\/channels\/(.+)\/update$/);
+  if (method === "POST" && channelUpdate) {
+    updateMockChannel(decodePathId(channelUpdate[1]!), body);
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  const channelDelete = clean.match(/^\/admin\/channels\/(.+)\/delete$/);
+  if (method === "POST" && channelDelete) {
+    deleteMockChannel(decodePathId(channelDelete[1]!));
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  if (method === "POST" && /^\/admin\/channels\/(.+)\/test$/.test(clean)) {
+    return cloneContractShape<T>({ ok: true, reachable: true, latency_ms: 42 } as unknown as T);
+  }
+  if (method === "POST" && clean === "/admin/tokens") {
+    createMockToken(body);
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  const tokenUpdate = clean.match(/^\/admin\/tokens\/(.+)\/update$/);
+  if (method === "POST" && tokenUpdate) {
+    updateMockToken(decodePathId(tokenUpdate[1]!), body);
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  const tokenDelete = clean.match(/^\/admin\/tokens\/(.+)\/delete$/);
+  if (method === "POST" && tokenDelete) {
+    deleteMockToken(decodePathId(tokenDelete[1]!));
+    return cloneContractShape<T>(MGMT_WRITE_OK);
+  }
+  // 其余用户管理写操作（创建 / 更新 / 密码 / 状态 / 角色 / 删除）统一 {ok:true}
   return cloneContractShape<T>(MGMT_WRITE_OK);
 }
 
@@ -286,7 +441,7 @@ export async function requestMgmt<T>(
   const where = `${method} ${path}`;
 
   if (mode === "mock") {
-    return assertNoPatientPhi(resolveMgmtMock<T>(method, path), where);
+    return assertNoPatientPhi(resolveMgmtMock<T>(method, path, body), where);
   }
 
   const headers = new Headers();
@@ -321,6 +476,9 @@ export async function requestMgmt<T>(
 const mgmtPath = (id: number, suffix: string): string =>
   buildPath(`/admin/users/{id}/${suffix}`, { id: String(id) });
 
+const mgmtResourcePath = (resource: "channels" | "tokens", id: string, suffix: string): string =>
+  buildPath(`/admin/${resource}/{id}/${suffix}`, { id });
+
 /** 拉取用户管理列表（运营人员·含 STAFF email；走患者-only 守卫）。 */
 export function fetchMgmtUsers(options?: MgmtRequestOptions): Promise<MgmtUsersResponse> {
   return requestMgmt<MgmtUsersResponse>("GET", "/admin/users/manage_list", undefined, options);
@@ -329,6 +487,64 @@ export function fetchMgmtUsers(options?: MgmtRequestOptions): Promise<MgmtUsersR
 /** 拉取分组清单。 */
 export function fetchGroups(options?: MgmtRequestOptions): Promise<GroupsResponse> {
   return requestMgmt<GroupsResponse>("GET", "/admin/groups", undefined, options);
+}
+
+/** 拉取渠道管理列表。 */
+export function fetchMgmtChannels(options?: MgmtRequestOptions): Promise<MgmtChannelsResponse> {
+  return requestMgmt<MgmtChannelsResponse>("GET", "/admin/channels", undefined, options);
+}
+
+/** 新建渠道。 */
+export function createChannel(body: MgmtChannelCreate, options?: MgmtRequestOptions): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", "/admin/channels", body, options);
+}
+
+/** 编辑渠道。 */
+export function updateChannel(
+  id: string,
+  body: MgmtChannelUpdate,
+  options?: MgmtRequestOptions,
+): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", mgmtResourcePath("channels", id, "update"), body, options);
+}
+
+/** 删除渠道。 */
+export function deleteChannel(id: string, options?: MgmtRequestOptions): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", mgmtResourcePath("channels", id, "delete"), undefined, options);
+}
+
+/** 测试渠道。 */
+export function testChannel(id: string, options?: MgmtRequestOptions): Promise<ChannelTestResult> {
+  return requestMgmt<ChannelTestResult>(
+    "POST",
+    mgmtResourcePath("channels", id, "test"),
+    undefined,
+    options,
+  );
+}
+
+/** 拉取接入应用令牌管理列表。 */
+export function fetchMgmtTokens(options?: MgmtRequestOptions): Promise<MgmtTokensResponse> {
+  return requestMgmt<MgmtTokensResponse>("GET", "/admin/tokens", undefined, options);
+}
+
+/** 新建接入应用令牌。 */
+export function createToken(body: MgmtTokenCreate, options?: MgmtRequestOptions): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", "/admin/tokens", body, options);
+}
+
+/** 编辑接入应用令牌（配额 / 数据等级 / 状态）。 */
+export function updateToken(
+  id: string,
+  body: MgmtTokenUpdate,
+  options?: MgmtRequestOptions,
+): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", mgmtResourcePath("tokens", id, "update"), body, options);
+}
+
+/** 删除接入应用令牌。 */
+export function deleteToken(id: string, options?: MgmtRequestOptions): Promise<MgmtOk> {
+  return requestMgmt<MgmtOk>("POST", mgmtResourcePath("tokens", id, "delete"), undefined, options);
 }
 
 /** 新建用户。 */

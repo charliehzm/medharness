@@ -75,7 +75,7 @@ export default function AppShell({
       <div className="main">
         <header className="topbar">
           <h1>
-            {title} <small>MedHarness Console</small>
+            {title} <small>MedHarness 控制台</small>
           </h1>
           <div className="top-right">
             <div className="env-pill">

@@ -1,7 +1,47 @@
 {
   "tokens": [
-    { "id_hash": "tk#e5f6", "name": "tk-dify-prod", "status": "enabled", "remain_quota": "¥26/日", "used_quota": "¥124", "allowed_data_levels": ["L2", "L3"] },
-    { "id_hash": "tk#a1b2", "name": "tk-claude-code", "status": "enabled", "remain_quota": "¥32/日", "used_quota": "¥18", "allowed_data_levels": ["L2"] },
-    { "id_hash": "tk#c3d4", "name": "tk-codex", "status": "throttled", "remain_quota": "¥0/日", "used_quota": "¥30", "allowed_data_levels": ["L2"] }
+    {
+      "id": 1,
+      "name": "临床知识库生产应用",
+      "status": "enabled",
+      "remain_quota": "¥260/日",
+      "unlimited_quota": false,
+      "used_quota": "¥124",
+      "group": "clinical",
+      "allowed_data_levels": [
+        "L2",
+        "L3"
+      ],
+      "expired_time": "2026-12-31",
+      "accessed_time": "2026-06-03 17:20"
+    },
+    {
+      "id": 2,
+      "name": "研发辅助工作区",
+      "status": "enabled",
+      "remain_quota": "¥80/日",
+      "unlimited_quota": false,
+      "used_quota": "¥18",
+      "group": "research",
+      "allowed_data_levels": [
+        "L2"
+      ],
+      "expired_time": "2026-09-30",
+      "accessed_time": "2026-06-04 09:15"
+    },
+    {
+      "id": 3,
+      "name": "批处理质控应用",
+      "status": "throttled",
+      "remain_quota": "¥0/日",
+      "unlimited_quota": false,
+      "used_quota": "¥30",
+      "group": "ops",
+      "allowed_data_levels": [
+        "L2"
+      ],
+      "expired_time": "2026-07-31",
+      "accessed_time": "2026-06-02 22:40"
+    }
   ]
 }

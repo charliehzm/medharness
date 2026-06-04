@@ -41,6 +41,14 @@ export const ENDPOINTS = {
   adminUserStatus: { method: "POST", path: "/admin/users/{id}/status", readonly: false },
   adminUserRole: { method: "POST", path: "/admin/users/{id}/role", readonly: false },
   adminUserDelete: { method: "POST", path: "/admin/users/{id}/delete", readonly: false },
+  // ── 渠道 / 令牌管理写代理（v0.9.0 · sysadmin only）─ 经 requestMgmt ─
+  adminChannelCreate: { method: "POST", path: "/admin/channels", readonly: false },
+  adminChannelUpdate: { method: "POST", path: "/admin/channels/{id}/update", readonly: false },
+  adminChannelDelete: { method: "POST", path: "/admin/channels/{id}/delete", readonly: false },
+  adminChannelTest: { method: "POST", path: "/admin/channels/{id}/test", readonly: false },
+  adminTokenCreate: { method: "POST", path: "/admin/tokens", readonly: false },
+  adminTokenUpdate: { method: "POST", path: "/admin/tokens/{id}/update", readonly: false },
+  adminTokenDelete: { method: "POST", path: "/admin/tokens/{id}/delete", readonly: false },
 } as const satisfies Record<string, EndpointDef>;
 
 export type EndpointKey = keyof typeof ENDPOINTS;
