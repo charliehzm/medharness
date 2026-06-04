@@ -12,7 +12,7 @@
   ],
   "summaries": {
     "security": "近期 40 次受控调用，拦截 6 次风险、告警 2 次，PHI 全程 0 出境。",
-    "cost": "近 30 天真实花费 ¥12.40，低成本池占比 78%（较直连节省 / 缓存 ROI 见商业版）。"
+    "cost": "近 30 天真实花费 ¥12.40，低成本池占比 78%（较直连节省 / 缓存 ROI 即将推出）。"
   },
   "gates": [
     { "id": "phi-inbound", "group": "compliance", "status": "green", "metric": "100%", "desc": "泄漏拦截率·220 样本", "built": true },

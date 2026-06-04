@@ -813,7 +813,7 @@ def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
             "section": "quota",
             "title": "配额限流",
             "built": True,
-            "note": "由底座强制",
+            "note": "由网关强制",
             "fields": [
                 {"k": "用户 / 令牌配额", "v": "强制（预扣 + 结算）"},
                 {"k": "余额不足", "v": "拒绝放行"},
@@ -837,9 +837,9 @@ def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
 # --- A3 live cost: aggregate REAL usage/cost from the new-api substrate ----------
 # new-api enforces + records per-(day, user, model) quota usage; A0 reads it via the
 # admin token (GET /api/data/) and folds it into the frozen cost contract. Fields the
-# COMMUNITY substrate cannot truthfully derive — savings-vs-direct, cache ROI, daily
-# budget cap, optimization tips — are surfaced as "即将推出" (commercial tier), NEVER
-# fabricated. If the substrate is unreachable / unconfigured we degrade to an honest
+# community build cannot truthfully derive — savings-vs-direct, cache ROI, daily
+# budget cap, optimization tips — are surfaced as "即将推出" (roadmap), NEVER
+# fabricated. If the gateway is unreachable / unconfigured we degrade to an honest
 # zero state, never to invented spend.
 _COST_SOON = "即将推出"
 _QUOTA_PER_UNIT = float(os.environ.get("NEW_API_QUOTA_PER_UNIT", "") or 500000.0)
@@ -919,7 +919,7 @@ def _cost_kpi(month_cost: str, cap_used: str, normal_ratio: str) -> dict[str, st
 
 
 _COST_COMMERCIAL_TIP = {
-    "tip": "实时用量与成本已接入底座；较直连节省、缓存 ROI 与优化建议由商业版提供",
+    "tip": "实时用量与成本来自网关聚合；较直连节省、缓存 ROI 与优化建议即将推出",
     "saving": _COST_SOON,
 }
 
@@ -1428,7 +1428,7 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
         cost_score = cheap_ratio
         cost_metric = month_cost
         cost_submetric = f"今日 {today_cost} · 低成本池 {cheap_ratio}%"
-        cost_summary = f"近 30 天真实花费 {month_cost}，低成本池占比 {cheap_ratio}%（较直连节省 / 缓存 ROI 见商业版）。"
+        cost_summary = f"近 30 天真实花费 {month_cost}，低成本池占比 {cheap_ratio}%（较直连节省 / 缓存 ROI 即将推出）。"
     else:
         cost_score = 0
         cost_metric = _fmt_cost(0.0)

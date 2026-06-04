@@ -217,13 +217,15 @@ export default function Cost(): JSX.Element {
   const kpiCards = useMemo(() => {
     if (state.status !== "ready") return [];
     const k = state.cost.kpi;
-    // Real where the substrate supports it (cost / today / lane share); the
-    // savings-intelligence card honestly points to the commercial tier.
+    // Real where the gateway can truthfully aggregate it (cost / today / lane share).
+    // The savings-intelligence card is on the roadmap: vs-direct savings and cache ROI
+    // need a direct-API price reference and a cache layer the community build lacks, so
+    // it shows 即将推出 rather than a fabricated number.
     return [
       { title: "本月成本", value: k.month_cost, foot: "近 30 日实时聚合", soon: false },
       { title: "今日成本", value: k.cap_used, foot: "今日累计用量", soon: false },
       { title: "常规通道占比", value: k.normal_lane_ratio, foot: "低成本池承载占比", soon: false },
-      { title: "省钱分析", value: SOON, foot: "较直连节省 · 缓存 ROI · 优化建议（商业版）", soon: true },
+      { title: "省钱分析", value: SOON, foot: "较直连节省 · 缓存 ROI · 优化建议", soon: true },
     ];
   }, [state]);
 
