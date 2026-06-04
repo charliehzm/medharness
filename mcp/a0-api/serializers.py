@@ -361,6 +361,13 @@ def serialize_admin_users_mgmt(data: dict[str, Any]) -> dict[str, Any]:
     for user in items or []:
         if not isinstance(user, dict):
             continue
+        # new-api's GetAllUsers is Unscoped — it returns soft-deleted accounts too. A
+        # deleted staff account must leave the active management list (the record is kept
+        # soft-deleted upstream for audit, but the Console only shows live operators).
+        # gorm.DeletedAt has no json tag, so it marshals as "DeletedAt" (a timestamp when
+        # set, null when live); accept the snake_case form too in case marshaling changes.
+        if user.get("DeletedAt") or user.get("deleted_at"):
+            continue
         users.append(
             {
                 "id": _as_int(user.get("id")),
@@ -378,8 +385,9 @@ def serialize_admin_users_mgmt(data: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    total = data.get("total") if isinstance(data, dict) else None
-    response = {"users": users, "total": _as_int(total, default=len(users))}
+    # Upstream total is an Unscoped count (includes soft-deleted); the active list is
+    # what we actually return, so report its length.
+    response = {"users": users, "total": len(users)}
     return assert_no_patient_phi(response, "GET /admin/users/manage_list")
 
 

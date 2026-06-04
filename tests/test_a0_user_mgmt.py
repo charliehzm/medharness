@@ -18,6 +18,7 @@ new-api / network / token is touched, and pin the security contract:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from importlib import util
 from pathlib import Path
@@ -57,6 +58,11 @@ class FakeNewApi:
 
     def __call__(self, method: str, path: str, body: dict | None = None):
         self.calls.append((method, path, body))
+        if method == "GET" and "?" not in path and re.fullmatch(r"/api/user/\d+", path):
+            # single-user fetch used by the read-modify-write password/update path
+            uid = int(path.rsplit("/", 1)[-1])
+            match = next((u for u in self.users if u.get("id") == uid), None)
+            return 200, ({"success": True, "data": dict(match)} if match else {"success": False})
         if method == "GET" and path.startswith("/api/user/"):
             return 200, {"success": True, "data": {"items": self.users, "total": len(self.users)}}
         if self.ok:
@@ -223,14 +229,18 @@ def test_manage_list_builds_list_call_and_serializes(env) -> None:
             # source-only secrets that must never surface
             "password": "plain-do-not-return",
             "access_token": "sk-do-not-return",
-        }
+        },
+        # a soft-deleted account: new-api's Unscoped list still returns it, but it must
+        # be filtered out of the active management view (DeletedAt is PascalCase).
+        {"id": 8, "username": "ghost", "role": 1, "status": 1, "DeletedAt": "2026-01-01T00:00:00Z"},
     ]
     _install_fake(env, fake)
     resp = _client().get("/api/v1/admin/users/manage_list", headers=_sysadmin())
     assert resp.status_code == 200
     assert fake.calls[0] == ("GET", "/api/user/?p=1&page_size=100", None)
     body = resp.json()
-    assert body["total"] == 1
+    assert body["total"] == 1, "soft-deleted account must be filtered from the active list"
+    assert [u["username"] for u in body["users"]] == ["ops"]
     row = body["users"][0]
     # staff identity surfaces (email + display_name allowed on the mgmt view)
     assert row["email"] == "ops@hospital.invalid"
@@ -298,7 +308,11 @@ def test_create_admin_blocked_when_role_not_below_operator(env) -> None:
 
 # --- update -------------------------------------------------------------------
 def test_update_injects_id_and_builds_put(env) -> None:
-    fake = FakeNewApi()
+    # Read-modify-write: new-api's UpdateUser is a full overwrite (a missing username
+    # trips its UNIQUE index), so A0 carries the current identity and overlays the edit.
+    fake = FakeNewApi(
+        users=[{"id": 42, "username": "dev42", "display_name": "Old", "role": 1, "group": "old", "email": ""}]
+    )
     _install_fake(env, fake)
     resp = _client().post(
         "/api/v1/admin/users/42/update",
@@ -308,7 +322,14 @@ def test_update_injects_id_and_builds_put(env) -> None:
     assert resp.status_code == 200 and resp.json() == {"ok": True}
     method, path, sent = fake.writes[0]
     assert method == "PUT" and path == "/api/user/"
-    assert sent == {"id": 42, "display_name": "Renamed", "group": "default"}
+    assert sent == {
+        "id": 42,
+        "username": "dev42",
+        "display_name": "Renamed",
+        "role": 1,
+        "group": "default",
+        "email": "",
+    }
 
 
 def test_update_role_change_runs_hierarchy_precheck(env) -> None:
@@ -327,7 +348,11 @@ def test_update_role_change_runs_hierarchy_precheck(env) -> None:
 
 # --- password -----------------------------------------------------------------
 def test_password_builds_put_with_id_and_password(env) -> None:
-    fake = FakeNewApi()
+    # Read-modify-write: the new password rides on the carried-forward identity so the
+    # username (UNIQUE) is present and the profile is not blanked by new-api's UpdateUser.
+    fake = FakeNewApi(
+        users=[{"id": 9, "username": "dev9", "display_name": "Dev Nine", "role": 1, "group": "default", "email": ""}]
+    )
     _install_fake(env, fake)
     resp = _client().post(
         "/api/v1/admin/users/9/password",
@@ -335,7 +360,19 @@ def test_password_builds_put_with_id_and_password(env) -> None:
         headers=_sysadmin(),
     )
     assert resp.status_code == 200 and resp.json() == {"ok": True}
-    assert fake.writes[0] == ("PUT", "/api/user/", {"id": 9, "password": "newpass12345"})
+    assert fake.writes[0] == (
+        "PUT",
+        "/api/user/",
+        {
+            "id": 9,
+            "username": "dev9",
+            "display_name": "Dev Nine",
+            "role": 1,
+            "group": "default",
+            "email": "",
+            "password": "newpass12345",
+        },
+    )
 
 
 def test_password_rejects_out_of_range(env) -> None:

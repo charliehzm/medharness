@@ -2224,6 +2224,36 @@ def _can_manage_target(operator_role: int, target_role: int) -> bool:
     return target_role < operator_role
 
 
+# Identity fields new-api's UpdateUser needs round-tripped. A partial PUT /api/user/
+# leaves username empty, which collides on the UNIQUE(username) index (and could blank
+# display_name/role/group), so a password/profile edit must carry the current identity.
+_USER_IDENTITY_FIELDS = ("username", "display_name", "role", "group", "email")
+
+
+def _merge_user_update(target_id: int, changes: dict[str, Any]) -> dict[str, Any] | None:
+    """Read-modify-write for new-api's full-object UpdateUser.
+
+    Fetches the current user and overlays only the validated change (e.g. a new
+    password), so the username is always present and other profile fields survive.
+    Returns None if the user can't be read (caller maps that to a generic failure).
+    """
+    status, parsed = _new_api_admin_request("GET", f"/api/user/{target_id}")
+    if not _admin_write_succeeded(status, parsed):
+        return None
+    current = parsed.get("data") if isinstance(parsed, dict) else None
+    if not isinstance(current, dict):
+        return None
+    merged: dict[str, Any] = {"id": target_id}
+    for field in _USER_IDENTITY_FIELDS:
+        if current.get(field) is not None:
+            merged[field] = current[field]
+    for key, value in changes.items():
+        if key == "id":
+            continue
+        merged[key] = value
+    return merged
+
+
 @app.get(f"{API_BASE}/admin/users/manage_list")
 def admin_users_manage_list(authorization: str | None = Header(default=None)) -> Any:
     session, error_response = _sysadmin_or_error(authorization)
@@ -2301,25 +2331,27 @@ def admin_users_update(
     if target_id < 0:
         return _invalid_params_response()
     body = payload or {}
-    update: dict[str, Any] = {"id": target_id}
+    changes: dict[str, Any] = {}
     if body.get("username") is not None:
         username = str(body.get("username"))
         if not _MGMT_USERNAME_RE.fullmatch(username):
             return _invalid_params_response()
-        update["username"] = username
+        changes["username"] = username
     if body.get("display_name") is not None:
-        update["display_name"] = str(body.get("display_name"))
+        changes["display_name"] = str(body.get("display_name"))
     if body.get("group") is not None:
         group = str(body.get("group"))
         if not _MGMT_GROUP_RE.fullmatch(group):
             return _invalid_params_response()
-        update["group"] = group
+        changes["group"] = group
     role_changed = body.get("role") is not None
     if role_changed:
         role = _coerce_int(body.get("role"), -1)
         if role not in _MGMT_ALLOWED_ROLES:
             return _invalid_params_response()
-        update["role"] = role
+        changes["role"] = role
+    if not changes:
+        return _invalid_params_response()
     try:
         # A role change is privileged: the operator must out-rank BOTH the target's
         # current role and the requested new role (mirror new-api canManageTargetRole).
@@ -2329,10 +2361,15 @@ def admin_users_update(
                 return _operation_failed_response()
             operator = _coerce_int(session.get("nr"))
             if not _can_manage_target(operator, current) or not _can_manage_target(
-                operator, _coerce_int(update["role"])
+                operator, _coerce_int(changes["role"])
             ):
                 return _forbidden_response(session)
-        status, parsed = _new_api_admin_request("PUT", "/api/user/", update)
+        # Read-modify-write so an unchanged username is still present (UNIQUE index) and
+        # other profile fields are not blanked by new-api's full-object UpdateUser.
+        merged = _merge_user_update(target_id, changes)
+        if merged is None:
+            return _operation_failed_response()
+        status, parsed = _new_api_admin_request("PUT", "/api/user/", merged)
         if not _admin_write_succeeded(status, parsed):
             return _operation_failed_response()
         return {"ok": True}
@@ -2360,9 +2397,13 @@ def admin_users_password(
     if not 8 <= len(password) <= 20:
         return _invalid_params_response()
     try:
-        status, parsed = _new_api_admin_request(
-            "PUT", "/api/user/", {"id": target_id, "password": password}
-        )
+        # Read-modify-write: a bare {id, password} leaves username empty and trips
+        # new-api's UNIQUE(username) index. Carry the current identity, set the password
+        # (also lets new-api's role-hierarchy guard reject resetting a peer/superior).
+        merged = _merge_user_update(target_id, {"password": password})
+        if merged is None:
+            return _operation_failed_response()
+        status, parsed = _new_api_admin_request("PUT", "/api/user/", merged)
         if not _admin_write_succeeded(status, parsed):
             return _operation_failed_response()
         return {"ok": True}
