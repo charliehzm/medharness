@@ -54,6 +54,7 @@ except Exception:  # pragma: no cover - local test fallback or partial namespace
     def Header(default: Any = None, **_: Any) -> Any:
         return default
 
+
 API_BASE = "/api/v1"
 CONTRACT_VERSION = "0.10.0"
 DEFAULT_HTTP_HOST = "0.0.0.0"
@@ -285,9 +286,13 @@ def _new_api_bootstrap_admin_token() -> tuple[str, str]:
 # admin-write endpoints are gated without a per-request round-trip to new-api. The
 # token carries no PHI (new-api user id + username + role only).
 DEFAULT_SESSION_TTL_SECONDS = 43200  # 12h
-_SESSION_HEADER = base64.urlsafe_b64encode(
-    json.dumps({"alg": "HS256", "typ": "MHT"}, separators=(",", ":")).encode("utf-8")
-).rstrip(b"=").decode("ascii")
+_SESSION_HEADER = (
+    base64.urlsafe_b64encode(
+        json.dumps({"alg": "HS256", "typ": "MHT"}, separators=(",", ":")).encode("utf-8")
+    )
+    .rstrip(b"=")
+    .decode("ascii")
+)
 
 
 def _session_secret() -> bytes:
@@ -331,7 +336,9 @@ def _mint_session(user_id: Any, username: str, console_role: str, new_api_role: 
         "exp": now + _session_ttl(),
     }
     body = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    sig = _b64url(hmac.new(secret, f"{_SESSION_HEADER}.{body}".encode("ascii"), hashlib.sha256).digest())
+    sig = _b64url(
+        hmac.new(secret, f"{_SESSION_HEADER}.{body}".encode("ascii"), hashlib.sha256).digest()
+    )
     return f"{_SESSION_HEADER}.{body}.{sig}"
 
 
@@ -502,10 +509,14 @@ class _LocalApp:
         authorization = (headers or {}).get("Authorization")
         handler, route_params = self._match_route(verb, route_path)
         if handler is None:
-            return _LocalResponse({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+            return _LocalResponse(
+                {"error": {"code": "not_found", "msg": "data source unavailable"}}, 404
+            )
 
         if route_path == f"{API_BASE}/traffic":
-            return _normalize_local_response(handler(window=params.get("window"), ctx=params.get("ctx")))
+            return _normalize_local_response(
+                handler(window=params.get("window"), ctx=params.get("ctx"))
+            )
         if route_path == f"{API_BASE}/events":
             limit = params.get("limit")
             return _normalize_local_response(
@@ -518,7 +529,11 @@ class _LocalApp:
         if route_path.startswith(f"{API_BASE}/audit/") and verb == "GET":
             ref = route_params.get("ref", "")
             return _normalize_local_response(handler(ref=ref))
-        if route_path.startswith(f"{API_BASE}/config/") and route_path.endswith("/propose") and verb == "POST":
+        if (
+            route_path.startswith(f"{API_BASE}/config/")
+            and route_path.endswith("/propose")
+            and verb == "POST"
+        ):
             section = route_params.get("section", "")
             payload = json if json is not None else data
             return _normalize_local_response(handler(section=section, payload=payload))
@@ -615,6 +630,7 @@ def _response(content: dict[str, Any], status_code: int) -> Any:
 
 def make_test_client(app_obj: Any) -> Any:
     if hasattr(app_obj, "request"):
+
         class _Client:
             def get(
                 self,
@@ -632,7 +648,9 @@ def make_test_client(app_obj: Any) -> Any:
                 data: Any | None = None,
                 headers: dict[str, Any] | None = None,
             ) -> _LocalResponse:
-                return app_obj.request("POST", url, params=params, json=json, data=data, headers=headers)
+                return app_obj.request(
+                    "POST", url, params=params, json=json, data=data, headers=headers
+                )
 
         return _Client()
     from fastapi.testclient import TestClient
@@ -828,7 +846,10 @@ def _config_snapshot_payload(section: str) -> dict[str, Any] | None:
         "approval": {
             "section": "approval",
             "title": "审批流",
-            "fields": [{"k": "配置写口", "v": "提交审批（不旁路 Hook）"}, {"k": "等级", "v": "单签 / 会签 / 三签"}],
+            "fields": [
+                {"k": "配置写口", "v": "提交审批（不旁路 Hook）"},
+                {"k": "等级", "v": "单签 / 会签 / 三签"},
+            ],
         },
     }
     return base.get(section)
@@ -899,7 +920,13 @@ def _fetch_live_cost(window_days: int = 30) -> dict[str, Any] | None:
             by_day[bucket] = by_day.get(bucket, 0.0) + quota
         if ts >= today_start:
             today += quota
-    return {"total": total, "by_model": by_model, "by_lane": by_lane, "by_day": by_day, "today": today}
+    return {
+        "total": total,
+        "by_model": by_model,
+        "by_lane": by_lane,
+        "by_day": by_day,
+        "today": today,
+    }
 
 
 def _cost_kpi(month_cost: str, cap_used: str, normal_ratio: str) -> dict[str, str]:
@@ -932,10 +959,20 @@ def _cost_payload() -> dict[str, Any]:
             "window": "month",
             "kpi": _cost_kpi(_fmt_cost(0.0), _fmt_cost(0.0), "0%"),
             "by_lane": [
-                {"name": "常规通道（低成本池）", "color_token": "lane-normal", "pct": 0, "amount": _fmt_cost(0.0)},
+                {
+                    "name": "常规通道（低成本池）",
+                    "color_token": "lane-normal",
+                    "pct": 0,
+                    "amount": _fmt_cost(0.0),
+                },
             ],
             "by_model": [
-                {"name": "（暂无实时用量）", "color_token": "compliance", "pct": 0, "amount": _fmt_cost(0.0)},
+                {
+                    "name": "（暂无实时用量）",
+                    "color_token": "compliance",
+                    "pct": 0,
+                    "amount": _fmt_cost(0.0),
+                },
             ],
             "trend": [0, 0, 0, 0, 0, 0, 0],
             "tips": [_COST_COMMERCIAL_TIP],
@@ -955,19 +992,23 @@ def _cost_payload() -> dict[str, Any]:
     lane_total = lanes["normal"] + lanes["sensitive"]
     by_lane: list[dict[str, Any]] = []
     if lanes["normal"] > 0 or lane_total == 0:
-        by_lane.append({
-            "name": "常规通道（低成本池）",
-            "color_token": "lane-normal",
-            "pct": round(lanes["normal"] / lane_total * 100) if lane_total else 0,
-            "amount": _fmt_cost(lanes["normal"]),
-        })
+        by_lane.append(
+            {
+                "name": "常规通道（低成本池）",
+                "color_token": "lane-normal",
+                "pct": round(lanes["normal"] / lane_total * 100) if lane_total else 0,
+                "amount": _fmt_cost(lanes["normal"]),
+            }
+        )
     if lanes["sensitive"] > 0:
-        by_lane.append({
-            "name": "敏感通道（私有）",
-            "color_token": "lane-sensitive",
-            "pct": round(lanes["sensitive"] / lane_total * 100) if lane_total else 0,
-            "amount": _fmt_cost(lanes["sensitive"]),
-        })
+        by_lane.append(
+            {
+                "name": "敏感通道（私有）",
+                "color_token": "lane-sensitive",
+                "pct": round(lanes["sensitive"] / lane_total * 100) if lane_total else 0,
+                "amount": _fmt_cost(lanes["sensitive"]),
+            }
+        )
     normal_ratio = f"{round(lanes['normal'] / lane_total * 100)}%" if lane_total else "0%"
     trend = [int(live["by_day"].get(bucket, 0.0)) for bucket in range(7)]
     return {
@@ -1199,7 +1240,9 @@ def _audit_event_for_operation(
     digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()
     # ClickHouse DateTime64(3) JSONEachRow wants 'YYYY-MM-DD HH:MM:SS.fff' (space,
     # no T/Z); an ISO 'T…Z' string fails to parse and the INSERT 503s.
-    timestamp = datetime.now(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
+    timestamp = (
+        datetime.now(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
+    )
     return {
         "event_id": event_id,
         "timestamp": timestamp,
@@ -1271,7 +1314,9 @@ def _append_audit_event(event: dict[str, Any]) -> dict[str, Any]:
     return row
 
 
-def _audit_export_payload(scope: str | None, change_id: str | None, window: str | None) -> dict[str, Any]:
+def _audit_export_payload(
+    scope: str | None, change_id: str | None, window: str | None
+) -> dict[str, Any]:
     seed = json.dumps(
         {"scope": scope or "all", "change_id": change_id or "", "window": window or ""},
         sort_keys=True,
@@ -1383,7 +1428,13 @@ def _posture_alerts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             break
     if not alerts:
         alerts.append(
-            {"cat": "security", "type": "无", "level": "info", "summary": "近期无风险事件，全部受控放行。", "payload": None}
+            {
+                "cat": "security",
+                "type": "无",
+                "level": "info",
+                "summary": "近期无风险事件，全部受控放行。",
+                "payload": None,
+            }
         )
     return alerts
 
@@ -1403,7 +1454,11 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
     def _health(compliance: bool) -> int:
         # Operational health for a gate group: real failures hurt most, warns a little;
         # intentional blocks are the gate WORKING, so they do not lower the score.
-        scoped = [r for r in rows if (str(r.get("action_tool", "")).lower() in _COMPLIANCE_TOOLS) == compliance]
+        scoped = [
+            r
+            for r in rows
+            if (str(r.get("action_tool", "")).lower() in _COMPLIANCE_TOOLS) == compliance
+        ]
         scoped_total = len(scoped)
         if scoped_total == 0:
             return 100
@@ -1443,14 +1498,34 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
     composite = round(sum(_goal_scores) / len(_goal_scores))
 
     goals = [
-        {"key": "security", "score": security_score, "metric": f"拦截 {blocked} 次",
-         "submetric": "注入 / 有害拦截 · 0 漏检", "summary": "安全"},
-        {"key": "cost", "score": cost_score, "metric": cost_metric,
-         "submetric": cost_submetric, "summary": "省钱"},
-        {"key": "compliance", "score": compliance_score, "metric": "PHI 0 出境",
-         "submetric": "脱敏 / 准入 全绿", "summary": "合规"},
-        {"key": "stability", "score": stability_score, "metric": f"p95 {p95}ms",
-         "submetric": f"成功率 {stability_score}% · 失败 {failed}", "summary": "稳定"},
+        {
+            "key": "security",
+            "score": security_score,
+            "metric": f"拦截 {blocked} 次",
+            "submetric": "注入 / 有害拦截 · 0 漏检",
+            "summary": "安全",
+        },
+        {
+            "key": "cost",
+            "score": cost_score,
+            "metric": cost_metric,
+            "submetric": cost_submetric,
+            "summary": "省钱",
+        },
+        {
+            "key": "compliance",
+            "score": compliance_score,
+            "metric": "PHI 0 出境",
+            "submetric": "脱敏 / 准入 全绿",
+            "summary": "合规",
+        },
+        {
+            "key": "stability",
+            "score": stability_score,
+            "metric": f"p95 {p95}ms",
+            "submetric": f"成功率 {stability_score}% · 失败 {failed}",
+            "summary": "稳定",
+        },
     ]
     summaries = {
         "security": f"近期 {total} 次受控调用，拦截 {blocked} 次风险、告警 {warns} 次，PHI 全程 0 出境。",
@@ -1516,12 +1591,20 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _traffic_payload(rows: list[dict[str, Any]], window: str | None, ctx: str | None) -> dict[str, Any]:
+def _traffic_payload(
+    rows: list[dict[str, Any]], window: str | None, ctx: str | None
+) -> dict[str, Any]:
     filtered = rows
     if window in {"1h", "24h", "7d"}:
-        horizon = {"1h": timedelta(hours=1), "24h": timedelta(days=1), "7d": timedelta(days=7)}[window]
+        horizon = {"1h": timedelta(hours=1), "24h": timedelta(days=1), "7d": timedelta(days=7)}[
+            window
+        ]
         start = datetime.now(timezone.utc) - horizon
-        filtered = [row for row in filtered if (ts := _parse_timestamp(row.get("timestamp"))) is None or ts >= start]
+        filtered = [
+            row
+            for row in filtered
+            if (ts := _parse_timestamp(row.get("timestamp"))) is None or ts >= start
+        ]
     if ctx in {"dev", "prod"}:
         filtered = [row for row in filtered if _row_ctx(row) == ctx]
 
@@ -1533,7 +1616,20 @@ def _traffic_payload(rows: list[dict[str, Any]], window: str | None, ctx: str | 
             if key in seen:
                 continue
             seen.add(key)
-            upstreams.append({"name": key[0], "ctx": key[1], "rate": max(1, sum(1 for item in filtered if (str(item.get("actor_model_id", "")), _row_ctx(item)) == key))})
+            upstreams.append(
+                {
+                    "name": key[0],
+                    "ctx": key[1],
+                    "rate": max(
+                        1,
+                        sum(
+                            1
+                            for item in filtered
+                            if (str(item.get("actor_model_id", "")), _row_ctx(item)) == key
+                        ),
+                    ),
+                }
+            )
         upstreams = upstreams[:2]
     else:
         upstreams = [
@@ -1559,7 +1655,9 @@ def _traffic_payload(rows: list[dict[str, Any]], window: str | None, ctx: str | 
     }
 
 
-def _events_payload(rows: list[dict[str, Any]], cat: str | None, ctx: str | None, limit: int | None) -> dict[str, Any]:
+def _events_payload(
+    rows: list[dict[str, Any]], cat: str | None, ctx: str | None, limit: int | None
+) -> dict[str, Any]:
     events: list[dict[str, Any]] = []
     for row in rows:
         if cat in {"comp", "sec"} and _row_cat(row) != cat:
@@ -1567,7 +1665,13 @@ def _events_payload(rows: list[dict[str, Any]], cat: str | None, ctx: str | None
         if ctx in {"dev", "prod"} and _row_ctx(row) != ctx:
             continue
         event: dict[str, Any] = {
-            "ts": (_parse_timestamp(row.get("timestamp")) or datetime(2026, 5, 29, 8, 12, 3, tzinfo=timezone.utc)).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "ts": (
+                _parse_timestamp(row.get("timestamp"))
+                or datetime(2026, 5, 29, 8, 12, 3, tzinfo=timezone.utc)
+            )
+            .astimezone(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
             "cat": _row_cat(row),
             "status": _row_status(row),
             "upstream": str(row.get("actor_model_id") or row.get("action_tool") or "unknown"),
@@ -1576,7 +1680,9 @@ def _events_payload(rows: list[dict[str, Any]], cat: str | None, ctx: str | None
             "ref": _row_ref(row),
         }
         if event["cat"] == "sec":
-            event["sec_type"] = "注入" if "injection" in str(row.get("action_tool", "")).lower() else "滥用"
+            event["sec_type"] = (
+                "注入" if "injection" in str(row.get("action_tool", "")).lower() else "滥用"
+            )
             event["payload"] = None
         else:
             event["level"] = _row_level(row)
@@ -1617,13 +1723,18 @@ app = _app_factory()
 
 def _degraded_response() -> Any:
     return _response(
-        {"status": "degraded", "error": {"code": "data_source_unavailable", "msg": "data source unavailable"}},
+        {
+            "status": "degraded",
+            "error": {"code": "data_source_unavailable", "msg": "data source unavailable"},
+        },
         503,
     )
 
 
 def _generic_error_response() -> Any:
-    return _response({"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500)
+    return _response(
+        {"error": {"code": "data_source_unavailable", "msg": "data source unavailable"}}, 500
+    )
 
 
 @app.get(f"{API_BASE}/posture")
@@ -1668,7 +1779,9 @@ def audit(ref: str) -> Any:
     try:
         row = _audit_row_by_ref(ref)
         if row is None:
-            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+            return _response(
+                {"error": {"code": "not_found", "msg": "data source unavailable"}}, 404
+            )
         return serialize_audit_lineage(_audit_lineage_payload(row))
     except ClickHouseUnavailable:
         return _degraded_response()
@@ -1702,8 +1815,22 @@ def upstreams() -> Any:
         else:
             payload = {
                 "upstreams": [
-                    {"name": "prod-dify-rag", "ctx": "prod", "protocol": "openai", "status": "green", "traffic_today": 8247, "phi": "命中 312 / 拦 5"},
-                    {"name": "dev-local-batch", "ctx": "dev", "protocol": "openai", "status": "green", "traffic_today": 1203, "phi": "命中 0 / 拦 0"},
+                    {
+                        "name": "prod-dify-rag",
+                        "ctx": "prod",
+                        "protocol": "openai",
+                        "status": "green",
+                        "traffic_today": 8247,
+                        "phi": "命中 312 / 拦 5",
+                    },
+                    {
+                        "name": "dev-local-batch",
+                        "ctx": "dev",
+                        "protocol": "openai",
+                        "status": "green",
+                        "traffic_today": 1203,
+                        "phi": "命中 0 / 拦 0",
+                    },
                 ]
             }
         return serialize_upstreams(payload)
@@ -1719,7 +1846,9 @@ def config(section: str) -> Any:
         _audit_rows(limit=1)
         payload = _config_snapshot_payload(section)
         if payload is None:
-            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+            return _response(
+                {"error": {"code": "not_found", "msg": "data source unavailable"}}, 404
+            )
         return serialize_config_snapshot(payload)
     except ClickHouseUnavailable:
         return _degraded_response()
@@ -1844,7 +1973,9 @@ def config_propose(
     try:
         _audit_rows(limit=1)
         if section not in _ALLOWED_CONFIG_SECTIONS:
-            return _response({"error": {"code": "not_found", "msg": "data source unavailable"}}, 404)
+            return _response(
+                {"error": {"code": "not_found", "msg": "data source unavailable"}}, 404
+            )
         return serialize_config_propose(_config_propose_payload(section, payload))
     except ClickHouseUnavailable:
         return _degraded_response()
@@ -1872,14 +2003,21 @@ def auth_login(payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT) -> Any:
         result = _new_api_login(username, password)
     except Exception:
         # new-api unreachable / malformed: fail closed, never leak the cause.
-        return _response({"error": {"code": "upstream_unavailable", "msg": "登录服务暂不可用"}}, 502)
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "登录服务暂不可用"}}, 502
+        )
     if not result.get("success"):
         # 200 + success:false == bad credentials; never echo new-api's message.
         return _response({"error": {"code": "unauthorized", "msg": "用户名或密码错误"}}, 401)
     data = result.get("data") if isinstance(result.get("data"), dict) else {}
     if data.get("require_2fa"):
         return _response(
-            {"error": {"code": "twofa_unsupported", "msg": "该账号启用了两步验证，请在 new-api 后台登录"}},
+            {
+                "error": {
+                    "code": "twofa_unsupported",
+                    "msg": "该账号启用了两步验证，请在 new-api 后台登录",
+                }
+            },
             400,
         )
     console_role = _console_role_from_new_api(data.get("role"))
@@ -1915,8 +2053,25 @@ _MGMT_GROUP_RE = re.compile(r"^[\w-]{1,64}$")
 _MGMT_ALLOWED_ROLES = {1, 10}  # common / admin — root (100) is never minted by A0
 _MGMT_NAME_MAX = 80
 _MGMT_ALLOWED_LEVELS = {"L2", "L3", "L4"}
-_MGMT_ALLOWED_CHANNEL_CREATE_FIELDS = {"name", "type", "key", "base_url", "models", "group", "weight"}
-_MGMT_ALLOWED_CHANNEL_FIELDS = {"name", "type", "key", "base_url", "models", "group", "weight", "status"}
+_MGMT_ALLOWED_CHANNEL_CREATE_FIELDS = {
+    "name",
+    "type",
+    "key",
+    "base_url",
+    "models",
+    "group",
+    "weight",
+}
+_MGMT_ALLOWED_CHANNEL_FIELDS = {
+    "name",
+    "type",
+    "key",
+    "base_url",
+    "models",
+    "group",
+    "weight",
+    "status",
+}
 _MGMT_ALLOWED_TOKEN_CREATE_FIELDS = {
     "name",
     "remain_quota",
@@ -2115,7 +2270,13 @@ def _validated_channel_create(body: dict[str, Any]) -> dict[str, Any] | None:
     models = _validate_models(body.get("models"))
     group = _validate_group(body.get("group"))
     weight = _coerce_int(body.get("weight"), -1)
-    if not _is_valid_name(name) or channel_type is None or not secret or models is None or group is None:
+    if (
+        not _is_valid_name(name)
+        or channel_type is None
+        or not secret
+        or models is None
+        or group is None
+    ):
         return None
     if weight < 0 or weight > 100:
         return None
@@ -2186,7 +2347,9 @@ def _validated_token_create(body: dict[str, Any]) -> dict[str, Any] | None:
     group = _validate_group(body.get("group"))
     levels = _validate_data_levels(body.get("allowed_data_levels"))
     unlimited = bool(body.get("unlimited_quota"))
-    quota = _validate_quota(body.get("remain_quota")) if body.get("remain_quota") is not None else None
+    quota = (
+        _validate_quota(body.get("remain_quota")) if body.get("remain_quota") is not None else None
+    )
     if not _is_valid_name(name) or group is None or levels is None:
         return None
     if not unlimited and quota is None:

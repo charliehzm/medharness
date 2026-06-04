@@ -54,7 +54,9 @@ def test_login_correct_credentials(http, creds) -> None:
 
 def test_login_wrong_password_is_generic_401_no_leak(http, creds) -> None:
     user, _ = creds
-    r = http("POST", "/api/v1/auth/login", body={"username": user, "password": "definitely-wrong-xyz"})
+    r = http(
+        "POST", "/api/v1/auth/login", body={"username": user, "password": "definitely-wrong-xyz"}
+    )
     assert r.status == 401
     body = r.json()
     assert body == {"error": {"code": "unauthorized", "msg": "用户名或密码错误"}}
@@ -67,7 +69,14 @@ def test_login_missing_fields_is_400(http) -> None:
 
 def test_control_plane_denied_at_edge(http) -> None:
     # new-api admin / bootstrap / bare control plane must all 404 at the DMZ
-    for path in ("/api/setup", "/api/route", "/api/audit", "/api/user/login", "/api/status", "/api/token/"):
+    for path in (
+        "/api/setup",
+        "/api/route",
+        "/api/audit",
+        "/api/user/login",
+        "/api/status",
+        "/api/token/",
+    ):
         r = http("GET", path)
         assert r.status == 404, f"{path} should be denied at the edge, got {r.status}"
 

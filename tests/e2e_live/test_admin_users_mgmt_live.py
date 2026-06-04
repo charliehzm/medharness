@@ -65,10 +65,17 @@ def test_user_crud_and_role_closed_loop(http, sysadmin, clean_users) -> None:
     create = http(
         "POST",
         "/api/v1/admin/users",
-        {"username": username, "password": "Synthetic-1", "display_name": "E2E Operator", "role": 1},
+        {
+            "username": username,
+            "password": "Synthetic-1",
+            "display_name": "E2E Operator",
+            "role": 1,
+        },
         sysadmin,
     )
-    assert create.status == 200 and create.json() == {"ok": True}, f"create: {create.status} {create.text[:200]}"
+    assert create.status == 200 and create.json() == {"ok": True}, (
+        f"create: {create.status} {create.text[:200]}"
+    )
 
     row = _find(http, sysadmin, username)
     assert row is not None, "created user not in manage_list"
@@ -80,10 +87,14 @@ def test_user_crud_and_role_closed_loop(http, sysadmin, clean_users) -> None:
 
     # PROMOTE normal → admin, then DEMOTE back (hierarchy: root operator out-ranks both).
     promo = http("POST", f"/api/v1/admin/users/{uid}/role", {"action": "promote"}, sysadmin)
-    assert promo.status == 200 and promo.json() == {"ok": True}, f"promote: {promo.status} {promo.text[:200]}"
+    assert promo.status == 200 and promo.json() == {"ok": True}, (
+        f"promote: {promo.status} {promo.text[:200]}"
+    )
     assert _find(http, sysadmin, username).get("role") == "admin"
     demo = http("POST", f"/api/v1/admin/users/{uid}/role", {"action": "demote"}, sysadmin)
-    assert demo.status == 200 and demo.json() == {"ok": True}, f"demote: {demo.status} {demo.text[:200]}"
+    assert demo.status == 200 and demo.json() == {"ok": True}, (
+        f"demote: {demo.status} {demo.text[:200]}"
+    )
     assert _find(http, sysadmin, username).get("role") == "normal"
 
     # PASSWORD reset (8–20 chars) and STATUS toggle.
@@ -102,10 +113,19 @@ def test_user_crud_and_role_closed_loop(http, sysadmin, clean_users) -> None:
 def test_user_create_never_mints_root_and_validates(http, sysadmin, clean_users) -> None:
     base = {"username": _unique("g"), "password": "Synthetic-1", "role": 1}
     # A0 must never create a root (role 100), and must reject malformed input.
-    for patch in ({"role": 100}, {"username": "bad name!"}, {"password": "short"}, {"username": ""}):
+    for patch in (
+        {"role": 100},
+        {"username": "bad name!"},
+        {"password": "short"},
+        {"username": ""},
+    ):
         resp = http("POST", "/api/v1/admin/users", {**base, **patch}, sysadmin)
-        assert resp.status == 400, f"patch {patch} expected 400, got {resp.status} {resp.text[:160]}"
-    assert _find(http, sysadmin, base["username"]) is None, "no guarded user should have been created"
+        assert resp.status == 400, (
+            f"patch {patch} expected 400, got {resp.status} {resp.text[:160]}"
+        )
+    assert _find(http, sysadmin, base["username"]) is None, (
+        "no guarded user should have been created"
+    )
 
 
 def test_user_writes_are_sysadmin_gated(http, sysadmin, clean_users) -> None:

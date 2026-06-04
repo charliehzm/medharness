@@ -9,6 +9,7 @@ Usage:
   CLICKHOUSE_HOST=127.0.0.1 CLICKHOUSE_HTTP_PORT=18123 \\
     python scripts/dev_seed_audit.py [--rows N] [--reset]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -59,17 +60,37 @@ SETTINGS index_granularity = 8192
 ROLES = ["coder", "compliance", "reviewer", "pm", "data-steward", "system"]
 MODELS = ["qwen-max-2026", "claude-opus-4.7", "gpt-4o", "dify-rag", "deepseek-v3", "glm-4.6"]
 VENDORS = {
-    "qwen-max-2026": "alibaba", "claude-opus-4.7": "anthropic", "gpt-4o": "openai",
-    "dify-rag": "openai", "deepseek-v3": "deepseek", "glm-4.6": "zhipu",
+    "qwen-max-2026": "alibaba",
+    "claude-opus-4.7": "anthropic",
+    "gpt-4o": "openai",
+    "dify-rag": "openai",
+    "deepseek-v3": "deepseek",
+    "glm-4.6": "zhipu",
 }
-TOOLS = ["model-router", "phi-detector", "desensitize", "prompt-injection-scan", "outbound-safety", "audit-export"]
+TOOLS = [
+    "model-router",
+    "phi-detector",
+    "desensitize",
+    "prompt-injection-scan",
+    "outbound-safety",
+    "audit-export",
+]
 OPS = {
-    "model-router": "route", "phi-detector": "scan", "desensitize": "encrypt",
-    "prompt-injection-scan": "detect", "outbound-safety": "scan", "audit-export": "export",
+    "model-router": "route",
+    "phi-detector": "scan",
+    "desensitize": "encrypt",
+    "prompt-injection-scan": "detect",
+    "outbound-safety": "scan",
+    "audit-export": "export",
 }
 STATUSES = ["success", "success", "success", "blocked", "warned", "degraded"]
 LEVELS = [["L1"], ["L2"], ["L3"], ["L3", "L4"], ["L2", "L3"]]
-REASONS = {"success": "脱敏后放行", "blocked": "命中红线→拒绝", "warned": "低置信→告警", "degraded": "降级路由"}
+REASONS = {
+    "success": "脱敏后放行",
+    "blocked": "命中红线→拒绝",
+    "warned": "低置信→告警",
+    "degraded": "降级路由",
+}
 
 
 def _hex64(s: str) -> str:
@@ -107,34 +128,43 @@ def seed(rows: int, reset: bool) -> None:
         ts = (base + timedelta(minutes=7 * i)).strftime("%Y-%m-%d %H:%M:%S.000")
         ihash, ohash = _hex64(f"in-{i}"), _hex64(f"out-{i}")
         cur = _hex64(f"{i}|{model}|{tool}|{status}|{ts}|{ihash}|{ohash}|{prev}")
-        lines.append(json.dumps({
-            "event_id": str(uuid.uuid4()),
-            "timestamp": ts,
-            "actor_agent_role": ROLES[i % len(ROLES)],
-            "actor_model_id": model,
-            "actor_vendor_family": VENDORS[model],
-            "actor_session_id": f"session-{i % 5}",
-            "action_tool": tool,
-            "action_skill": None,
-            "action_operation": OPS[tool],
-            "context_change_id": f"change-{i % 3}",
-            "context_step": i % 12,
-            "context_data_levels": LEVELS[i % len(LEVELS)],
-            "result_status": status,
-            "result_reason": REASONS.get(status, "ok"),
-            "result_duration_ms": round(2.0 + (i % 17) * 1.3, 1),
-            "input_hash": ihash,
-            "output_hash": ohash,
-            "prev_hash": prev,
-            "current_hash": cur,
-            "row_id": i + 1,
-        }, ensure_ascii=False))
+        lines.append(
+            json.dumps(
+                {
+                    "event_id": str(uuid.uuid4()),
+                    "timestamp": ts,
+                    "actor_agent_role": ROLES[i % len(ROLES)],
+                    "actor_model_id": model,
+                    "actor_vendor_family": VENDORS[model],
+                    "actor_session_id": f"session-{i % 5}",
+                    "action_tool": tool,
+                    "action_skill": None,
+                    "action_operation": OPS[tool],
+                    "context_change_id": f"change-{i % 3}",
+                    "context_step": i % 12,
+                    "context_data_levels": LEVELS[i % len(LEVELS)],
+                    "result_status": status,
+                    "result_reason": REASONS.get(status, "ok"),
+                    "result_duration_ms": round(2.0 + (i % 17) * 1.3, 1),
+                    "input_hash": ihash,
+                    "output_hash": ohash,
+                    "prev_hash": prev,
+                    "current_hash": cur,
+                    "row_id": i + 1,
+                },
+                ensure_ascii=False,
+            )
+        )
         prev = cur
 
     _exec(f"INSERT INTO {db}._audit_log FORMAT JSONEachRow", body="\n".join(lines).encode("utf-8"))
     count = _exec(f"SELECT count() FROM {db}._audit_log").decode().strip()
     # Print the newest current_hash so callers can probe /api/v1/audit/<ref>.
-    newest = _exec(f"SELECT current_hash FROM {db}._audit_log ORDER BY row_id DESC LIMIT 1").decode().strip()
+    newest = (
+        _exec(f"SELECT current_hash FROM {db}._audit_log ORDER BY row_id DESC LIMIT 1")
+        .decode()
+        .strip()
+    )
     print(f"seeded {rows} synthetic rows; table now has {count}; newest current_hash={newest}")
 
 

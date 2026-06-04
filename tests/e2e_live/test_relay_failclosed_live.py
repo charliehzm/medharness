@@ -24,7 +24,9 @@ import pytest
 
 PHI = os.environ.get("MEDHARNESS_PHI_CONTAINER", "medharness-phi-detector")
 
-GENERIC_503 = {"error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}}
+GENERIC_503 = {
+    "error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}
+}
 
 
 def _cid(tag: str) -> str:

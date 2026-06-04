@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import uuid
 
-GENERIC_503 = {"error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}}
+GENERIC_503 = {
+    "error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}
+}
 
 
 def _cid(tag: str) -> str:
@@ -36,7 +38,9 @@ def test_st1_clean_stream_allowed(relay, inject_allowlist, mock_upstream, make_m
     no_phi(resp.text, "ST1")
 
 
-def test_st2_streamed_harmful_in_single_frame_is_blocked(relay, inject_allowlist, echo_mock, make_model, no_phi):
+def test_st2_streamed_harmful_in_single_frame_is_blocked(
+    relay, inject_allowlist, echo_mock, make_model, no_phi
+):
     # The harmful trigger arrives whole inside ONE SSE frame (echo-mock, no split),
     # so the outbound scan over the buffered SSE body catches it -> generic 503.
     # Proves streaming outbound-safety works for non-split content (the fix must keep

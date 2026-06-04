@@ -496,8 +496,7 @@ def _evaluate_route(payload: dict[str, Any], *, started: float | None = None) ->
 
         routing_log_id = uuid.uuid4().hex
         reason = (
-            f"circuit open for agent_role='{request.agent_role}' "
-            f"change_id='{request.change_id}'"
+            f"circuit open for agent_role='{request.agent_role}' change_id='{request.change_id}'"
         )
         record = _audit_record(
             routing_log_id=routing_log_id,

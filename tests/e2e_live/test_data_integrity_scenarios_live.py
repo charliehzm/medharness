@@ -34,7 +34,8 @@ def test_seeded_distribution_matches_manifest(scenario_seed, ch_query):
     assert len(rows) == m["total"], f"row count {len(rows)} != manifest {m['total']}"
 
     sec = sum(
-        1 for r in rows
+        1
+        for r in rows
         if r["result_status"] in ("blocked", "warn", "failed")
         or r["action_tool"] in ("prompt-injection-scan", "outbound-safety")
     )
@@ -63,9 +64,7 @@ def test_zero_phi_in_semantic_columns(scenario_seed, ch_query, no_phi):
     scenario_seed()
     rows = _rows(ch_query)
     for r in rows:
-        semantic = " ".join(
-            str(v) for k, v in r.items() if k not in _HASH_COLUMNS
-        )
+        semantic = " ".join(str(v) for k, v in r.items() if k not in _HASH_COLUMNS)
         no_phi(semantic, f"_audit_log row_id={r['row_id']}")
 
 

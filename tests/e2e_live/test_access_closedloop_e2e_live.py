@@ -78,10 +78,17 @@ def test_console_token_authenticates_relay_and_is_audited(
     create = http(
         "POST",
         "/api/v1/admin/tokens",
-        {"name": TOKEN_NAME, "group": "default", "allowed_data_levels": ["L2"], "remain_quota": 9_999_999},
+        {
+            "name": TOKEN_NAME,
+            "group": "default",
+            "allowed_data_levels": ["L2"],
+            "remain_quota": 9_999_999,
+        },
         sysadmin,
     )
-    assert create.status == 200 and create.json() == {"ok": True}, f"create: {create.status} {create.text[:200]}"
+    assert create.status == 200 and create.json() == {"ok": True}, (
+        f"create: {create.status} {create.text[:200]}"
+    )
 
     try:
         # 2. Retrieve its key (out-of-band; never crosses A0 over the DMZ).
@@ -93,7 +100,12 @@ def test_console_token_authenticates_relay_and_is_audited(
         resp = http(
             "POST",
             "/v1/chat/completions",
-            {"model": "gpt-4o", "messages": [{"role": "user", "content": "hello from the console-token closed loop"}]},
+            {
+                "model": "gpt-4o",
+                "messages": [
+                    {"role": "user", "content": "hello from the console-token closed loop"}
+                ],
+            },
             {
                 "Authorization": f"Bearer {key}",
                 "X-MedHarness-Agent-Role": "coder",
@@ -114,8 +126,12 @@ def test_console_token_authenticates_relay_and_is_audited(
             "POST",
             "/v1/chat/completions",
             {"model": "gpt-4o", "messages": [{"role": "user", "content": "no creds"}]},
-            {"Authorization": "Bearer sk-not-a-real-key", "X-MedHarness-Agent-Role": "coder",
-             "X-MedHarness-Change-Id": cid, "X-MedHarness-Caller-Vendor-Family": "openai"},
+            {
+                "Authorization": "Bearer sk-not-a-real-key",
+                "X-MedHarness-Agent-Role": "coder",
+                "X-MedHarness-Change-Id": cid,
+                "X-MedHarness-Caller-Vendor-Family": "openai",
+            },
         )
         assert bad.status == 401, f"a bogus key must be rejected, got {bad.status} {bad.text[:160]}"
 

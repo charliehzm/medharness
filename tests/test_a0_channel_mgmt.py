@@ -45,14 +45,21 @@ class FakeNewApi:
     def __call__(self, method: str, path: str, body: dict | None = None):
         self.calls.append((method, path, body))
         if method == "GET" and path.startswith("/api/channel/?"):
-            return 200, {"success": True, "data": {"items": self.channels, "total": len(self.channels)}}
+            return 200, {
+                "success": True,
+                "data": {"items": self.channels, "total": len(self.channels)},
+            }
         if self.ok:
             return 200, {"success": True}
         return 200, {"success": False, "message": self.leak}
 
     @property
     def writes(self) -> list[tuple[str, str, dict | None]]:
-        return [call for call in self.calls if not (call[0] == "GET" and call[1].startswith("/api/channel/?"))]
+        return [
+            call
+            for call in self.calls
+            if not (call[0] == "GET" and call[1].startswith("/api/channel/?"))
+        ]
 
 
 def _install_fake(monkeypatch, fake: FakeNewApi) -> None:
@@ -100,14 +107,27 @@ def test_channels_live_get_serializes_whitelist(monkeypatch) -> None:
     assert row["region"] == "境外·仅脱敏"
     assert row["lane"] == "sensitive"
     payload = json.dumps(resp.json(), ensure_ascii=False)
-    for forbidden in ("key", "base_url", "user_id", "sk-channel-do-not-return", "https://channel.example.invalid/private"):
+    for forbidden in (
+        "key",
+        "base_url",
+        "user_id",
+        "sk-channel-do-not-return",
+        "https://channel.example.invalid/private",
+    ):
         assert forbidden not in payload
 
 
 def test_channel_create_requires_sysadmin(monkeypatch) -> None:
     fake = FakeNewApi()
     _install_fake(monkeypatch, fake)
-    body = {"name": "Synthetic OpenAI", "type": "openai", "key": "sk-write-only", "models": ["gpt-4o"], "group": "default", "weight": 50}
+    body = {
+        "name": "Synthetic OpenAI",
+        "type": "openai",
+        "key": "sk-write-only",
+        "models": ["gpt-4o"],
+        "group": "default",
+        "weight": 50,
+    }
     assert _client().post("/api/v1/admin/channels", json=body).status_code == 401
     assert _client().post("/api/v1/admin/channels", json=body, headers=_rdlead()).status_code == 403
     assert fake.writes == []
@@ -147,12 +167,24 @@ def test_channel_crud_happy_path(monkeypatch) -> None:
             },
         },
     )
-    updated = cl.post("/api/v1/admin/channels/42/update", json={"name": "Renamed", "weight": 60, "key": "sk-rewrite-only"}, headers=_sysadmin())
+    updated = cl.post(
+        "/api/v1/admin/channels/42/update",
+        json={"name": "Renamed", "weight": 60, "key": "sk-rewrite-only"},
+        headers=_sysadmin(),
+    )
     assert updated.status_code == 200 and updated.json() == {"ok": True}
-    assert fake.writes[-1] == ("PUT", "/api/channel/", {"id": 42, "name": "Renamed", "weight": 60, "key": "sk-rewrite-only"})
+    assert fake.writes[-1] == (
+        "PUT",
+        "/api/channel/",
+        {"id": 42, "name": "Renamed", "weight": 60, "key": "sk-rewrite-only"},
+    )
     # The probe RAN (new-api reachable) → a reachable/latency verdict, not a bare ok.
     tested = cl.post("/api/v1/admin/channels/42/test", headers=_sysadmin())
-    assert tested.status_code == 200 and tested.json() == {"ok": True, "reachable": True, "latency_ms": None}
+    assert tested.status_code == 200 and tested.json() == {
+        "ok": True,
+        "reachable": True,
+        "latency_ms": None,
+    }
     assert fake.writes[-1] == ("GET", "/api/channel/test/42", None)
     deleted = cl.post("/api/v1/admin/channels/42/delete", headers=_sysadmin())
     assert deleted.status_code == 200 and deleted.json() == {"ok": True}
@@ -163,9 +195,30 @@ def test_channel_validation_rejects_bad_input(monkeypatch) -> None:
     fake = FakeNewApi()
     _install_fake(monkeypatch, fake)
     cl = _client()
-    valid = {"name": "Synthetic OpenAI", "type": "openai", "key": "sk-write-only", "models": ["gpt-4o"], "group": "default", "weight": 50}
-    for patch in ({"key": ""}, {"base_url": "file:///tmp/provider"}, {"weight": 101}, {"models": []}, {"group": "bad group!"}, {"user_id": 1}, {"type": "no-such-provider"}, {"type": ""}):
-        assert cl.post("/api/v1/admin/channels", json={**valid, **patch}, headers=_sysadmin()).status_code == 400
+    valid = {
+        "name": "Synthetic OpenAI",
+        "type": "openai",
+        "key": "sk-write-only",
+        "models": ["gpt-4o"],
+        "group": "default",
+        "weight": 50,
+    }
+    for patch in (
+        {"key": ""},
+        {"base_url": "file:///tmp/provider"},
+        {"weight": 101},
+        {"models": []},
+        {"group": "bad group!"},
+        {"user_id": 1},
+        {"type": "no-such-provider"},
+        {"type": ""},
+    ):
+        assert (
+            cl.post(
+                "/api/v1/admin/channels", json={**valid, **patch}, headers=_sysadmin()
+            ).status_code
+            == 400
+        )
     assert cl.post("/api/v1/admin/channels/not-int/delete", headers=_sysadmin()).status_code == 400
     assert fake.writes == []
 

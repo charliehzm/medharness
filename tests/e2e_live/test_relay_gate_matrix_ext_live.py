@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import uuid
 
-GENERIC_503 = {"error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}}
+GENERIC_503 = {
+    "error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}
+}
 
 # SYNTHETIC PHI — valid-checksum CN-ID from the phi-detector unit corpus -> L4.
 RAW_ID = "110101199001011237"
@@ -58,6 +60,7 @@ def _assert_desensitized_allow(resp, mock, where: str) -> None:
 
 # ── D6 data-level handling ───────────────────────────────────────────────────
 
+
 def test_d6_phi_desensitized_allows_under_low_tier_allowlist(
     relay, inject_allowlist, mock_upstream, make_model, no_phi
 ):
@@ -78,7 +81,10 @@ def test_d6_phi_desensitized_allows_under_low_tier_allowlist(
 
 # ── MM multi-message / structured-content desensitization ────────────────────
 
-def test_mm1_phi_scattered_across_messages(relay, inject_allowlist, mock_upstream, make_model, no_phi):
+
+def test_mm1_phi_scattered_across_messages(
+    relay, inject_allowlist, mock_upstream, make_model, no_phi
+):
     # PHI in the MIDDLE of a 3-message conversation must still be desensitized before
     # egress (extractPromptText joins messages; rewriteDesensitizedBody rewrites them).
     cid = _cid("mm1")
@@ -94,7 +100,9 @@ def test_mm1_phi_scattered_across_messages(relay, inject_allowlist, mock_upstrea
     no_phi(resp.text, "MM1")
 
 
-def test_mm2_phi_in_structured_content_array(relay, inject_allowlist, mock_upstream, make_model, no_phi):
+def test_mm2_phi_in_structured_content_array(
+    relay, inject_allowlist, mock_upstream, make_model, no_phi
+):
     # PHI inside an OpenAI structured content array ([{type:text,text:...}]) must also
     # be desensitized — the gate has to recurse into the content parts, not just read
     # a string `content`. If the raw id reaches the upstream this asserts FAILURE.
@@ -109,6 +117,7 @@ def test_mm2_phi_in_structured_content_array(relay, inject_allowlist, mock_upstr
 
 # ── IP injection + PHI ordering ──────────────────────────────────────────────
 
+
 def test_ip1_injection_plus_phi_denied(relay, inject_allowlist, mock_upstream, make_model, no_phi):
     # A single prompt carrying BOTH an injection string AND raw PHI must be denied by
     # the injection gate (which runs after desensitize) — upstream never reached.
@@ -121,6 +130,7 @@ def test_ip1_injection_plus_phi_denied(relay, inject_allowlist, mock_upstream, m
 
 
 # ── ER role guards ───────────────────────────────────────────────────────────
+
 
 def test_er1_deny_empty_role(relay, inject_allowlist, mock_upstream, make_model, no_phi):
     cid = _cid("er1")
@@ -142,6 +152,7 @@ def test_er2_deny_unknown_role(relay, inject_allowlist, mock_upstream, make_mode
 
 # ── EA empty allowlist ───────────────────────────────────────────────────────
 
+
 def test_ea1_deny_empty_allowlist(relay, inject_allowlist, mock_upstream, no_phi):
     cid = _cid("ea1")
     inject_allowlist(cid, [])  # zero models -> every lookup misses -> deny
@@ -152,6 +163,7 @@ def test_ea1_deny_empty_allowlist(relay, inject_allowlist, mock_upstream, no_phi
 
 
 # ── INJ injection-rule breadth ───────────────────────────────────────────────
+
 
 def test_inj2_deny_english_injection(relay, inject_allowlist, mock_upstream, make_model, no_phi):
     # D8 covers the Chinese rule; this exercises a DIFFERENT (English DAN / ignore)

@@ -21,7 +21,9 @@ def test_careless_client_phi_is_desensitized_not_leaked(
     mock_upstream.reset()
 
     resp = relay(
-        "coder", "openai", cid,
+        "coder",
+        "openai",
+        cid,
         content=f"帮我看看这位患者身份证 {SYNTHETIC_ID} 的既往就诊记录并总结。",
     )
 

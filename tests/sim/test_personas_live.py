@@ -40,7 +40,9 @@ def test_comfyui_agent_allowed(relay, inject_allowlist, mock_upstream, make_mode
     no_phi(resp.text, "comfyui")
 
 
-def test_compliance_reviewer_same_family_denied(relay, inject_allowlist, mock_upstream, make_model, no_phi):
+def test_compliance_reviewer_same_family_denied(
+    relay, inject_allowlist, mock_upstream, make_model, no_phi
+):
     # A compliance reviewer must use a cross-vendor model — a same-family call denies.
     cid = _cid("rev-deny")
     inject_allowlist(cid, [make_model(roles=("coder", "reviewer"))])
@@ -52,7 +54,9 @@ def test_compliance_reviewer_same_family_denied(relay, inject_allowlist, mock_up
     no_phi(resp.text, "reviewer-deny")
 
 
-def test_compliance_reviewer_cross_vendor_allowed(relay, inject_allowlist, mock_upstream, make_model, no_phi):
+def test_compliance_reviewer_cross_vendor_allowed(
+    relay, inject_allowlist, mock_upstream, make_model, no_phi
+):
     cid = _cid("rev-allow")
     inject_allowlist(cid, [make_model(roles=("coder", "reviewer"))])
     mock_upstream.reset()

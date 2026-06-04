@@ -34,7 +34,9 @@ _CTX.verify_mode = ssl.CERT_NONE
 
 # Unambiguous PHI markers that must never appear in any DMZ/BFF response body.
 _PHI_PATTERNS = [
-    re.compile(r"[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"),  # cn id-18
+    re.compile(
+        r"[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]"
+    ),  # cn id-18
     re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),  # cn mobile
     re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),  # email
 ]
@@ -49,7 +51,9 @@ class Resp:
         return json.loads(self.text)
 
 
-def _request(method: str, path: str, body: Any = None, headers: dict[str, str] | None = None) -> Resp:
+def _request(
+    method: str, path: str, body: Any = None, headers: dict[str, str] | None = None
+) -> Resp:
     url = f"{BASE}{path}"
     hdrs = dict(headers or {})
     data = None

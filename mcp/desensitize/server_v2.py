@@ -62,7 +62,11 @@ def _iso_timestamp(value: datetime) -> str:
         value = value.replace(tzinfo=timezone.utc)
     # ClickHouse DateTime64 (JSONEachRow) needs 'YYYY-MM-DD HH:MM:SS.fff' (space
     # separator, no 'T'/'Z'); an ISO-8601 'Z' value is rejected (Cannot parse).
-    return value.astimezone(timezone.utc).isoformat(sep=" ", timespec="milliseconds").replace("+00:00", "")
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(sep=" ", timespec="milliseconds")
+        .replace("+00:00", "")
+    )
 
 
 def _sql_quote(value: str) -> str:

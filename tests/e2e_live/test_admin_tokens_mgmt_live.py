@@ -45,10 +45,17 @@ def _create(http, sysadmin, name: str) -> dict:
     resp = http(
         "POST",
         "/api/v1/admin/tokens",
-        {"name": name, "group": "default", "allowed_data_levels": ["L2", "L3"], "remain_quota": 180000},
+        {
+            "name": name,
+            "group": "default",
+            "allowed_data_levels": ["L2", "L3"],
+            "remain_quota": 180000,
+        },
         sysadmin,
     )
-    assert resp.status == 200 and resp.json() == {"ok": True}, f"create: {resp.status} {resp.text[:200]}"
+    assert resp.status == 200 and resp.json() == {"ok": True}, (
+        f"create: {resp.status} {resp.text[:200]}"
+    )
     row = _find(http, sysadmin, name)
     assert row is not None, "created token not present in mgmt list"
     return row
@@ -73,7 +80,9 @@ def test_token_crud_closed_loop(http, sysadmin, clean_tokens) -> None:
         {"remain_quota": 220000, "unlimited_quota": False, "expired_time": "-1"},
         sysadmin,
     )
-    assert upd.status == 200 and upd.json() == {"ok": True}, f"quota update: {upd.status} {upd.text[:200]}"
+    assert upd.status == 200 and upd.json() == {"ok": True}, (
+        f"quota update: {upd.status} {upd.text[:200]}"
+    )
     after = _find(http, sysadmin, name)
     assert after is not None, "quota edit WIPED the name (read-modify-write regression!)"
     assert str(after.get("remain_quota")) == "220000", f"quota not reflected: {after}"
@@ -82,7 +91,9 @@ def test_token_crud_closed_loop(http, sysadmin, clean_tokens) -> None:
 
     # STATUS TOGGLE — status_only path, must not wipe anything else.
     dis = http("POST", f"/api/v1/admin/tokens/{tid}/update", {"status": "disabled"}, sysadmin)
-    assert dis.status == 200 and dis.json() == {"ok": True}, f"disable: {dis.status} {dis.text[:200]}"
+    assert dis.status == 200 and dis.json() == {"ok": True}, (
+        f"disable: {dis.status} {dis.text[:200]}"
+    )
     after = _find(http, sysadmin, name)
     assert after is not None and after.get("status") == "disabled", f"status not reflected: {after}"
     assert str(after.get("remain_quota")) == "220000", "status toggle wiped the quota"
@@ -108,6 +119,11 @@ def test_token_quota_must_be_numeric(http, sysadmin, clean_tokens) -> None:
 
 
 def test_token_writes_are_sysadmin_gated(http, sysadmin, clean_tokens) -> None:
-    body = {"name": f"{NAME_PREFIX}gated", "group": "default", "allowed_data_levels": ["L2"], "remain_quota": 1000}
+    body = {
+        "name": f"{NAME_PREFIX}gated",
+        "group": "default",
+        "allowed_data_levels": ["L2"],
+        "remain_quota": 1000,
+    }
     assert http("POST", "/api/v1/admin/tokens", body).status == 401
     assert _find(http, sysadmin, body["name"]) is None

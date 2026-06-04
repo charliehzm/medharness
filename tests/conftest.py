@@ -59,7 +59,9 @@ class LiveResp:
         return json.loads(self.text)
 
 
-def dmz_request(method: str, path: str, body: Any = None, headers: dict[str, str] | None = None) -> LiveResp:
+def dmz_request(
+    method: str, path: str, body: Any = None, headers: dict[str, str] | None = None
+) -> LiveResp:
     hdrs = dict(headers or {})
     data = None
     if body is not None:
@@ -88,7 +90,9 @@ def assert_no_phi(text: str, where: str) -> None:
         assert m is None, f"PHI-like marker in {where}: {m.group()[:6]}…"  # type: ignore[union-attr]
 
 
-def _docker(*args: str, stdin: str | None = None, timeout: int = 90) -> subprocess.CompletedProcess[str]:
+def _docker(
+    *args: str, stdin: str | None = None, timeout: int = 90
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["docker", *args], input=stdin, capture_output=True, text=True, timeout=timeout
     )
@@ -174,21 +178,30 @@ class _Mock:
 
     def count(self) -> int:
         out = _docker(
-            "exec", A0, "python", "-c",
+            "exec",
+            A0,
+            "python",
+            "-c",
             f"import json,urllib.request;print(json.load(urllib.request.urlopen('http://{self.name}:18080/__count',timeout=3))['count'])",
         )
         return int(out.stdout.strip() or "0")
 
     def reset(self) -> None:
         _docker(
-            "exec", A0, "python", "-c",
+            "exec",
+            A0,
+            "python",
+            "-c",
             f"import urllib.request;urllib.request.urlopen("
             f"urllib.request.Request('http://{self.name}:18080/__reset',method='POST'),timeout=3)",
         )
 
     def last_prompt(self) -> str:
         out = _docker(
-            "exec", A0, "python", "-c",
+            "exec",
+            A0,
+            "python",
+            "-c",
             f"import json,urllib.request;print(json.load(urllib.request.urlopen('http://{self.name}:18080/__last',timeout=3))['prompt'])",
         )
         return out.stdout
@@ -202,15 +215,29 @@ def _start_mock(name: str, extra_env: tuple[str, ...] = ()) -> _Mock:
     for env in extra_env:
         env_args += ["-e", env]
     run = _docker(
-        "run", "-d", "--name", name, "--network", NET, *env_args,
-        "-v", f"{REPO_ROOT}/tools/mock_upstream:/app:ro",
-        "python:3.11-slim", "python", "/app/server.py", "--port", "18080",
+        "run",
+        "-d",
+        "--name",
+        name,
+        "--network",
+        NET,
+        *env_args,
+        "-v",
+        f"{REPO_ROOT}/tools/mock_upstream:/app:ro",
+        "python:3.11-slim",
+        "python",
+        "/app/server.py",
+        "--port",
+        "18080",
     )
     if run.returncode != 0:
         pytest.skip(f"mock run failed ({name}): {run.stderr.strip()}")
     for _ in range(30):
         h = _docker(
-            "exec", A0, "python", "-c",
+            "exec",
+            A0,
+            "python",
+            "-c",
             f"import urllib.request;urllib.request.urlopen('http://{name}:18080/health',timeout=2)",
         )
         if h.returncode == 0:
@@ -249,8 +276,18 @@ def split_mock(_relay_stack: bool):
 @pytest.fixture(scope="session")
 def relay_token(_relay_stack: bool, mock_upstream, echo_mock, split_mock) -> str:
     out = _docker(
-        "exec", "-i", A0, "python", "-",
-        ROOT_USER, ROOT_PASS, MOCK, ECHO_MOCK, SPLIT_MOCK, CHANNEL_MODELS, stdin=_NEWAPI_SETUP,
+        "exec",
+        "-i",
+        A0,
+        "python",
+        "-",
+        ROOT_USER,
+        ROOT_PASS,
+        MOCK,
+        ECHO_MOCK,
+        SPLIT_MOCK,
+        CHANNEL_MODELS,
+        stdin=_NEWAPI_SETUP,
     )
     if out.returncode != 0 or not out.stdout.strip():
         pytest.skip(f"new-api channel/token setup failed: {out.stderr.strip()[:300]}")
@@ -272,8 +309,12 @@ def inject_allowlist(_relay_stack: bool):
         # it denies every model. Make it world-readable before the copy.
         os.chmod(path, 0o644)
         try:
-            _docker("exec", "-u", "0", ROUTER, "mkdir", "-p", f"/project/openspec/changes/{change_id}")
-            cp = _docker("cp", path, f"{ROUTER}:/project/openspec/changes/{change_id}/MODEL_ALLOWLIST.json")
+            _docker(
+                "exec", "-u", "0", ROUTER, "mkdir", "-p", f"/project/openspec/changes/{change_id}"
+            )
+            cp = _docker(
+                "cp", path, f"{ROUTER}:/project/openspec/changes/{change_id}/MODEL_ALLOWLIST.json"
+            )
             assert cp.returncode == 0, f"docker cp allowlist failed: {cp.stderr.strip()}"
         finally:
             os.unlink(path)
@@ -386,7 +427,9 @@ def relay(relay_token: str):
         # (MM2) to exercise extractPromptText/rewriteDesensitizedBody recursion.
         body: dict[str, Any] = {
             "model": model,
-            "messages": messages if messages is not None else [{"role": "user", "content": content}],
+            "messages": messages
+            if messages is not None
+            else [{"role": "user", "content": content}],
         }
         if stream:
             body["stream"] = True

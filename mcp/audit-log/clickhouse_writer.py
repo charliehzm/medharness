@@ -190,8 +190,7 @@ class ClickHouseAuditWriter:
         if marker in upper and "CREATE TABLE IF NOT EXISTS " not in upper:
             index = upper.index(marker)
             return (
-                f"{statement[:index]}CREATE TABLE IF NOT EXISTS "
-                f"{statement[index + len(marker):]}"
+                f"{statement[:index]}CREATE TABLE IF NOT EXISTS {statement[index + len(marker) :]}"
             )
         return statement
 

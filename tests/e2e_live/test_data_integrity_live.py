@@ -19,7 +19,9 @@ def test_audit_schema_exists(ch_query) -> None:
     rows = ch_query(
         "SELECT name FROM system.tables WHERE database='medharness' AND name='_audit_log'"
     )
-    assert any(r["name"] == "_audit_log" for r in rows), "WORM audit schema missing on the live stack"
+    assert any(r["name"] == "_audit_log" for r in rows), (
+        "WORM audit schema missing on the live stack"
+    )
 
 
 def test_audit_hash_columns_and_retention(ch_query) -> None:
@@ -30,7 +32,9 @@ def test_audit_hash_columns_and_retention(ch_query) -> None:
     assert by_name.get("prev_hash") == "FixedString(64)"
     assert by_name.get("current_hash") == "FixedString(64)"
     # 7-year retention TTL (HIPAA) declared on the table
-    meta = ch_query("SELECT engine_full FROM system.tables WHERE database='medharness' AND name='_audit_log'")
+    meta = ch_query(
+        "SELECT engine_full FROM system.tables WHERE database='medharness' AND name='_audit_log'"
+    )
     assert meta and "7" in meta[0]["engine_full"] and "TTL" in meta[0]["engine_full"]
 
 

@@ -26,7 +26,9 @@ def test_encrypt_redacts_and_persists_envelope(mcp_post, ch_query, no_phi) -> No
         "/encrypt",
         {
             "text": PHI_TEXT,
-            "phi_spans": [{"type": "CN_ID", "start": _ID_START, "end": _ID_START + len(SYNTHETIC_ID)}],
+            "phi_spans": [
+                {"type": "CN_ID", "start": _ID_START, "end": _ID_START + len(SYNTHETIC_ID)}
+            ],
             "context": {"change_id": change_id, "map_id": "rt-probe"},
         },
     )
@@ -42,7 +44,9 @@ def test_encrypt_redacts_and_persists_envelope(mcp_post, ch_query, no_phi) -> No
     row = rows[0]
     assert row["algorithm"] == "AES-256-GCM"
     # ciphertext integrity: the stored sha256 matches sha256(decoded ciphertext)
-    ciphertext = base64.urlsafe_b64decode(row["ciphertext_b64"] + "=" * (-len(row["ciphertext_b64"]) % 4))
+    ciphertext = base64.urlsafe_b64decode(
+        row["ciphertext_b64"] + "=" * (-len(row["ciphertext_b64"]) % 4)
+    )
     assert hashlib.sha256(ciphertext).hexdigest() == row["ciphertext_sha256"]
     # the keystore stores only encrypted metadata — the raw PHI must never appear
     serialized = json.dumps(rows, ensure_ascii=False)

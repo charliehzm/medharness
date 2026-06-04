@@ -39,7 +39,12 @@ def test_root_login_maps_to_sysadmin(monkeypatch: pytest.MonkeyPatch) -> None:
 
     resp = _login(monkeypatch, fake, {"username": "root", "password": "secret123"})
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "role": "sysadmin", "username": "root", "display_name": "Root"}
+    assert resp.json() == {
+        "ok": True,
+        "role": "sysadmin",
+        "username": "root",
+        "display_name": "Root",
+    }
 
 
 def test_admin_role_maps_to_sysadmin(monkeypatch: pytest.MonkeyPatch) -> None:

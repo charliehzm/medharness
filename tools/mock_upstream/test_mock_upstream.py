@@ -192,7 +192,10 @@ def test_models_catalog_is_multi_vendor(base_url: str) -> None:
 def test_latency_injection_delays_response(base_url: str) -> None:
     start = time.monotonic()
     status, _ = _post_headers(
-        base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Latency-Ms": "300"}
+        base_url,
+        "/v1/chat/completions",
+        {"model": "m", "messages": []},
+        {"X-Mock-Latency-Ms": "300"},
     )
     elapsed = time.monotonic() - start
     assert status == 200
@@ -203,7 +206,10 @@ def test_status_injection_returns_error_and_still_counts(base_url: str) -> None:
     before = _get_json(base_url, "/__count")[1]["count"]
     with pytest.raises(urllib.error.HTTPError) as excinfo:
         _post_headers(
-            base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Status": "500"}
+            base_url,
+            "/v1/chat/completions",
+            {"model": "m", "messages": []},
+            {"X-Mock-Status": "500"},
         )
     assert excinfo.value.code == 500
     body = json.loads(excinfo.value.read().decode("utf-8"))
@@ -225,7 +231,10 @@ def test_echo_phi_appends_synthetic_marker(base_url: str) -> None:
 
 def test_echo_unsafe_appends_harmful_trigger(base_url: str) -> None:
     status, payload = _post_headers(
-        base_url, "/v1/chat/completions", {"model": "m", "messages": []}, {"X-Mock-Echo-Unsafe": "1"}
+        base_url,
+        "/v1/chat/completions",
+        {"model": "m", "messages": []},
+        {"X-Mock-Echo-Unsafe": "1"},
     )
     assert status == 200
     content = payload["choices"][0]["message"]["content"]
@@ -259,7 +268,8 @@ def test_reset_zeroes_the_counter(base_url: str) -> None:
 
 def test_last_prompt_capture_and_reset(base_url: str) -> None:
     _post_json(
-        base_url, "/v1/chat/completions",
+        base_url,
+        "/v1/chat/completions",
         {"model": "m", "messages": [{"role": "user", "content": "hello desensitized world"}]},
     )
     # the upstream records what it received -> a test can verify the gateway desensitized it

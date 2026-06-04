@@ -128,7 +128,12 @@ def test_endpoints_return_contract_shapes() -> None:
     assert set(traffic_payload) == {"inbound", "outbound"}
     assert set(events_payload) == {"events"}
     assert len(posture_payload["gates"]) >= 6
-    assert {g["key"] for g in posture_payload["goals"]} == {"security", "cost", "compliance", "stability"}
+    assert {g["key"] for g in posture_payload["goals"]} == {
+        "security",
+        "cost",
+        "compliance",
+        "stability",
+    }
     assert set(posture_payload["summaries"]) == {"security", "cost"}
     assert len(events_payload["events"]) >= 2
 
@@ -177,7 +182,9 @@ def test_remaining_read_endpoints_return_contract_shapes() -> None:
     }
 
 
-def test_admin_read_endpoints_return_whitelisted_contract_shapes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_admin_read_endpoints_return_whitelisted_contract_shapes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     def fake_new_api(method: str, path: str, body: dict | None = None):
         if method == "GET" and path.startswith("/api/user/"):
             return 200, {
@@ -426,7 +433,9 @@ def test_audit_export_returns_bundle_and_writes_audit_event(
     monkeypatch.setattr(a0_api_app, "_query_clickhouse", fake.query)
     client = a0_api_app.make_test_client(a0_api_app.app)
 
-    response = client.post("/api/v1/audit/export", json={"scope": "change", "change_id": "change-1"})
+    response = client.post(
+        "/api/v1/audit/export", json={"scope": "change", "change_id": "change-1"}
+    )
     payload = response.json()
 
     assert response.status_code == 200

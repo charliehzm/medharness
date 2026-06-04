@@ -112,7 +112,18 @@ def _fake_new_api_admin_request(method: str, path: str, body: dict | None = None
     if method == "GET" and path.startswith("/api/user/"):
         return 200, {
             "success": True,
-            "data": {"items": [{"id": 1, "role": 10, "status": 1, "group": "mgmt", "quota": "—", "used_quota": "¥12"}]},
+            "data": {
+                "items": [
+                    {
+                        "id": 1,
+                        "role": 10,
+                        "status": 1,
+                        "group": "mgmt",
+                        "quota": "—",
+                        "used_quota": "¥12",
+                    }
+                ]
+            },
         }
     if method == "GET" and path.startswith("/api/token/"):
         return 200, {
@@ -291,7 +302,9 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
         if expected and not actual:
             # anti-vacuous: a non-empty frozen fixture array must not be satisfied
             # by an empty A0 response (that would hide a serializer that drops rows).
-            return [f"{path}: contract fixture has {len(expected)} element(s) but A0 returned an empty array"]
+            return [
+                f"{path}: contract fixture has {len(expected)} element(s) but A0 returned an empty array"
+            ]
         tmpl = _array_template(expected)
         if tmpl is None:
             if expected:
@@ -318,10 +331,14 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
                     # null OK when the fixture shows this key nullable or always-null;
                     # error only if it is a concrete value in EVERY fixture element.
                     if k not in nullable and ev is not None:
-                        errors.append(f"{path}[{i}].{k}: contract field is always non-null but A0 returned null")
+                        errors.append(
+                            f"{path}[{i}].{k}: contract field is always non-null but A0 returned null"
+                        )
                 elif ev is None:
                     # a field that is null in EVERY fixture element must stay null (0-PHI).
-                    errors.append(f"{path}[{i}].{k}: contract field is always null but A0 returned {type(av).__name__}")
+                    errors.append(
+                        f"{path}[{i}].{k}: contract field is always null but A0 returned {type(av).__name__}"
+                    )
                 else:
                     errors += _conforms(av, ev, f"{path}[{i}].{k}")
     else:
@@ -330,7 +347,9 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
         # not silently become null. Numbers unified (int/float).
         if expected is None:
             if actual is not None:
-                errors.append(f"{path}: contract fixture is null but A0 returned {type(actual).__name__}")
+                errors.append(
+                    f"{path}: contract fixture is null but A0 returned {type(actual).__name__}"
+                )
         elif actual is None:
             errors.append(f"{path}: expected {type(expected).__name__} but A0 returned null")
         elif isinstance(expected, bool):
@@ -349,7 +368,9 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
     ENDPOINTS,
     ids=[e[0] for e in ENDPOINTS],
 )
-def test_a0_endpoint_conforms_to_frozen_fixture(key, method, path, body, fixture, a0_client) -> None:
+def test_a0_endpoint_conforms_to_frozen_fixture(
+    key, method, path, body, fixture, a0_client
+) -> None:
     expected = CONTRACT_OVERRIDES.get(key) or _load_fixture(fixture)
     if key in FIXTURE_KEY:
         expected = expected[FIXTURE_KEY[key]]
@@ -380,7 +401,8 @@ def test_a0_config_every_frozen_section_conforms(section, a0_client) -> None:
     serializers.assert_no_phi(payload, f"conformance:config:{section}")
     errors = _conforms(payload, expected)
     assert not errors, (
-        f"config/{section} diverges from frozen config.json[{section}]:\n  - " + "\n  - ".join(errors)
+        f"config/{section} diverges from frozen config.json[{section}]:\n  - "
+        + "\n  - ".join(errors)
     )
 
 

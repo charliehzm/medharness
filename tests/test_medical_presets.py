@@ -48,7 +48,9 @@ def test_phi_levels_only_on_private_deployments() -> None:
                 f"{entry.deployment}"
             )
         if entry.deployment.startswith("overseas://"):
-            assert not carries_phi, f"overseas model {entry.id} must default-deny PHI, got {sorted(levels)}"
+            assert not carries_phi, (
+                f"overseas model {entry.id} must default-deny PHI, got {sorted(levels)}"
+            )
         assert "L1" in levels or "L2" in levels, f"{entry.id} must allow at least a baseline level"
 
 

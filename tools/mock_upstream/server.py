@@ -138,7 +138,9 @@ def _usage(directives: dict[str, Any] | None = None) -> dict[str, int]:
     }
 
 
-def _openai_chat_completion(model: str, directives: dict[str, Any] | None = None) -> dict[str, object]:
+def _openai_chat_completion(
+    model: str, directives: dict[str, Any] | None = None
+) -> dict[str, object]:
     return {
         "id": CHAT_COMPLETION_ID,
         "object": "chat.completion",
@@ -168,7 +170,9 @@ def _content_fragments(directives: dict[str, Any] | None = None) -> list[str]:
     return [_reply_text(directives)]
 
 
-def _openai_chat_chunks(model: str, directives: dict[str, Any] | None = None) -> list[dict[str, object]]:
+def _openai_chat_chunks(
+    model: str, directives: dict[str, Any] | None = None
+) -> list[dict[str, object]]:
     base = {
         "id": CHAT_COMPLETION_ID,
         "object": "chat.completion.chunk",
@@ -205,7 +209,10 @@ def _anthropic_message(model: str, directives: dict[str, Any] | None = None) -> 
         "model": model,
         "stop_reason": "end_turn",
         "stop_sequence": None,
-        "usage": {"input_tokens": usage["prompt_tokens"], "output_tokens": usage["completion_tokens"]},
+        "usage": {
+            "input_tokens": usage["prompt_tokens"],
+            "output_tokens": usage["completion_tokens"],
+        },
     }
 
 
@@ -273,7 +280,9 @@ class MockUpstreamHTTPHandler(BaseHTTPRequestHandler):
             "echo_unsafe": _flag_directive(h, "X-Mock-Echo-Unsafe", "MOCK_ECHO_UNSAFE"),
             "stream_split": _flag_directive(h, "X-Mock-Stream-Split", "MOCK_STREAM_SPLIT"),
             "prompt_tokens": _int_directive(h, "X-Mock-Prompt-Tokens", "MOCK_PROMPT_TOKENS", None),
-            "completion_tokens": _int_directive(h, "X-Mock-Completion-Tokens", "MOCK_COMPLETION_TOKENS", None),
+            "completion_tokens": _int_directive(
+                h, "X-Mock-Completion-Tokens", "MOCK_COMPLETION_TOKENS", None
+            ),
         }
 
     def _relay_pre(self, directives: dict[str, Any]) -> bool:

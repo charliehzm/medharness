@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import uuid
 
-GENERIC_503 = {"error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}}
+GENERIC_503 = {
+    "error": {"code": "compliance_gate_denied", "msg": "request denied by compliance gate"}
+}
 
 # SYNTHETIC PHI — reuses the valid-checksum synthetic CN-ID from the phi-detector
 # unit corpus (tests/test_phi_detector_server_v3.py), detected as CN_ID -> L4, which
@@ -45,6 +47,7 @@ def _assert_deny_pre_relay(resp, mock, where: str) -> None:
 
 
 # ── ALLOW ────────────────────────────────────────────────────────────────────
+
 
 def test_a1_allow_coder_same_family(relay, inject_allowlist, mock_upstream, make_model, no_phi):
     cid = _cid("a1")
@@ -76,6 +79,7 @@ def test_a3_allow_reviewer_cross_vendor(relay, inject_allowlist, mock_upstream, 
 
 
 # ── DENY (pre-relay: 0 upstream connections) ─────────────────────────────────
+
 
 def test_d1_deny_reviewer_same_family(relay, inject_allowlist, mock_upstream, make_model, no_phi):
     cid = _cid("d1")
@@ -122,7 +126,9 @@ def test_d5_deny_model_not_in_allowlist(relay, inject_allowlist, mock_upstream, 
     no_phi(resp.text, "D5")
 
 
-def test_a4_phi_prompt_is_desensitized_and_allowed(relay, inject_allowlist, mock_upstream, make_model, no_phi):
+def test_a4_phi_prompt_is_desensitized_and_allowed(
+    relay, inject_allowlist, mock_upstream, make_model, no_phi
+):
     # §D.1 DESENSITIZES PHI rather than blocking it: the call is ALLOWED, but the
     # UPSTREAM must receive a desensitized prompt — never the raw identifier. This
     # is the headline 0-PHI-to-upstream guarantee, verified end-to-end.
@@ -135,7 +141,9 @@ def test_a4_phi_prompt_is_desensitized_and_allowed(relay, inject_allowlist, mock
     assert mock_upstream.count() == 1
     no_phi(resp.text, "A4")
     received = mock_upstream.last_prompt()
-    assert "110101199001011237" not in received, f"A4: RAW PHI reached the upstream: {received[:160]}"
+    assert "110101199001011237" not in received, (
+        f"A4: RAW PHI reached the upstream: {received[:160]}"
+    )
 
 
 def test_d8_deny_injection(relay, inject_allowlist, mock_upstream, make_model, no_phi):
@@ -159,5 +167,7 @@ def test_d9_deny_outbound_post_call_block(relay, inject_allowlist, echo_mock, ma
     assert resp.status == 503, f"D9: {resp.status} {resp.text[:200]}"
     assert "[mock-upstream]" not in resp.text, "D9: upstream reply leaked through outbound block"
     assert resp.json() == GENERIC_503, f"D9: non-generic body {resp.text[:200]}"
-    assert echo_mock.count() == 1, "D9: outbound block must run AFTER the upstream is hit (count +1)"
+    assert echo_mock.count() == 1, (
+        "D9: outbound block must run AFTER the upstream is hit (count +1)"
+    )
     no_phi(resp.text, "D9")

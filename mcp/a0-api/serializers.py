@@ -258,7 +258,9 @@ def _channel_lane(channel: dict[str, Any], models: list[str]) -> str:
     explicit = _as_str(channel.get("lane"))
     if explicit in LANE_VALUES:
         return explicit
-    haystack = " ".join(models + [_as_str(channel.get("group")), _as_str(channel.get("name"))]).lower()
+    haystack = " ".join(
+        models + [_as_str(channel.get("group")), _as_str(channel.get("name"))]
+    ).lower()
     if any(hint in haystack for hint in ("sensitive", "l3", "l4", "phi", "private", "敏感")):
         return "sensitive"
     return "normal"
@@ -282,7 +284,17 @@ def _token_allowed_data_levels(token: dict[str, Any]) -> list[str]:
     levels = {"L2"}
     if model_text or any(
         hint in haystack
-        for hint in ("l3", "prod", "production", "default", "medical", "sensitive", "phi", "claude", "gpt")
+        for hint in (
+            "l3",
+            "prod",
+            "production",
+            "default",
+            "medical",
+            "sensitive",
+            "phi",
+            "claude",
+            "gpt",
+        )
     ):
         levels.add("L3")
     if "l4" in haystack:
@@ -379,9 +391,7 @@ def serialize_admin_users_mgmt(data: dict[str, Any]) -> dict[str, Any]:
                 "group": _as_str(user.get("group")),
                 "quota": _as_str(user.get("quota")),
                 "used_quota": _as_str(user.get("used_quota")),
-                "last_login": _mgmt_last_login(
-                    user.get("last_login_time", user.get("last_login"))
-                ),
+                "last_login": _mgmt_last_login(user.get("last_login_time", user.get("last_login"))),
             }
         )
 
@@ -526,7 +536,9 @@ def serialize_posture(data: dict[str, Any]) -> dict[str, Any]:
             continue
         goals.append(
             {
-                "key": _enum(goal.get("key"), {"security", "cost", "compliance", "stability"}, "security"),
+                "key": _enum(
+                    goal.get("key"), {"security", "cost", "compliance", "stability"}, "security"
+                ),
                 "score": _as_int(goal.get("score"), maximum=100),
                 "metric": _as_str(goal.get("metric")),
                 "submetric": _as_str(goal.get("submetric")),

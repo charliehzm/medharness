@@ -266,7 +266,13 @@ def test_create_builds_post_and_blocks_root_role(env) -> None:
     # a valid create builds POST /api/user/ with the whitelisted body
     ok = cl.post(
         "/api/v1/admin/users",
-        json={"username": "new.dev-1", "password": "abcd1234ef", "display_name": "New", "role": 1, "group": "default"},
+        json={
+            "username": "new.dev-1",
+            "password": "abcd1234ef",
+            "display_name": "New",
+            "role": 1,
+            "group": "default",
+        },
         headers=_sysadmin(),
     )
     assert ok.status_code == 200 and ok.json() == {"ok": True}
@@ -286,10 +292,38 @@ def test_create_validates_username_and_password(env) -> None:
     _install_fake(env, fake)
     cl = _client()
     # bad username (space / too long), short password -> 400, no write
-    assert cl.post("/api/v1/admin/users", json={"username": "bad name", "password": "abcd1234ef"}, headers=_sysadmin()).status_code == 400
-    assert cl.post("/api/v1/admin/users", json={"username": "x" * 21, "password": "abcd1234ef"}, headers=_sysadmin()).status_code == 400
-    assert cl.post("/api/v1/admin/users", json={"username": "okuser", "password": "short"}, headers=_sysadmin()).status_code == 400
-    assert cl.post("/api/v1/admin/users", json={"username": "okuser", "password": "abcd1234ef", "group": "bad group!"}, headers=_sysadmin()).status_code == 400
+    assert (
+        cl.post(
+            "/api/v1/admin/users",
+            json={"username": "bad name", "password": "abcd1234ef"},
+            headers=_sysadmin(),
+        ).status_code
+        == 400
+    )
+    assert (
+        cl.post(
+            "/api/v1/admin/users",
+            json={"username": "x" * 21, "password": "abcd1234ef"},
+            headers=_sysadmin(),
+        ).status_code
+        == 400
+    )
+    assert (
+        cl.post(
+            "/api/v1/admin/users",
+            json={"username": "okuser", "password": "short"},
+            headers=_sysadmin(),
+        ).status_code
+        == 400
+    )
+    assert (
+        cl.post(
+            "/api/v1/admin/users",
+            json={"username": "okuser", "password": "abcd1234ef", "group": "bad group!"},
+            headers=_sysadmin(),
+        ).status_code
+        == 400
+    )
     assert fake.writes == []
 
 
@@ -311,7 +345,16 @@ def test_update_injects_id_and_builds_put(env) -> None:
     # Read-modify-write: new-api's UpdateUser is a full overwrite (a missing username
     # trips its UNIQUE index), so A0 carries the current identity and overlays the edit.
     fake = FakeNewApi(
-        users=[{"id": 42, "username": "dev42", "display_name": "Old", "role": 1, "group": "old", "email": ""}]
+        users=[
+            {
+                "id": 42,
+                "username": "dev42",
+                "display_name": "Old",
+                "role": 1,
+                "group": "old",
+                "email": "",
+            }
+        ]
     )
     _install_fake(env, fake)
     resp = _client().post(
@@ -351,7 +394,16 @@ def test_password_builds_put_with_id_and_password(env) -> None:
     # Read-modify-write: the new password rides on the carried-forward identity so the
     # username (UNIQUE) is present and the profile is not blanked by new-api's UpdateUser.
     fake = FakeNewApi(
-        users=[{"id": 9, "username": "dev9", "display_name": "Dev Nine", "role": 1, "group": "default", "email": ""}]
+        users=[
+            {
+                "id": 9,
+                "username": "dev9",
+                "display_name": "Dev Nine",
+                "role": 1,
+                "group": "default",
+                "email": "",
+            }
+        ]
     )
     _install_fake(env, fake)
     resp = _client().post(
@@ -378,7 +430,12 @@ def test_password_builds_put_with_id_and_password(env) -> None:
 def test_password_rejects_out_of_range(env) -> None:
     fake = FakeNewApi()
     _install_fake(env, fake)
-    assert _client().post("/api/v1/admin/users/9/password", json={"password": "short"}, headers=_sysadmin()).status_code == 400
+    assert (
+        _client()
+        .post("/api/v1/admin/users/9/password", json={"password": "short"}, headers=_sysadmin())
+        .status_code
+        == 400
+    )
     assert fake.writes == []
 
 
@@ -398,8 +455,16 @@ def test_status_enable_disable_build_manage(env) -> None:
 def test_status_requires_boolean(env) -> None:
     fake = FakeNewApi()
     _install_fake(env, fake)
-    assert _client().post("/api/v1/admin/users/3/status", json={"enabled": "yes"}, headers=_sysadmin()).status_code == 400
-    assert _client().post("/api/v1/admin/users/3/status", json={}, headers=_sysadmin()).status_code == 400
+    assert (
+        _client()
+        .post("/api/v1/admin/users/3/status", json={"enabled": "yes"}, headers=_sysadmin())
+        .status_code
+        == 400
+    )
+    assert (
+        _client().post("/api/v1/admin/users/3/status", json={}, headers=_sysadmin()).status_code
+        == 400
+    )
     assert fake.writes == []
 
 
@@ -407,7 +472,9 @@ def test_status_requires_boolean(env) -> None:
 def test_role_promote_builds_manage_after_precheck(env) -> None:
     fake = FakeNewApi(users=[{"id": 3, "role": 1}])
     _install_fake(env, fake)
-    resp = _client().post("/api/v1/admin/users/3/role", json={"action": "promote"}, headers=_sysadmin(nr=100))
+    resp = _client().post(
+        "/api/v1/admin/users/3/role", json={"action": "promote"}, headers=_sysadmin(nr=100)
+    )
     assert resp.status_code == 200 and resp.json() == {"ok": True}
     assert fake.writes[-1] == ("POST", "/api/user/manage", {"id": 3, "action": "promote"})
 
@@ -416,7 +483,9 @@ def test_role_blocks_target_at_or_above_operator(env) -> None:
     # operator nr=10 tries to demote an admin (role=10): not strictly lower -> blocked
     fake = FakeNewApi(users=[{"id": 5, "role": 10}])
     _install_fake(env, fake)
-    resp = _client().post("/api/v1/admin/users/5/role", json={"action": "demote"}, headers=_sysadmin(nr=10))
+    resp = _client().post(
+        "/api/v1/admin/users/5/role", json={"action": "demote"}, headers=_sysadmin(nr=10)
+    )
     assert resp.status_code == 403
     assert fake.writes == []  # never issued the manage call
 
@@ -424,7 +493,12 @@ def test_role_blocks_target_at_or_above_operator(env) -> None:
 def test_role_rejects_unknown_action(env) -> None:
     fake = FakeNewApi()
     _install_fake(env, fake)
-    assert _client().post("/api/v1/admin/users/3/role", json={"action": "delete"}, headers=_sysadmin()).status_code == 400
+    assert (
+        _client()
+        .post("/api/v1/admin/users/3/role", json={"action": "delete"}, headers=_sysadmin())
+        .status_code
+        == 400
+    )
     assert fake.writes == []
 
 
@@ -512,7 +586,10 @@ def test_serializer_passes_staff_rows_and_rejects_patient_id() -> None:
     serializers.assert_no_patient_phi(out, "test:staff")
 
     # ...but an injected patient identifier (cn id) is still rejected.
-    poisoned = {"items": [{"id": 2, "username": "x", "display_name": CN_ID, "role": 1, "status": 1}], "total": 1}
+    poisoned = {
+        "items": [{"id": 2, "username": "x", "display_name": CN_ID, "role": 1, "status": 1}],
+        "total": 1,
+    }
     with pytest.raises(serializers.PhiLeakError):
         serializers.serialize_admin_users_mgmt(poisoned)
 

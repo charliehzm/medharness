@@ -130,9 +130,9 @@ def _invoke_http_request(
     elif raw_body is not None:
         headers.append("Content-Type: application/json")
         headers.append(f"Content-Length: {len(body)}")
-    request_bytes = (
-        f"{method} {path} HTTP/1.1\r\n" + "\r\n".join(headers) + "\r\n\r\n"
-    ).encode("utf-8") + body
+    request_bytes = (f"{method} {path} HTTP/1.1\r\n" + "\r\n".join(headers) + "\r\n\r\n").encode(
+        "utf-8"
+    ) + body
     fake_socket = _FakeSocket(request_bytes)
     server = SimpleNamespace(server_name="127.0.0.1", server_port=0)
     server_v2._ModelRouterHTTPHandler(fake_socket, ("127.0.0.1", 12345), server)
@@ -274,9 +274,7 @@ def test_http_forged_tier_denies_generic(tmp_path: Path) -> None:
 def test_http_bad_json_rejects_without_echo(tmp_path: Path) -> None:
     _allowlist_path(tmp_path)
 
-    status, body = _invoke_http_request(
-        "POST", "/route", raw_body=b'{"model_id": "broken"'
-    )
+    status, body = _invoke_http_request("POST", "/route", raw_body=b'{"model_id": "broken"')
 
     assert status == 400
     assert body["error"]["code"] == "bad_request"

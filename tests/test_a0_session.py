@@ -75,7 +75,9 @@ def test_no_secret_means_fail_closed(monkeypatch: pytest.MonkeyPatch) -> None:
 def _login(monkeypatch: pytest.MonkeyPatch, data: dict) -> dict:
     monkeypatch.setattr(a0, "_new_api_login", lambda _u, _p: {"success": True, "data": data})
     client = a0.make_test_client(a0.app)
-    return client.post("/api/v1/auth/login", json={"username": "root", "password": "secret123"}).json()
+    return client.post(
+        "/api/v1/auth/login", json={"username": "root", "password": "secret123"}
+    ).json()
 
 
 def test_login_issues_token_when_secret_set(monkeypatch: pytest.MonkeyPatch) -> None:
