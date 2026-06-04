@@ -11,14 +11,15 @@ import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from http.cookiejar import CookieJar
 from importlib import import_module
 from typing import Any
 from urllib import error, parse, request
 
 from serializers import (
     assert_no_phi,
-    serialize_admin_channels,
-    serialize_admin_tokens,
+    serialize_admin_channels_mgmt,
+    serialize_admin_tokens_mgmt,
     serialize_admin_users,
     serialize_admin_users_mgmt,
     serialize_audit_export,
@@ -54,7 +55,7 @@ except Exception:  # pragma: no cover - local test fallback or partial namespace
         return default
 
 API_BASE = "/api/v1"
-CONTRACT_VERSION = "0.8.0"
+CONTRACT_VERSION = "0.9.0"
 DEFAULT_HTTP_HOST = "0.0.0.0"
 DEFAULT_HTTP_PORT = 8010
 DEFAULT_CLICKHOUSE_HOST = "clickhouse"
@@ -146,6 +147,10 @@ class NewApiUnavailable(Exception):
     """Raised when the new-api auth backend is unreachable or returns an unusable payload."""
 
 
+_NEW_API_ADMIN_TOKEN_CACHE: str | None = None
+_NEW_API_ADMIN_USER_ID_CACHE: str | None = None
+
+
 def _new_api_base() -> str:
     return os.environ.get("NEW_API_URL", DEFAULT_NEW_API_URL).rstrip("/")
 
@@ -180,6 +185,97 @@ def _new_api_login(username: str, password: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise NewApiUnavailable("login response was not an object")
     return parsed
+
+
+def _new_api_root_credentials() -> tuple[str, str]:
+    username = os.environ.get("NEW_API_ROOT_USERNAME", "admin") or "admin"
+    password = os.environ.get("NEW_API_ROOT_PASSWORD", "medharness123") or "medharness123"
+    if not username or not password:
+        raise NewApiUnavailable("new-api root credentials unset")
+    return username, password
+
+
+def _extract_admin_token(data: Any) -> str:
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, dict):
+        return ""
+    for key in ("access_token", "token", "key"):
+        value = data.get(key)
+        if value:
+            return str(value)
+    nested = data.get("data")
+    if isinstance(nested, (dict, str)):
+        return _extract_admin_token(nested)
+    return ""
+
+
+def _new_api_admin_cache_clear() -> None:
+    global _NEW_API_ADMIN_TOKEN_CACHE, _NEW_API_ADMIN_USER_ID_CACHE
+    _NEW_API_ADMIN_TOKEN_CACHE = None
+    _NEW_API_ADMIN_USER_ID_CACHE = None
+
+
+def _new_api_bootstrap_admin_token() -> tuple[str, str]:
+    """Login as root and exchange the new-api cookie for an access token."""
+    global _NEW_API_ADMIN_TOKEN_CACHE, _NEW_API_ADMIN_USER_ID_CACHE
+
+    username, password = _new_api_root_credentials()
+    opener = request.build_opener(request.HTTPCookieProcessor(CookieJar()))
+    login_body = json.dumps({"username": username, "password": password}).encode("utf-8")
+    login_req = request.Request(
+        f"{_new_api_base()}/api/user/login",
+        data=login_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with opener.open(login_req, timeout=5.0) as resp:
+            login_raw = resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:240]
+        raise NewApiUnavailable(f"HTTP {exc.code}: {detail}") from exc
+    except OSError as exc:
+        raise NewApiUnavailable(f"admin login failed: {exc}") from exc
+    try:
+        login_parsed = json.loads(login_raw) if login_raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise NewApiUnavailable("admin login response was not valid JSON") from exc
+    if not isinstance(login_parsed, dict):
+        raise NewApiUnavailable("admin login response was not an object")
+    if not login_parsed.get("success", False):
+        raise NewApiUnavailable("admin login failed")
+
+    login_data = login_parsed.get("data") if isinstance(login_parsed.get("data"), dict) else {}
+    user_id = str(os.environ.get("NEW_API_ADMIN_USER_ID") or login_data.get("id") or "1")
+    token_req = request.Request(
+        f"{_new_api_base()}/api/user/token",
+        method="GET",
+        headers={"Content-Type": "application/json", "New-Api-User": user_id},
+    )
+    try:
+        with opener.open(token_req, timeout=5.0) as resp:
+            token_raw = resp.read().decode("utf-8")
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:240]
+        raise NewApiUnavailable(f"HTTP {exc.code}: {detail}") from exc
+    except OSError as exc:
+        raise NewApiUnavailable(f"admin token request failed: {exc}") from exc
+    try:
+        token_parsed = json.loads(token_raw) if token_raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise NewApiUnavailable("admin token response was not valid JSON") from exc
+    if not isinstance(token_parsed, dict):
+        raise NewApiUnavailable("admin token response was not an object")
+    if not token_parsed.get("success", False):
+        raise NewApiUnavailable("admin token exchange failed")
+    token = _extract_admin_token(token_parsed.get("data", token_parsed))
+    if not token:
+        raise NewApiUnavailable("admin token missing in response")
+
+    _NEW_API_ADMIN_TOKEN_CACHE = token
+    _NEW_API_ADMIN_USER_ID_CACHE = user_id
+    return token, user_id
 
 
 # ── A0-minted Console session (stateless HMAC-SHA256 Bearer; stdlib only) ────────
@@ -282,35 +378,43 @@ def _require_sysadmin(authorization: str | None) -> dict[str, Any] | None:
     return claims
 
 
-def _new_api_admin_headers() -> dict[str, str] | None:
-    """Admin headers for new-api, or None if the root token is unconfigured.
+def _new_api_admin_headers(*, force_refresh: bool = False) -> dict[str, str] | None:
+    """Admin headers for new-api, bootstrapped lazily when no token is injected."""
+    global _NEW_API_ADMIN_TOKEN_CACHE, _NEW_API_ADMIN_USER_ID_CACHE
 
-    new-api wants the access_token in the BARE Authorization header (no "Bearer ")
-    plus the New-Api-User id. Returns None so the caller fails closed with a 503 —
-    the token itself is never logged.
-    """
     token = os.environ.get("NEW_API_ADMIN_TOKEN", "")
-    if not token:
-        return None
+    user_id = os.environ.get("NEW_API_ADMIN_USER_ID", "")
+    if token and not force_refresh:
+        _NEW_API_ADMIN_TOKEN_CACHE = token
+        if user_id:
+            _NEW_API_ADMIN_USER_ID_CACHE = user_id
+        return {
+            "Authorization": token,
+            "New-Api-User": user_id or _NEW_API_ADMIN_USER_ID_CACHE or "1",
+            "Content-Type": "application/json",
+        }
+    if force_refresh:
+        _new_api_admin_cache_clear()
+    if not _NEW_API_ADMIN_TOKEN_CACHE:
+        token, user_id = _new_api_bootstrap_admin_token()
+    else:
+        token = _NEW_API_ADMIN_TOKEN_CACHE
+        user_id = user_id or _NEW_API_ADMIN_USER_ID_CACHE or "1"
     return {
         "Authorization": token,
-        "New-Api-User": os.environ.get("NEW_API_ADMIN_USER_ID", ""),
+        "New-Api-User": user_id,
         "Content-Type": "application/json",
     }
 
 
-def _new_api_admin_request(
-    method: str, path: str, body: dict[str, Any] | None = None
+def _new_api_admin_request_once(
+    method: str,
+    path: str,
+    body: dict[str, Any] | None,
+    *,
+    force_refresh: bool = False,
 ) -> tuple[int, dict[str, Any]]:
-    """Call new-api as admin and return (status, parsed-json).
-
-    Mirrors ``_new_api_login`` discipline: a transport fault or non-2xx raises
-    NewApiUnavailable (caller -> 502/503); a 2xx with new-api's own
-    ``success: false`` is returned verbatim so the caller maps it to a GENERIC 4xx
-    (new-api's message is never echoed). The admin token and any request body are
-    never logged.
-    """
-    headers = _new_api_admin_headers()
+    headers = _new_api_admin_headers(force_refresh=force_refresh)
     if headers is None:
         raise NewApiUnavailable("NEW_API_ADMIN_TOKEN unset")
     data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -325,6 +429,9 @@ def _new_api_admin_request(
             raw = resp.read().decode("utf-8")
             status = resp.status
     except error.HTTPError as exc:
+        if exc.code == 401 and not force_refresh:
+            _new_api_admin_cache_clear()
+            return _new_api_admin_request_once(method, path, body, force_refresh=True)
         detail = exc.read().decode("utf-8", errors="replace")[:240]
         raise NewApiUnavailable(f"HTTP {exc.code}: {detail}") from exc
     except OSError as exc:
@@ -336,6 +443,13 @@ def _new_api_admin_request(
     if not isinstance(parsed, dict):
         raise NewApiUnavailable("admin response was not an object")
     return status, parsed
+
+
+def _new_api_admin_request(
+    method: str, path: str, body: dict[str, Any] | None = None
+) -> tuple[int, dict[str, Any]]:
+    """Call new-api as admin and return (status, parsed-json)."""
+    return _new_api_admin_request_once(method, path, body, force_refresh=False)
 
 
 class _LocalResponse:
@@ -431,6 +545,30 @@ class _LocalApp:
             return _normalize_local_response(
                 handler(
                     user_id=route_params.get("user_id", ""),
+                    authorization=authorization,
+                    payload=payload,
+                )
+            )
+        if route_path == f"{API_BASE}/admin/channels" and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(authorization=authorization, payload=payload))
+        if route_path.startswith(f"{API_BASE}/admin/channels/") and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(
+                handler(
+                    channel_id=route_params.get("channel_id", ""),
+                    authorization=authorization,
+                    payload=payload,
+                )
+            )
+        if route_path == f"{API_BASE}/admin/tokens" and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(handler(authorization=authorization, payload=payload))
+        if route_path.startswith(f"{API_BASE}/admin/tokens/") and verb == "POST":
+            payload = json if json is not None else data
+            return _normalize_local_response(
+                handler(
+                    token_id=route_params.get("token_id", ""),
                     authorization=authorization,
                     payload=payload,
                 )
@@ -1524,9 +1662,16 @@ def channels() -> Any:
 def admin_users() -> Any:
     try:
         _audit_rows(limit=1)
-        return serialize_admin_users(_admin_users_payload())
+        status, parsed = _new_api_admin_request("GET", "/api/user/?p=1&page_size=100")
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return serialize_admin_users(_live_items_payload(parsed, "users"))
     except ClickHouseUnavailable:
         return _degraded_response()
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
     except Exception:
         return _generic_error_response()
 
@@ -1535,9 +1680,16 @@ def admin_users() -> Any:
 def admin_tokens() -> Any:
     try:
         _audit_rows(limit=1)
-        return serialize_admin_tokens(_admin_tokens_payload())
+        status, parsed = _new_api_admin_request("GET", "/api/token/?p=1&page_size=100")
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return serialize_admin_tokens_mgmt(_live_items_payload(parsed, "tokens"))
     except ClickHouseUnavailable:
         return _degraded_response()
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
     except Exception:
         return _generic_error_response()
 
@@ -1546,9 +1698,16 @@ def admin_tokens() -> Any:
 def admin_channels() -> Any:
     try:
         _audit_rows(limit=1)
-        return serialize_admin_channels(_admin_channels_payload())
+        status, parsed = _new_api_admin_request("GET", "/api/channel/?p=1&page_size=100")
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return serialize_admin_channels_mgmt(_live_items_payload(parsed, "channels"))
     except ClickHouseUnavailable:
         return _degraded_response()
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
     except Exception:
         return _generic_error_response()
 
@@ -1663,6 +1822,27 @@ def auth_login(payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT) -> Any:
 _MGMT_USERNAME_RE = re.compile(r"^[\w.-]{1,20}$")
 _MGMT_GROUP_RE = re.compile(r"^[\w-]{1,64}$")
 _MGMT_ALLOWED_ROLES = {1, 10}  # common / admin — root (100) is never minted by A0
+_MGMT_NAME_MAX = 80
+_MGMT_ALLOWED_LEVELS = {"L2", "L3", "L4"}
+_MGMT_ALLOWED_CHANNEL_CREATE_FIELDS = {"name", "type", "key", "base_url", "models", "group", "weight"}
+_MGMT_ALLOWED_CHANNEL_FIELDS = {"name", "type", "key", "base_url", "models", "group", "weight", "status"}
+_MGMT_ALLOWED_TOKEN_CREATE_FIELDS = {
+    "name",
+    "remain_quota",
+    "unlimited_quota",
+    "group",
+    "allowed_data_levels",
+    "expired_time",
+}
+_MGMT_ALLOWED_TOKEN_FIELDS = {
+    "name",
+    "status",
+    "remain_quota",
+    "unlimited_quota",
+    "group",
+    "allowed_data_levels",
+    "expired_time",
+}
 
 
 def _forbidden_response(claims: dict[str, Any] | None) -> Any:
@@ -1677,9 +1857,13 @@ def _sysadmin_or_error(authorization: str | None) -> tuple[dict[str, Any] | None
     session = _require_session(authorization)
     if session is None or session.get("cr") != "sysadmin":
         return None, _forbidden_response(session)
-    if _new_api_admin_headers() is None:
+    try:
+        headers = _new_api_admin_headers()
+    except NewApiUnavailable:
+        headers = None
+    if headers is None:
         return None, _response(
-            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 503
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
         )
     return session, None
 
@@ -1695,6 +1879,331 @@ def _invalid_params_response() -> Any:
 
 def _admin_write_succeeded(status: int, parsed: dict[str, Any]) -> bool:
     return 200 <= status < 300 and bool(parsed.get("success", True))
+
+
+def _live_items_payload(parsed: dict[str, Any], key: str) -> dict[str, Any]:
+    data = parsed.get("data")
+    if isinstance(data, dict):
+        if isinstance(data.get("items"), list):
+            return {key: data["items"]}
+        if isinstance(data.get(key), list):
+            return {key: data[key]}
+    if isinstance(data, list):
+        return {key: data}
+    return {key: []}
+
+
+def _is_valid_name(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and len(text) <= _MGMT_NAME_MAX and all(ch >= " " for ch in text)
+
+
+def _validate_group(value: Any) -> str | None:
+    group = str(value or "").strip()
+    if not group or not _MGMT_GROUP_RE.fullmatch(group):
+        return None
+    return group
+
+
+def _validate_models(value: Any) -> list[str] | str | None:
+    if isinstance(value, list):
+        models = [str(item).strip() for item in value if str(item).strip()]
+        return models or None
+    if isinstance(value, str):
+        text = value.strip()
+        return text or None
+    return None
+
+
+def _validate_base_url(value: Any) -> str | None:
+    url = str(value or "").strip()
+    if not url or len(url) > 2048:
+        return None
+    parsed = parse.urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+    return url
+
+
+def _validate_quota(value: Any) -> int | float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return value if value >= 0 else None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = float(text) if "." in text else int(text)
+    except ValueError:
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _validate_data_levels(value: Any) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    levels: list[str] = []
+    for item in value:
+        level = str(item)
+        if level not in _MGMT_ALLOWED_LEVELS:
+            return None
+        if level not in levels:
+            levels.append(level)
+    return levels or None
+
+
+# new-api channel types are ints (constant/channel.go). The Console "类型" field is a
+# free-text provider name, so A0 (the type adapter) maps a name → int, and also accepts
+# a raw int / numeric string (used by the medical channel templates). Unknown → reject.
+_CHANNEL_TYPE_NAME_TO_INT = {
+    "openai": 1,
+    "azure": 3,
+    "ollama": 4,
+    "custom": 8,
+    "openai-compatible": 8,
+    "anthropic": 14,
+    "claude": 14,
+    "baidu": 15,
+    "zhipu": 16,
+    "ali": 17,
+    "qwen": 17,
+    "dashscope": 17,
+    "openrouter": 20,
+    "gemini": 24,
+    "google": 24,
+    "moonshot": 25,
+    "perplexity": 27,
+    "aws": 33,
+    "bedrock": 33,
+    "cohere": 34,
+    "minimax": 35,
+    "dify": 37,
+    "siliconflow": 40,
+    "vertex": 41,
+    "vertexai": 41,
+    "mistral": 42,
+    "deepseek": 43,
+    "volcengine": 45,
+    "doubao": 45,
+    "xinference": 47,
+    "vllm": 47,
+    "xai": 48,
+    "grok": 48,
+}
+
+
+def _validate_channel_type(value: Any) -> int | None:
+    """Resolve a new-api channel type int from a provider name, int, or numeric string."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value > 0 else None
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.isdigit():
+        n = int(text)
+        return n if n > 0 else None
+    return _CHANNEL_TYPE_NAME_TO_INT.get(text.lower())
+
+
+def _models_csv(models: Any) -> str:
+    """new-api Channel.Models is a comma-separated string; flatten a list/str to that."""
+    if isinstance(models, list):
+        return ",".join(str(m).strip() for m in models if str(m).strip())
+    return str(models).strip()
+
+
+def _validated_channel_create(body: dict[str, Any]) -> dict[str, Any] | None:
+    if set(body) - _MGMT_ALLOWED_CHANNEL_CREATE_FIELDS:
+        return None
+    name = str(body.get("name") or "").strip()
+    channel_type = _validate_channel_type(body.get("type"))
+    secret = str(body.get("key") or "").strip()
+    models = _validate_models(body.get("models"))
+    group = _validate_group(body.get("group"))
+    weight = _coerce_int(body.get("weight"), -1)
+    if not _is_valid_name(name) or channel_type is None or not secret or models is None or group is None:
+        return None
+    if weight < 0 or weight > 100:
+        return None
+    out: dict[str, Any] = {
+        "name": name,
+        "type": channel_type,
+        "key": secret,
+        "models": _models_csv(models),
+        "group": group,
+        "weight": weight,
+    }
+    if body.get("base_url") is not None:
+        base_url = _validate_base_url(body.get("base_url"))
+        if base_url is None:
+            return None
+        out["base_url"] = base_url
+    return out
+
+
+def _validated_channel_update(channel_id: int, body: dict[str, Any]) -> dict[str, Any] | None:
+    update: dict[str, Any] = {"id": channel_id}
+    for key, value in body.items():
+        if key not in _MGMT_ALLOWED_CHANNEL_FIELDS:
+            return None
+        if key == "name":
+            if not _is_valid_name(value):
+                return None
+            update[key] = str(value).strip()
+        elif key == "key":
+            secret = str(value or "").strip()
+            if not secret:
+                return None
+            update[key] = secret
+        elif key == "base_url":
+            base_url = _validate_base_url(value)
+            if base_url is None:
+                return None
+            update[key] = base_url
+        elif key == "models":
+            models = _validate_models(value)
+            if models is None:
+                return None
+            update[key] = _models_csv(models)
+        elif key == "type":
+            channel_type = _validate_channel_type(value)
+            if channel_type is None:
+                return None
+            update[key] = channel_type
+        elif key == "group":
+            group = _validate_group(value)
+            if group is None:
+                return None
+            update[key] = group
+        elif key == "weight":
+            weight = _coerce_int(value, -1)
+            if weight < 0 or weight > 100:
+                return None
+            update[key] = weight
+        else:
+            update[key] = value
+    return update if len(update) > 1 else None
+
+
+def _validated_token_create(body: dict[str, Any]) -> dict[str, Any] | None:
+    if set(body) - _MGMT_ALLOWED_TOKEN_CREATE_FIELDS:
+        return None
+    name = str(body.get("name") or "").strip()
+    group = _validate_group(body.get("group"))
+    levels = _validate_data_levels(body.get("allowed_data_levels"))
+    unlimited = bool(body.get("unlimited_quota"))
+    quota = _validate_quota(body.get("remain_quota")) if body.get("remain_quota") is not None else None
+    if not _is_valid_name(name) or group is None or levels is None:
+        return None
+    if not unlimited and quota is None:
+        return None
+    out: dict[str, Any] = {"name": name, "group": group, "allowed_data_levels": levels}
+    if body.get("unlimited_quota") is not None:
+        out["unlimited_quota"] = unlimited
+    if quota is not None:
+        out["remain_quota"] = quota
+    if body.get("expired_time") is not None:
+        out["expired_time"] = body.get("expired_time")
+    return out
+
+
+def _validated_token_update(token_id: int, body: dict[str, Any]) -> dict[str, Any] | None:
+    update: dict[str, Any] = {"id": token_id}
+    for key, value in body.items():
+        if key not in _MGMT_ALLOWED_TOKEN_FIELDS:
+            return None
+        if key == "name":
+            if not _is_valid_name(value):
+                return None
+            update[key] = str(value).strip()
+        elif key == "group":
+            group = _validate_group(value)
+            if group is None:
+                return None
+            update[key] = group
+        elif key == "allowed_data_levels":
+            levels = _validate_data_levels(value)
+            if levels is None:
+                return None
+            update[key] = levels
+        elif key == "remain_quota":
+            quota = _validate_quota(value)
+            if quota is None:
+                return None
+            update[key] = quota
+        elif key == "unlimited_quota":
+            if not isinstance(value, bool):
+                return None
+            update[key] = value
+        elif key == "status":
+            if value not in ("enabled", "disabled"):
+                return None
+            update[key] = value
+        elif key == "expired_time":
+            # The mgmt serializer emits expired_time as a display string (e.g. "-1"),
+            # and the Console round-trips it verbatim. new-api's Token.ExpiredTime is an
+            # int64, so a string body would fail ShouldBindJSON — A0 (the type adapter)
+            # coerces here, mirroring how _validate_quota accepts numeric strings.
+            try:
+                update[key] = int(value)
+            except (TypeError, ValueError):
+                return None
+        else:
+            update[key] = value
+    return update if len(update) > 1 else None
+
+
+# new-api TokenStatus ints (common/constants.go): 1=enabled, 2=disabled.
+_TOKEN_STATUS_TO_INT = {"enabled": 1, "disabled": 2}
+
+# Native new-api Token fields that UpdateToken (controller/token.go) overwrites from
+# the request body on a non-status_only PUT. A partial body therefore BLANKS every
+# omitted field (name/group/expiry → ""), so a quota/levels edit must round-trip the
+# full object. These are exactly the fields the `else` branch of UpdateToken copies.
+_TOKEN_NATIVE_UPDATE_FIELDS = (
+    "name",
+    "group",
+    "expired_time",
+    "remain_quota",
+    "unlimited_quota",
+    "model_limits_enabled",
+    "model_limits",
+    "allow_ips",
+    "cross_group_retry",
+)
+
+
+def _merge_token_update(target_id: int, changes: dict[str, Any]) -> dict[str, Any] | None:
+    """Read-modify-write for new-api's full-overwrite UpdateToken.
+
+    new-api's PUT /api/token/ replaces EVERY native field from the bound JSON, so a
+    partial body (e.g. just remain_quota) silently wipes name/group/expiry. We fetch
+    the current token, carry every native field forward, and overlay only the validated
+    change — so a quota edit changes the quota and nothing else. Returns None if the
+    current token can't be read (caller maps that to a generic operation failure).
+    """
+    status, parsed = _new_api_admin_request("GET", f"/api/token/{target_id}")
+    if not _admin_write_succeeded(status, parsed):
+        return None
+    current = parsed.get("data") if isinstance(parsed, dict) else None
+    if not isinstance(current, dict):
+        return None
+    merged: dict[str, Any] = {"id": target_id}
+    for field in _TOKEN_NATIVE_UPDATE_FIELDS:
+        if field in current:
+            merged[field] = current[field]
+    for key, value in changes.items():
+        if key in ("id", "status"):
+            continue  # id is fixed; status goes through the status_only path
+        if key == "allowed_data_levels":
+            # new-api has no such column — the Console derives the level heuristically
+            # from group/model_limits, so there is nothing to persist upstream here.
+            continue
+        merged[key] = value
+    return merged
 
 
 def _new_api_user_role(user_id: int) -> int | None:
@@ -1956,6 +2465,217 @@ def admin_users_delete(
         status, parsed = _new_api_admin_request(
             "POST", "/api/user/manage", {"id": target_id, "action": "delete"}
         )
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/channels")
+def admin_channels_create(
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    request_body = _validated_channel_create(payload or {})
+    if request_body is None:
+        return _invalid_params_response()
+    try:
+        # new-api AddChannel binds {mode, channel:{...}}; a bare flat channel makes
+        # it nil-deref/panic (HTTP 500). Wrap as a single-channel add.
+        wrapped = {"mode": "single", "channel": request_body}
+        status, parsed = _new_api_admin_request("POST", "/api/channel/", wrapped)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/channels/{{channel_id}}/update")
+def admin_channels_update(
+    channel_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(channel_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    request_body = _validated_channel_update(target_id, payload or {})
+    if request_body is None:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request("PUT", "/api/channel/", request_body)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/channels/{{channel_id}}/delete")
+def admin_channels_delete(
+    channel_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(channel_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request("DELETE", f"/api/channel/{target_id}")
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/channels/{{channel_id}}/test")
+def admin_channels_test(
+    channel_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(channel_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request("GET", f"/api/channel/test/{target_id}")
+        # A reachable-or-not verdict is a RESULT, not an operation failure: the probe ran.
+        # Only a transport/HTTP failure (new-api itself unreachable) is an operation error
+        # — otherwise a not-yet-configured channel (e.g. a medical template with a blank
+        # key) would falsely read as "操作失败". Never echo new-api's message (it can carry
+        # the upstream base_url / provider error → would breach the 0-leak boundary).
+        if status != 200 or not isinstance(parsed, dict):
+            return _operation_failed_response()
+        reachable = bool(parsed.get("success"))
+        latency_ms: int | None = None
+        raw_time = parsed.get("time")
+        if isinstance(raw_time, (int, float)) and raw_time >= 0:
+            latency_ms = int(round(raw_time * 1000))
+        return {"ok": True, "reachable": reachable, "latency_ms": latency_ms}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/tokens")
+def admin_tokens_create(
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    request_body = _validated_token_create(payload or {})
+    if request_body is None:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request("POST", "/api/token/", request_body)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/tokens/{{token_id}}/update")
+def admin_tokens_update(
+    token_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(token_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    changes = _validated_token_update(target_id, payload or {})
+    if changes is None:
+        return _invalid_params_response()
+    try:
+        change_keys = set(changes) - {"id"}
+        # Status toggles ride new-api's status_only path, which touches ONLY the status
+        # column and leaves name/group/quota intact (the int status also avoids the
+        # string→int bind error a plain PUT would hit).
+        if change_keys == {"status"}:
+            status_int = _TOKEN_STATUS_TO_INT.get(changes["status"])
+            if status_int is None:
+                return _invalid_params_response()
+            status, parsed = _new_api_admin_request(
+                "PUT", "/api/token/?status_only=1", {"id": target_id, "status": status_int}
+            )
+            if not _admin_write_succeeded(status, parsed):
+                return _operation_failed_response()
+            return {"ok": True}
+        # Quota / levels / name / group edits: read-modify-write so new-api's
+        # full-overwrite UpdateToken cannot blank the fields we did not touch.
+        merged = _merge_token_update(target_id, changes)
+        if merged is None:
+            return _operation_failed_response()
+        status, parsed = _new_api_admin_request("PUT", "/api/token/", merged)
+        if not _admin_write_succeeded(status, parsed):
+            return _operation_failed_response()
+        return {"ok": True}
+    except NewApiUnavailable:
+        return _response(
+            {"error": {"code": "upstream_unavailable", "msg": "管理服务暂不可用"}}, 502
+        )
+    except Exception:
+        return _generic_error_response()
+
+
+@app.post(f"{API_BASE}/admin/tokens/{{token_id}}/delete")
+def admin_tokens_delete(
+    token_id: str,
+    authorization: str | None = Header(default=None),
+    payload: dict[str, Any] | None = REQUEST_BODY_DEFAULT,
+) -> Any:
+    session, error_response = _sysadmin_or_error(authorization)
+    if session is None:
+        return error_response
+    target_id = _coerce_int(token_id, -1)
+    if target_id < 0:
+        return _invalid_params_response()
+    try:
+        status, parsed = _new_api_admin_request("DELETE", f"/api/token/{target_id}")
         if not _admin_write_succeeded(status, parsed):
             return _operation_failed_response()
         return {"ok": True}

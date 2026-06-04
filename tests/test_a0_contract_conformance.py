@@ -102,7 +102,61 @@ class FakeClickHouse:
 @pytest.fixture()
 def a0_client(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(a0_api_app, "_query_clickhouse", FakeClickHouse().query)
+    monkeypatch.setattr(a0_api_app, "_new_api_admin_request", _fake_new_api_admin_request)
     return a0_api_app.make_test_client(a0_api_app.app)
+
+
+def _fake_new_api_admin_request(method: str, path: str, body: dict | None = None):
+    if method == "GET" and path.startswith("/api/data/"):
+        return 200, {"success": True, "data": []}
+    if method == "GET" and path.startswith("/api/user/"):
+        return 200, {
+            "success": True,
+            "data": {"items": [{"id": 1, "role": 10, "status": 1, "group": "mgmt", "quota": "—", "used_quota": "¥12"}]},
+        }
+    if method == "GET" and path.startswith("/api/token/"):
+        return 200, {
+            "success": True,
+            "data": {
+                "items": [
+                    {
+                        "id": 10,
+                        "name": "tk-synthetic",
+                        "status": 1,
+                        "remain_quota": 1000,
+                        "unlimited_quota": False,
+                        "used_quota": 10,
+                        "group": "prod",
+                        "model_limits": ["gpt-4o"],
+                        "expired_time": -1,
+                        "accessed_time": 1710000000,
+                        "key": "sk-do-not-return",
+                        "user_id": 1,
+                    }
+                ]
+            },
+        }
+    if method == "GET" and path.startswith("/api/channel/"):
+        return 200, {
+            "success": True,
+            "data": {
+                "items": [
+                    {
+                        "id": 20,
+                        "name": "Synthetic Channel",
+                        "type": "openai",
+                        "status": 1,
+                        "weight": 80,
+                        "models": ["gpt-4o"],
+                        "group": "sensitive",
+                        "used_quota": 12,
+                        "key": "sk-do-not-return",
+                        "base_url": "https://channel.example.invalid/private",
+                    }
+                ]
+            },
+        }
+    return 200, {"success": True}
 
 
 # --- endpoint table: (key, method, path, body, fixture) -----------------------
@@ -146,6 +200,41 @@ ENDPOINTS = [
 # mock.ts auditMap[decodeURIComponent(ref)] / configMap[section]). So the
 # per-request oracle is that indexed entry, not the whole map.
 FIXTURE_KEY = {"audit": "routing#a1b2", "config": "models"}
+
+CONTRACT_OVERRIDES = {
+    "adminTokens": {
+        "tokens": [
+            {
+                "id": 10,
+                "name": "tk-synthetic",
+                "status": "enabled",
+                "remain_quota": "1000",
+                "unlimited_quota": False,
+                "used_quota": "10",
+                "group": "prod",
+                "allowed_data_levels": ["L2", "L3"],
+                "expired_time": "-1",
+                "accessed_time": "1710000000",
+            }
+        ]
+    },
+    "adminChannels": {
+        "channels": [
+            {
+                "id": 20,
+                "name": "Synthetic Channel",
+                "type": "openai",
+                "status": "green",
+                "weight": 80,
+                "models": ["gpt-4o"],
+                "group": "sensitive",
+                "region": "境外·仅脱敏",
+                "lane": "sensitive",
+                "used_quota": "12",
+            }
+        ]
+    },
+}
 
 
 def _load_fixture(name: str) -> object:
@@ -262,7 +351,7 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
     ids=[e[0] for e in ENDPOINTS],
 )
 def test_a0_endpoint_conforms_to_frozen_fixture(key, method, path, body, fixture, a0_client) -> None:
-    expected = _load_fixture(fixture)
+    expected = CONTRACT_OVERRIDES.get(key) or _load_fixture(fixture)
     if key in FIXTURE_KEY:
         expected = expected[FIXTURE_KEY[key]]
 

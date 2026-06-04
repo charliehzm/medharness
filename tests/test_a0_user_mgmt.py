@@ -17,6 +17,7 @@ new-api / network / token is touched, and pin the security contract:
 
 from __future__ import annotations
 
+import json
 import sys
 from importlib import util
 from pathlib import Path
@@ -94,6 +95,75 @@ def _client():
     return a0.make_test_client(a0.app)
 
 
+class _FakeResp:
+    def __init__(self, payload: dict, status: int = 200) -> None:
+        self.payload = payload
+        self.status = status
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+
+def test_admin_headers_bootstrap_from_root_login(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeOpener:
+        def __init__(self) -> None:
+            self.urls: list[str] = []
+
+        def open(self, req, timeout=0):
+            self.urls.append(req.full_url)
+            if req.full_url.endswith("/api/user/login"):
+                return _FakeResp({"success": True, "data": {"id": 1}})
+            if req.full_url.endswith("/api/user/token"):
+                return _FakeResp({"success": True, "data": {"token": "bootstrapped-token"}})
+            raise AssertionError(req.full_url)
+
+    opener = FakeOpener()
+    a0._new_api_admin_cache_clear()
+    monkeypatch.delenv("NEW_API_ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("NEW_API_ADMIN_USER_ID", raising=False)
+    monkeypatch.setenv("NEW_API_URL", "http://new-api.example.invalid")
+    monkeypatch.setenv("NEW_API_ROOT_USERNAME", "admin")
+    monkeypatch.setenv("NEW_API_ROOT_PASSWORD", "medharness123")
+    monkeypatch.setattr(a0.request, "build_opener", lambda *_args, **_kwargs: opener)
+
+    headers = a0._new_api_admin_headers()
+    assert headers == {
+        "Authorization": "bootstrapped-token",
+        "New-Api-User": "1",
+        "Content-Type": "application/json",
+    }
+    assert opener.urls == [
+        "http://new-api.example.invalid/api/user/login",
+        "http://new-api.example.invalid/api/user/token",
+    ]
+
+
+def test_admin_request_retries_once_after_401(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen_auth: list[str] = []
+
+    def fake_urlopen(req, timeout=0):
+        seen_auth.append(req.headers["Authorization"])
+        if len(seen_auth) == 1:
+            raise a0.error.HTTPError(req.full_url, 401, "unauthorized", hdrs=None, fp=None)
+        return _FakeResp({"success": True})
+
+    a0._new_api_admin_cache_clear()
+    monkeypatch.setenv("NEW_API_ADMIN_TOKEN", "stale-token")
+    monkeypatch.setenv("NEW_API_ADMIN_USER_ID", "1")
+    monkeypatch.setattr(a0.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(a0, "_new_api_bootstrap_admin_token", lambda: ("fresh-token", "1"))
+
+    status, parsed = a0._new_api_admin_request("GET", "/api/user/?p=1&page_size=100")
+    assert status == 200 and parsed == {"success": True}
+    assert seen_auth == ["stale-token", "fresh-token"]
+
+
 # --- authorization gate (representative across GET + POST) ---------------------
 def test_manage_list_requires_session(env) -> None:
     fake = FakeNewApi()
@@ -122,11 +192,16 @@ def test_create_requires_sysadmin(env) -> None:
     assert fake.writes == []  # no write attempted under either rejection
 
 
-def test_admin_endpoints_503_when_token_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_admin_endpoints_502_when_bootstrap_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("A0_SESSION_SECRET", SECRET)
     monkeypatch.delenv("NEW_API_ADMIN_TOKEN", raising=False)
+    monkeypatch.setattr(
+        a0,
+        "_new_api_admin_headers",
+        lambda: (_ for _ in ()).throw(a0.NewApiUnavailable("connection refused")),
+    )
     resp = _client().get("/api/v1/admin/users/manage_list", headers=_sysadmin())
-    assert resp.status_code == 503
+    assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "upstream_unavailable"
 
 

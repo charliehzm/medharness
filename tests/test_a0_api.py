@@ -171,7 +171,72 @@ def test_remaining_read_endpoints_return_contract_shapes() -> None:
     }
 
 
-def test_admin_read_endpoints_return_whitelisted_contract_shapes() -> None:
+def test_admin_read_endpoints_return_whitelisted_contract_shapes(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_new_api(method: str, path: str, body: dict | None = None):
+        if method == "GET" and path.startswith("/api/user/"):
+            return 200, {
+                "success": True,
+                "data": {
+                    "items": [
+                        {
+                            "id": "raw-user-id-42",
+                            "role": 10,
+                            "status": 1,
+                            "group": "mgmt",
+                            "quota": "—",
+                            "used_quota": "¥12",
+                            "email": "synthetic.patient@example.invalid",
+                            "phone": "13900000000",
+                        }
+                    ]
+                },
+            }
+        if method == "GET" and path.startswith("/api/token/"):
+            return 200, {
+                "success": True,
+                "data": {
+                    "items": [
+                        {
+                            "id": "raw-token-id-42",
+                            "user_id": 1,
+                            "name": "tk-synthetic",
+                            "key": "sk-plain-token-key",
+                            "status": 1,
+                            "remain_quota": 100,
+                            "unlimited_quota": False,
+                            "used_quota": 12,
+                            "group": "prod",
+                            "model_limits": ["gpt-4o"],
+                            "expired_time": -1,
+                            "accessed_time": 1710000000,
+                            "base_url": "https://token.example.invalid/secret",
+                        }
+                    ]
+                },
+            }
+        if method == "GET" and path.startswith("/api/channel/"):
+            return 200, {
+                "success": True,
+                "data": {
+                    "items": [
+                        {
+                            "id": "raw-channel-id-42",
+                            "name": "Synthetic-Qwen",
+                            "type": "openai",
+                            "status": 1,
+                            "weight": 60,
+                            "models": ["gpt-4o"],
+                            "group": "sensitive",
+                            "used_quota": 12,
+                            "key": "sk-plain-channel-key",
+                            "base_url": "https://channel.example.invalid/secret",
+                        }
+                    ]
+                },
+            }
+        return 200, {"success": True}
+
+    monkeypatch.setattr(a0_api_app, "_new_api_admin_request", fake_new_api)
     client = a0_api_app.make_test_client(a0_api_app.app)
 
     users = client.get("/api/v1/admin/users")
@@ -194,28 +259,34 @@ def test_admin_read_endpoints_return_whitelisted_contract_shapes() -> None:
     }
     assert set(tokens.json()) == {"tokens"}
     assert set(tokens.json()["tokens"][0]) == {
-        "id_hash",
+        "id",
         "name",
         "status",
         "remain_quota",
+        "unlimited_quota",
         "used_quota",
+        "group",
         "allowed_data_levels",
+        "expired_time",
+        "accessed_time",
     }
     assert set(channels.json()) == {"channels"}
     assert set(channels.json()["channels"][0]) == {
-        "id_hash",
+        "id",
         "name",
         "type",
         "status",
         "weight",
+        "models",
+        "group",
         "region",
         "lane",
-        "models",
+        "used_quota",
     }
 
     payload = {"users": users.json(), "tokens": tokens.json(), "channels": channels.json()}
     payload_json = json.dumps(payload, ensure_ascii=False)
-    for forbidden in ("email", "phone", "display_name", "username", "key", "base_url"):
+    for forbidden in ("email", "phone", "display_name", "username", "key", "base_url", "user_id"):
         assert forbidden not in payload_json
     assert serializers.assert_no_phi(payload, "GET /admin/*") == payload
 

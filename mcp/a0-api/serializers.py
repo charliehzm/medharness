@@ -13,6 +13,7 @@ ALERT_LEVEL_VALUES = {"info", "warn", "crit"}
 EVENT_STATUS_VALUES = {"green", "yellow", "red"}
 SEC_TYPE_VALUES = {"注入", "滥用", "输出"}
 DATA_LEVEL_VALUES = {"L2", "L3", "L4"}
+TOKEN_STATUS_VALUES = {"enabled", "disabled", "throttled"}
 CONFIG_SECTION_VALUES = {
     "scene",
     "models",
@@ -185,17 +186,126 @@ def _kv_items(value: Any) -> list[dict[str, str]]:
     return items
 
 
+def _items_from(data: Any, key: str) -> list[Any]:
+    if isinstance(data, dict):
+        if isinstance(data.get("items"), list):
+            return data["items"]
+        if isinstance(data.get(key), list):
+            return data[key]
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw_items = [item.strip() for item in re.split(r"[,;\s]+", value) if item.strip()]
+    elif isinstance(value, list):
+        raw_items = value
+    else:
+        raw_items = []
+    out: list[str] = []
+    for item in raw_items:
+        text = _as_str(item).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def _channel_status_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "green" if value else "yellow"
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        text = _as_str(value)
+        if text in EVENT_STATUS_VALUES:
+            return text
+        if text in {"enabled", "active"}:
+            return "green"
+        if text in {"disabled", "inactive"}:
+            return "yellow"
+        return "yellow"
+    if parsed == 1:
+        return "green"
+    if parsed <= 0:
+        return "red"
+    return "yellow"
+
+
+def _token_status_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "enabled" if value else "disabled"
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        text = _as_str(value)
+        return text if text in TOKEN_STATUS_VALUES else "disabled"
+    return "enabled" if parsed == 1 else "disabled"
+
+
+def _channel_region(channel: dict[str, Any], models: list[str]) -> str:
+    explicit = _as_str(channel.get("region"))
+    if explicit:
+        return explicit
+    haystack = " ".join(models + [_as_str(channel.get("group"))]).lower()
+    if any(hint in haystack for hint in ("claude", "gpt", "境外")):
+        return "境外·仅脱敏"
+    return "境内"
+
+
+def _channel_lane(channel: dict[str, Any], models: list[str]) -> str:
+    explicit = _as_str(channel.get("lane"))
+    if explicit in LANE_VALUES:
+        return explicit
+    haystack = " ".join(models + [_as_str(channel.get("group")), _as_str(channel.get("name"))]).lower()
+    if any(hint in haystack for hint in ("sensitive", "l3", "l4", "phi", "private", "敏感")):
+        return "sensitive"
+    return "normal"
+
+
+def _token_allowed_data_levels(token: dict[str, Any]) -> list[str]:
+    explicit = [
+        _as_str(level)
+        for level in _string_list(token.get("allowed_data_levels"))
+        if _as_str(level) in DATA_LEVEL_VALUES
+    ]
+    if explicit:
+        return explicit
+    model_limits = token.get("model_limits")
+    if isinstance(model_limits, dict):
+        model_values = " ".join(str(v) for v in model_limits.values())
+        model_text = f"{' '.join(model_limits.keys())} {model_values}"
+    else:
+        model_text = " ".join(_string_list(model_limits))
+    haystack = f"{model_text} {_as_str(token.get('group'))}".lower()
+    levels = {"L2"}
+    if model_text or any(
+        hint in haystack
+        for hint in ("l3", "prod", "production", "default", "medical", "sensitive", "phi", "claude", "gpt")
+    ):
+        levels.add("L3")
+    if "l4" in haystack:
+        levels.add("L4")
+    return [level for level in ("L2", "L3", "L4") if level in levels]
+
+
 def serialize_admin_users(data: dict[str, Any]) -> dict[str, Any]:
     users: list[dict[str, Any]] = []
-    for user in data.get("users") or []:
+    for user in _items_from(data, "users"):
         if not isinstance(user, dict):
             continue
         console_role = user.get("console_role")
+        if console_role is None:
+            try:
+                console_role = "系统管理员" if int(user.get("role")) >= 10 else None
+            except (TypeError, ValueError):
+                console_role = None
         users.append(
             {
                 "id_hash": _id_hash(user, "u"),
-                "role": _as_str(user.get("role")),
-                "status": _as_str(user.get("status")),
+                "role": _mgmt_role_label(user.get("role")),
+                "status": _mgmt_status_label(user.get("status")),
                 "group": _as_str(user.get("group")),
                 "quota": _as_str(user.get("quota")),
                 "used_quota": _as_str(user.get("used_quota")),
@@ -275,7 +385,7 @@ def serialize_admin_users_mgmt(data: dict[str, Any]) -> dict[str, Any]:
 
 def serialize_admin_tokens(data: dict[str, Any]) -> dict[str, Any]:
     tokens: list[dict[str, Any]] = []
-    for token in data.get("tokens") or []:
+    for token in _items_from(data, "tokens"):
         if not isinstance(token, dict):
             continue
         allowed_data_levels = [
@@ -302,14 +412,10 @@ def serialize_admin_tokens(data: dict[str, Any]) -> dict[str, Any]:
 
 def serialize_admin_channels(data: dict[str, Any]) -> dict[str, Any]:
     channels: list[dict[str, Any]] = []
-    for channel in data.get("channels") or []:
+    for channel in _items_from(data, "channels"):
         if not isinstance(channel, dict):
             continue
-        models = [
-            _as_str(model)
-            for model in channel.get("models") or []
-            if _as_str(model)
-        ]
+        models = _string_list(channel.get("models"))
         channels.append(
             {
                 "id_hash": _id_hash(channel, "ch"),
@@ -325,6 +431,55 @@ def serialize_admin_channels(data: dict[str, Any]) -> dict[str, Any]:
 
     response = {"channels": channels}
     return assert_no_phi(response, "GET /admin/channels")
+
+
+def serialize_admin_channels_mgmt(data: Any) -> dict[str, Any]:
+    channels: list[dict[str, Any]] = []
+    for channel in _items_from(data, "channels"):
+        if not isinstance(channel, dict):
+            continue
+        models = _string_list(channel.get("models"))
+        channels.append(
+            {
+                "id": _as_int(channel.get("id")),
+                "name": _as_str(channel.get("name")),
+                "type": _as_str(channel.get("type")),
+                "status": _channel_status_label(channel.get("status")),
+                "weight": _as_int(channel.get("weight"), maximum=100),
+                "models": models,
+                "group": _as_str(channel.get("group")),
+                "region": _channel_region(channel, models),
+                "lane": _channel_lane(channel, models),
+                "used_quota": _as_str(channel.get("used_quota")),
+            }
+        )
+
+    response = {"channels": channels}
+    return assert_no_phi(response, "GET /admin/channels")
+
+
+def serialize_admin_tokens_mgmt(data: Any) -> dict[str, Any]:
+    tokens: list[dict[str, Any]] = []
+    for token in _items_from(data, "tokens"):
+        if not isinstance(token, dict):
+            continue
+        tokens.append(
+            {
+                "id": _as_int(token.get("id")),
+                "name": _as_str(token.get("name")),
+                "status": _token_status_label(token.get("status")),
+                "remain_quota": _as_str(token.get("remain_quota")),
+                "unlimited_quota": bool(token.get("unlimited_quota")),
+                "used_quota": _as_str(token.get("used_quota")),
+                "group": _as_str(token.get("group")),
+                "allowed_data_levels": _token_allowed_data_levels(token),
+                "expired_time": _as_str(token.get("expired_time")),
+                "accessed_time": _as_str(token.get("accessed_time")),
+            }
+        )
+
+    response = {"tokens": tokens}
+    return assert_no_phi(response, "GET /admin/tokens")
 
 
 def serialize_posture(data: dict[str, Any]) -> dict[str, Any]:
