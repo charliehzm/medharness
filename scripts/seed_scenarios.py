@@ -207,11 +207,6 @@ def build_rows(now: datetime) -> tuple[list[dict], dict]:
         "prod_models": prod_models,
         "distinct_prod_upstreams": len(prod_models),
         "window_counts": {"1h": win_count(3600), "24h": win_count(86400), "7d": win_count(7 * 86400)},
-        "posture": {
-            "composite": min(100, 92 + min(4, len(rows))),
-            "compliance_score": min(100, 96 - min(3, len(sec))),
-            "security_score": min(100, 89 + min(2, len(rows) // 10)),
-        },
         "by_scenario": by_scenario,
         "refs": {
             "phi_l4": ref_of(by_scenario["S3"][0]),       # Audit drill: L4 lineage

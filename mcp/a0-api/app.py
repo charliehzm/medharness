@@ -1435,7 +1435,12 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
         cost_submetric = "暂无实时用量"
         cost_summary = "暂无实时用量数据；产生真实调用后自动汇总。"
 
-    composite = round((security_score + compliance_score + cost_score + stability_score) / 4)
+    # Composite = mean of the goals that have a real signal. Cost has none until traffic
+    # actually flows, so a zero-usage stack is not dragged down by a 0 cost score.
+    _goal_scores = [security_score, compliance_score, stability_score]
+    if cost_score > 0:
+        _goal_scores.append(cost_score)
+    composite = round(sum(_goal_scores) / len(_goal_scores))
 
     goals = [
         {"key": "security", "score": security_score, "metric": f"拦截 {blocked} 次",
