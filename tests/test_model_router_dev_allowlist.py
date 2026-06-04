@@ -4,7 +4,6 @@ import sys
 from importlib import util
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_ROUTER_DIR = ROOT / "mcp" / "model-router"
 ALLOWLIST_PATH = MODEL_ROUTER_DIR / "allowlist.py"

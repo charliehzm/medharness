@@ -79,6 +79,14 @@ def _payload_violations(node: Any, path: str) -> list[str]:
     return out
 
 
+# Staff-directory fixtures are the sysadmin-gated user-management views. They carry
+# STAFF identity (synthetic emails on reserved .invalid / .test domains), which is NOT
+# patient PHI — the §D.1 promise is 0 *patient* PHI, and staff identity is explicitly
+# out of that scope. Patient-facing fixtures stay under the strict 0-email scan; only
+# the staff directory is scoped out, and the scan reports exactly what it skipped.
+_STAFF_DIRECTORY_FIXTURES = {"admin_users_mgmt.json"}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True)
@@ -96,7 +104,9 @@ def main() -> int:
         print(json.dumps(out, ensure_ascii=False))
         return 1
 
-    files = sorted(FIX_DIR.glob("*.json"))
+    all_files = sorted(FIX_DIR.glob("*.json"))
+    files = [fp for fp in all_files if fp.name not in _STAFF_DIRECTORY_FIXTURES]
+    scoped_out = sorted(fp.name for fp in all_files if fp.name in _STAFF_DIRECTORY_FIXTURES)
     strings_scanned = 0
     phi_hits: list[dict[str, str]] = []
     payload_violations: list[dict[str, str]] = []
@@ -116,6 +126,7 @@ def main() -> int:
         "drill": "api_phi_exfil",
         "schema_version": "A0-0.6.0",
         "fixtures_scanned": len(files),
+        "scoped_out_staff_directory": scoped_out,
         "strings_scanned": strings_scanned,
         "phi_hits": phi_hits,
         "payload_violations": payload_violations,

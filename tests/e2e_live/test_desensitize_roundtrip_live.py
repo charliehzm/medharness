@@ -37,7 +37,7 @@ def test_encrypt_redacts_and_persists_envelope(mcp_post, ch_query, no_phi) -> No
 
     # the envelope is keyed in _phi_lookup by its ciphertext ref (the response map_ref)
     map_ref = resp["map_ref"]
-    rows = ch_query("SELECT * FROM _phi_lookup WHERE ciphertext_b64 = '%s'" % map_ref)
+    rows = ch_query(f"SELECT * FROM _phi_lookup WHERE ciphertext_b64 = '{map_ref}'")
     assert rows, f"envelope not persisted to live _phi_lookup for map_ref={map_ref}"
     row = rows[0]
     assert row["algorithm"] == "AES-256-GCM"

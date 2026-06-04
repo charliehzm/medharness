@@ -339,9 +339,8 @@ def _conforms(actual: object, expected: object, path: str = "$") -> list[str]:
         elif isinstance(expected, (int, float)):
             if isinstance(actual, bool) or not isinstance(actual, (int, float)):
                 errors.append(f"{path}: expected number, got {type(actual).__name__}")
-        elif isinstance(expected, str):
-            if not isinstance(actual, str):
-                errors.append(f"{path}: expected string, got {type(actual).__name__}")
+        elif isinstance(expected, str) and not isinstance(actual, str):
+            errors.append(f"{path}: expected string, got {type(actual).__name__}")
     return errors
 
 

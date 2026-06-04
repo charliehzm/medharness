@@ -10,7 +10,6 @@ from __future__ import annotations
 import urllib.parse
 
 import pytest
-
 from conftest import assert_no_phi
 
 CONFIG_SECTIONS = (

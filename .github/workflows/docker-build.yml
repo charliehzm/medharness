@@ -54,7 +54,7 @@ jobs:
 
       - name: Trivy vulnerability scan
         if: success()
-        uses: aquasec/trivy-action@master
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: medharness/mcp-${{ matrix.mcp }}:${{ steps.version.outputs.value }}
           severity: HIGH,CRITICAL

@@ -13,7 +13,6 @@ Skipped unless MEDHARNESS_LIVE_BASE is set.
 from __future__ import annotations
 
 import pytest
-
 from conftest import assert_no_mgmt_secrets, assert_no_phi
 
 NAME_PREFIX = "e2e-tok-"
