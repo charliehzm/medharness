@@ -74,8 +74,7 @@ export default function Login({ onLogin }: LoginProps): JSX.Element {
       <section className="login-panel">
         <form className="login-panel-card" onSubmit={handleSubmit}>
           <div className="login-panel-kicker">登录控制台</div>
-          <h2>企业统一身份 · 受控访问 · 全程留痕</h2>
-          <p>账号 + 密码登录，校验复用 new-api 用户系统；无自助注册、无社交登录。登录后按角色落点。</p>
+          <h2>企业统一身份 · 全程留痕</h2>
 
           <label className="login-field">
             <span className="login-label">用户名</span>
@@ -112,15 +111,10 @@ export default function Login({ onLogin }: LoginProps): JSX.Element {
           ) : null}
 
           <button className="login-btn primary" disabled={submitting} type="submit">
-            {submitting ? "登录中…" : "🔑 登录控制台"}
+            {submitting ? "登录中…" : "登录"}
           </button>
 
-          <div className="login-sec">
-            <div>🔒 账号+密码校验复用 new-api 用户系统 · 已关闭自助注册与社交登录</div>
-            <div>🧭 登录后按角色授权：研发负责人 / 系统管理员</div>
-            <div>📝 每次登录与操作全量落审计</div>
-          </div>
-          <div className="login-foot">工程师调用网关只需 base_url + 个人令牌，无需登录控制台。</div>
+          <div className="login-sec">账号由管理员开通 · 操作全程留痕可审计</div>
         </form>
       </section>
 
