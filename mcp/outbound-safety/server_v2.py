@@ -16,6 +16,8 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import contextlib
+
 import async_catch  # noqa: E402
 import classifier  # noqa: E402
 
@@ -80,10 +82,8 @@ def _async_catch_worker_loop() -> None:
         except Exception:
             continue
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 _ASYNC_CATCH_QUEUE.task_done()
-            except Exception:
-                pass
 
 
 def health() -> dict[str, Any]:
