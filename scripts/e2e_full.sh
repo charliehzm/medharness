@@ -81,10 +81,21 @@ $PY -m pytest tools/mock_upstream/test_mock_upstream.py -q || OFF_OK=0
 ( cd vendor/new-api && go test ./middleware/ -count=1 ) || OFF_OK=0
 [ "$OFF_OK" = 1 ] && record OFF PASS || record OFF FAIL
 
-hr; echo "[4a/7] Layers 2/3/4 — gate matrix + data integrity + closed-loop/personas (live)"
+hr; echo "[4a/7] Layers 2/3/4 — gate matrix + data integrity + closed-loop/personas + Access mgmt (live)"
+L24_OK=1
+ACCESS_MGMT_LIVE=(
+  tests/e2e_live/test_admin_channels_mgmt_live.py
+  tests/e2e_live/test_admin_tokens_mgmt_live.py
+  tests/e2e_live/test_admin_users_mgmt_live.py
+  tests/e2e_live/test_access_closedloop_e2e_live.py
+)
+echo "  · Access mgmt write-proxies (channels/tokens/users) + Console-token closed loop"
+MEDHARNESS_LIVE_BASE="$BASE" $PY -m pytest "${ACCESS_MGMT_LIVE[@]}" -q || L24_OK=0
+echo "  · gate matrix + data integrity + closed-loop/personas"
 MEDHARNESS_LIVE_BASE="$BASE" $PY -m pytest tests/e2e_live tests/sim \
-  --ignore=tests/e2e_live/test_relay_failclosed_live.py -q \
-  && record "L2-4" PASS || record "L2-4" FAIL
+  --ignore=tests/e2e_live/test_relay_failclosed_live.py \
+  "${ACCESS_MGMT_LIVE[@]/#/--ignore=}" -q || L24_OK=0
+[ "$L24_OK" = 1 ] && record "L2-4" PASS || record "L2-4" FAIL
 
 hr; echo "[4b/7] fail-closed (isolated — pauses/stops an MCP, restores after)"
 MEDHARNESS_LIVE_BASE="$BASE" $PY -m pytest tests/e2e_live/test_relay_failclosed_live.py -q \

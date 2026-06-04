@@ -76,7 +76,29 @@ def creds() -> tuple[str, str]:
     return LIVE_USER, LIVE_PASS
 
 
+@pytest.fixture(scope="session")
+def sysadmin(http, creds) -> dict[str, str]:
+    """Log in through the DMZ and return an Authorization header for sysadmin writes.
+
+    The admin/* GET reads are ungated, but every write proxy (channels/tokens/users
+    management) requires a valid sysadmin session Bearer — this mints one once per run.
+    """
+    user, password = creds
+    resp = http("POST", "/api/v1/auth/login", {"username": user, "password": password})
+    assert resp.status == 200, f"login failed: {resp.status} {resp.text[:160]}"
+    token = resp.json().get("token")
+    assert token, "login returned no session token — is A0_SESSION_SECRET set on a0-api?"
+    return {"Authorization": f"Bearer {token}"}
+
+
 def assert_no_phi(text: str, where: str) -> None:
     for pat in _PHI_PATTERNS:
         m = pat.search(text)
         assert m is None, f"PHI-like marker in {where}: {m.group()[:6]}…"  # type: ignore[union-attr]
+
+
+# Management-list secrets that are not patient PHI but MUST still never cross the A0
+# boundary: plaintext provider keys, upstream base URLs, and owner user-ids.
+def assert_no_mgmt_secrets(text: str, where: str, *, extra: tuple[str, ...] = ()) -> None:
+    for marker in ("sk-", "base_url", "user_id", '"key"', *extra):
+        assert marker not in text, f"mgmt secret '{marker}' leaked in {where}: {text[:160]}"
