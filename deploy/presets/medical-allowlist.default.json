@@ -1,0 +1,71 @@
+{
+  "_medharness_note": "起步医疗 allowlist 模板（派生自 docs/productization/medical-model-catalog.md §4，≤30 人医疗示例，非写死）。这是 model-router 的 T3.allowlist.v1，合规编码全在 allowed_data_levels：境外/常规通道封顶 L2（默认禁 PHI），私有部署敏感通道才放开 L3/L4。lane/region/留存等渠道扩展属性见 channel-templates.medical.json。部署：复制为某个 change-id 的 MODEL_ALLOWLIST.json（model-router 按 change-id 加载）。客户须按 §6 准入流程先验证模型再放大数据等级上限。",
+  "schema_version": "T3.allowlist.v1",
+  "policy_version": "medical-default-v1",
+  "models": [
+    {
+      "id": "deepseek-v3",
+      "vendor_family": "deepseek",
+      "deployment": "cn-managed://deepseek/deepseek-v3",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2"],
+      "rate_limit_qps": 20
+    },
+    {
+      "id": "qwen-max",
+      "vendor_family": "alibaba",
+      "deployment": "cn-managed://alibaba/qwen-max",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2"],
+      "rate_limit_qps": 20
+    },
+    {
+      "id": "local-qwen",
+      "vendor_family": "local",
+      "deployment": "private://vllm/qwen2.5-72b",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2", "L3", "L4"],
+      "rate_limit_qps": 20
+    },
+    {
+      "id": "lingshu-32b",
+      "vendor_family": "local",
+      "deployment": "private://vllm/lingshu-32b",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2", "L3", "L4"],
+      "rate_limit_qps": 10
+    },
+    {
+      "id": "huatuogpt-o1-8b",
+      "vendor_family": "local",
+      "deployment": "private://vllm/huatuogpt-o1-8b",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2", "L3", "L4"],
+      "rate_limit_qps": 10
+    },
+    {
+      "id": "baichuan-m1",
+      "vendor_family": "baichuan",
+      "deployment": "cn-managed://baichuan/baichuan-m1",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2"],
+      "rate_limit_qps": 10
+    },
+    {
+      "id": "claude-sonnet-4.6",
+      "vendor_family": "anthropic",
+      "deployment": "overseas://anthropic/claude-sonnet-4.6",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2"],
+      "rate_limit_qps": 10
+    },
+    {
+      "id": "gpt-4o",
+      "vendor_family": "openai",
+      "deployment": "overseas://openai/gpt-4o",
+      "allowed_agent_roles": ["coder", "docs", "reviewer", "compliance", "maintainer"],
+      "allowed_data_levels": ["L1", "L2"],
+      "rate_limit_qps": 10
+    }
+  ]
+}

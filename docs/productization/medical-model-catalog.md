@@ -108,6 +108,26 @@ GPT-4o/o 系列 · Claude · Gemini；医疗 Med-PaLM 2 / MedGemma / MedLM。默
 
 ---
 
+## 7. 默认接入预设（presets · 开箱起步）
+
+把上面 §3/§4 落成可部署的预设，三件套在 `deploy/presets/` + `scripts/`：
+
+| 文件 | 作用 |
+|---|---|
+| `deploy/presets/medical-allowlist.default.json` | model-router 起步 allowlist（`T3.allowlist.v1`，8 个模型）。**合规编码全在 `allowed_data_levels`**：私有部署敏感通道放开 `L3/L4`，境内/境外常规通道封顶 `L2`（**境外默认禁 PHI**）。部署 = 复制为某 change-id 的 `MODEL_ALLOWLIST.json`（router 按 change-id 加载）。 |
+| `deploy/presets/channel-templates.medical.json` | 每模型一份 new-api 渠道模板，预填 §3「必挂扩展属性」(`medharness` 块：lane/region/retention/数据等级上限)。**key 留空、status=disabled**。 |
+| `scripts/seed_medical_channels.py` | 把模板建成 new-api **禁用态**渠道；`--dry-run` 预览。新底座要求 key 非空，故写入**显眼占位 key** `REPLACE_WITH_REAL_KEY_BEFORE_ENABLING`，渠道禁用故占位 key 永不被调用。幂等（重名跳过）。 |
+
+校验：`pytest tests/test_medical_presets.py`（allowlist 过真 router 加载器 + 不变量：PHI 仅私有、境外禁 PHI、模板零真实 key/全禁用）。
+
+### 诚实边界（务必读）
+- **不内置任何真实 key，不造任何可用 live 渠道**——预设全是占位 + 禁用态。
+- 启用任一渠道前，客户**必须**：① 填真实 key + base_url；② 满足该通道的合规前置（境内 API → no-retention/no-training + 境内驻留合同；私有医疗模型 → 自有部署授权）；③ 过 §6 准入流程（独立医疗红队 + 基准评测），尤其先验出站幻觉/有害闸门（§5.1）。
+- 预设是**起步示例、非写死**；数据等级上限、lane、留存须按客户实际合同与部署逐条复核后才可放大。
+- MedHarness **不绑定**某个医疗模型，也**不做临床决策**——只路由 + 合规 + 留痕；临床责任在客户（§5.3）。
+
+---
+
 ## Sources（2026-05 · curl 实取）
 - Hugging Face API：[Lingshu-32B](https://huggingface.co/lingshu-medical-mllm/Lingshu-32B) · [HuatuoGPT-o1-72B](https://huggingface.co/FreedomIntelligence/HuatuoGPT-o1-72B) · [II-Medical-32B](https://huggingface.co/Intelligent-Internet/II-Medical-32B-Preview) · [Meditron3-8B](https://huggingface.co/EPFLiGHT/Meditron3-8B) · [Bio-Medical-Llama-3-8B](https://huggingface.co/ContactDoctor/Bio-Medical-Llama-3-8B) · [ClinicalGPT-base-zh](https://huggingface.co/medicalai/ClinicalGPT-base-zh)
 - 公开检索（境内商用，2026）：36氪《2026 国内最值得期待的十个医疗大模型》· 新浪财经《百川 M3 Plus》· 《百川 M2 Plus 幻觉率降到 DeepSeek 三成》· [百川智能](https://www.baichuan-ai.com) · 讯飞医疗

@@ -1,0 +1,142 @@
+{
+  "_medharness_note": "医疗渠道模板（派生自 medical-model-catalog.md §3/§4）。每条对应一个 allowlist 模型，预填 new-api 渠道字段 + §3「必挂扩展属性」(medharness 块)。key 一律留空、status=disabled —— 这是模板，不是可用渠道；客户必须自配 key、base_url，并满足 medharness.requires 的合规前置（no-retention/境内合同/私有部署）后再启用。绝不内置任何真实 key 或可用 live 渠道。scripts/seed_medical_channels.py 可把这些建成 new-api 的禁用态渠道。",
+  "schema_version": "T3.channel-templates.medical.v1",
+  "channels": [
+    {
+      "name": "[模板] DeepSeek 境内·常规便宜池",
+      "type": "deepseek",
+      "models": ["deepseek-v3"],
+      "group": "default",
+      "base_url": "",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "regular",
+        "region": "cn",
+        "retention": "no-retention",
+        "data_level_cap": "L2",
+        "requires": "境内 no-retention/no-training 合同（RFC §F）",
+        "note": "日常 / 便宜池主力；脱敏后 L2，禁原始 PHI"
+      }
+    },
+    {
+      "name": "[模板] Qwen-Max 境内·常规",
+      "type": "ali",
+      "models": ["qwen-max"],
+      "group": "default",
+      "base_url": "",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "regular",
+        "region": "cn",
+        "retention": "no-retention",
+        "data_level_cap": "L2",
+        "requires": "境内 no-retention 合同",
+        "note": "日常通用；脱敏后 L2"
+      }
+    },
+    {
+      "name": "[模板] Qwen2.5 私有部署·敏感(含PHI)",
+      "type": "openai",
+      "models": ["local-qwen"],
+      "group": "sensitive",
+      "base_url": "http://REPLACE-vllm-host:8000/v1",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "sensitive",
+        "region": "private",
+        "retention": "none",
+        "data_level_cap": "L4",
+        "requires": "私有 vLLM/SGLang OpenAI 兼容端点 · 不出境",
+        "note": "含 PHI 通用；私有部署是最干净的 PHI 路径"
+      }
+    },
+    {
+      "name": "[模板] Lingshu-32B 私有部署·敏感·医疗多模态",
+      "type": "openai",
+      "models": ["lingshu-32b"],
+      "group": "sensitive",
+      "base_url": "http://REPLACE-vllm-host:8000/v1",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "sensitive",
+        "region": "private",
+        "retention": "none",
+        "data_level_cap": "L4",
+        "requires": "私有部署 · 不出境；多模态 PHI(影像 burned-in 文本/元数据)脱敏须先到位",
+        "note": "含 PHI · 影像；接入前先验出站幻觉闸门(§5.1)"
+      }
+    },
+    {
+      "name": "[模板] HuatuoGPT-o1-8B 私有部署·敏感·临床推理",
+      "type": "openai",
+      "models": ["huatuogpt-o1-8b"],
+      "group": "sensitive",
+      "base_url": "http://REPLACE-vllm-host:8000/v1",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "sensitive",
+        "region": "private",
+        "retention": "none",
+        "data_level_cap": "L4",
+        "requires": "私有部署 · 不出境",
+        "note": "含 PHI · 临床问答；低幻觉宣传不替代出站复核"
+      }
+    },
+    {
+      "name": "[模板] 百川医疗 API 境内·常规(脱敏后)",
+      "type": "baichuan",
+      "models": ["baichuan-m1"],
+      "group": "default",
+      "base_url": "",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "regular",
+        "region": "cn",
+        "retention": "contract-required",
+        "data_level_cap": "L2",
+        "requires": "脱敏后用；如签私有授权+境内驻留合同可升敏感(L4)",
+        "note": "医疗增强；商用 API 碰 PHI 必须先清合同"
+      }
+    },
+    {
+      "name": "[模板] Claude-Sonnet 境外·常规·默认禁PHI",
+      "type": "anthropic",
+      "models": ["claude-sonnet-4.6"],
+      "group": "default",
+      "base_url": "",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "regular",
+        "region": "overseas",
+        "retention": "provider-terms",
+        "data_level_cap": "L2",
+        "requires": "仅脱敏后；境外默认禁 PHI(L3/L4)",
+        "note": "可选 · 强模型备份；allowlist 已封顶 L2"
+      }
+    },
+    {
+      "name": "[模板] GPT-4o 境外·常规·默认禁PHI",
+      "type": "openai",
+      "models": ["gpt-4o"],
+      "group": "default",
+      "base_url": "",
+      "key": "",
+      "status": "disabled",
+      "medharness": {
+        "lane": "regular",
+        "region": "overseas",
+        "retention": "provider-terms",
+        "data_level_cap": "L2",
+        "requires": "仅脱敏后；境外默认禁 PHI(L3/L4)",
+        "note": "可选 · 强模型备份；allowlist 已封顶 L2"
+      }
+    }
+  ]
+}

@@ -75,9 +75,9 @@ provision_admin_token
 hr; echo "[2/7] seed deterministic 15-scenario 0-PHI audit rows"
 seed_scenarios && sed 's/.*"total": *\([0-9]*\).*/  seeded \1 scenario rows + manifest/' /tmp/e2e_seed_manifest.json | head -1
 
-hr; echo "[3/7] offline units — mock simulator + Go gate pure-funcs"
+hr; echo "[3/7] offline units — mock simulator + medical presets + Go gate pure-funcs"
 OFF_OK=1
-$PY -m pytest tools/mock_upstream/test_mock_upstream.py -q || OFF_OK=0
+$PY -m pytest tools/mock_upstream/test_mock_upstream.py tests/test_medical_presets.py -q || OFF_OK=0
 ( cd vendor/new-api && go test ./middleware/ -count=1 ) || OFF_OK=0
 [ "$OFF_OK" = 1 ] && record OFF PASS || record OFF FAIL
 
