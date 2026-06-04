@@ -38,7 +38,7 @@ export default function System(): JSX.Element {
         <div>
           <div className="system-kicker">🛠 系统</div>
           <h2>部署健康、备份与升级</h2>
-          <div className="system-subtitle">只展示上游健康与聚合统计；备份/升级保留为动作，不编造假指标。</div>
+          <div className="system-subtitle">上游健康与用量概览。</div>
         </div>
         <div className="system-badges">
           <Tag tone="muted">两角色可见</Tag>
@@ -76,7 +76,7 @@ export default function System(): JSX.Element {
             <Card title="备份 / 升级">
               <div className="system-planned">即将推出</div>
               <div className="system-copy">
-                备份与升级暂未提供专门契约；保留为动作入口，不展示假数据。
+                一键备份与版本升级，即将开放。
               </div>
               <div className="system-actions">
                 <button type="button">一键备份</button>

@@ -56,7 +56,7 @@ export default function Login({ onLogin }: LoginProps): JSX.Element {
           <br />
           都<span>安全 · 省钱 · 合规 · 稳定</span>
         </h1>
-        <p>把开发态与生产态的大模型流量收口为单一受控入口。脱敏、分级路由、防篡改审计，一套网关，四个目标。</p>
+        <p>把研发与生产的大模型流量收口为单一受控入口。脱敏、分级路由、防篡改审计，一套网关，四个目标。</p>
         <div className="login-goals">
           {GOALS.map((goal) => (
             <Tag key={goal} tone={goal === "安全" ? "security" : goal === "省钱" ? "cost" : goal === "合规" ? "compliance" : "muted"}>

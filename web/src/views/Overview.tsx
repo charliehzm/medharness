@@ -152,7 +152,7 @@ export default function Overview(): JSX.Element {
               <TargetCard
                 key={goal.key}
                 accent={GOAL_ACCENT[goal.key]}
-                foot="来自 A0 实时聚合"
+                foot="网关实时聚合"
                 metric={goal.metric}
                 ring={goal.score}
                 submetric={goal.submetric}

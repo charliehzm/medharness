@@ -204,7 +204,7 @@ export default function Audit(): JSX.Element {
         <div>
           <div className="audit-kicker">🔍 合规与报表</div>
           <h2>查得清 · 改不了 · 交得出</h2>
-          <div className="audit-subtitle">仅展示脱敏标记、哈希引用与聚合处置结果。</div>
+          <div className="audit-subtitle">仅展示脱敏标记与聚合处置结果，不触达原文。</div>
         </div>
         <div className="audit-badges" aria-label="合规状态">
           <Tag tone="ok">防篡改链</Tag>
@@ -263,7 +263,7 @@ export default function Audit(): JSX.Element {
               <section className="audit-export-result" aria-label="监管应对包导出结果">
                 <div>
                   <div className="audit-panel-title">监管应对包</div>
-                  <div className="audit-panel-subtitle">仅生成包引用与校验哈希，不导出原始数据。</div>
+                  <div className="audit-panel-subtitle">仅生成校验引用，不导出原始数据。</div>
                 </div>
                 <div className="audit-export-grid">
                   <div>

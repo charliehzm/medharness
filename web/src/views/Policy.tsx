@@ -64,8 +64,8 @@ const TAB_SECTIONS: Record<PolicyTab, ConfigSection[]> = {
 const TAB_META: Record<PolicyTab, { label: string; note: string }> = {
   compliance: { label: "合规", note: "场景 / 模型 / 字段 / 阈值 / 留存" },
   security: { label: "安全", note: "注入防护 / 出站输出" },
-  cost: { label: "成本护栏", note: "配额限流 · 暂未上线的能力标注「即将推出」" },
-  governance: { label: "治理审批", note: "上游 / 审批 · 改动走 DIFF 预览" },
+  cost: { label: "成本护栏", note: "配额与限流" },
+  governance: { label: "治理审批", note: "上游准入 · 改动先预览再审批" },
 };
 
 const APPROVAL_COLUMNS: TableColumn<ApprovalRow>[] = [
@@ -220,7 +220,7 @@ function SectionCard({
         </div>
 
         <div className="policy-card-note">
-          {builtPlanned ? "即将推出 · 暂未上线" : "读写均需走审批流；当前值来自真 ConfigSnapshot.fields。"}
+          {builtPlanned ? "即将推出" : "读写均需走审批流；当前为线上生效配置。"}
         </div>
 
         <Table<FieldRow>
@@ -347,7 +347,7 @@ export default function Policy(): JSX.Element {
         <div>
           <div className="policy-kicker">⚙️ 策略</div>
           <h2>改动走 DIFF 预览 + 审批</h2>
-          <div className="policy-subtitle">像 code review 一样看配置 · 只显示策略快照、哈希与审批结果。</div>
+          <div className="policy-subtitle">配置改动先预览、再审批 · 只显示策略快照与审批结果。</div>
         </div>
         <div className="policy-badges">
           <Tag tone="muted">DIFF 预览</Tag>
