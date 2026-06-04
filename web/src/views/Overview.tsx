@@ -4,9 +4,16 @@ import Card from "@/components/Card";
 import Ring from "@/components/Ring";
 import Tag from "@/components/Tag";
 import { requestEndpoint } from "@/api/client";
-import type { PostureResponse, Sanitized } from "@/api/contract";
+import type { PostureGoal, PostureResponse, Sanitized } from "@/api/contract";
 
 import "./Overview.css";
+
+const GOAL_ACCENT: Record<PostureGoal["key"], "var(--teal)" | "var(--violet)" | "var(--navy)" | "var(--cost)"> = {
+  security: "var(--teal)",
+  cost: "var(--cost)",
+  compliance: "var(--violet)",
+  stability: "var(--navy)",
+};
 
 type LoadState =
   | { status: "loading" }
@@ -89,31 +96,6 @@ function TargetCard({
   );
 }
 
-function PlannedTargetCard({
-  title,
-  summary,
-  tone,
-}: {
-  title: string;
-  summary: string;
-  tone: "cost" | "muted" | "security";
-}): JSX.Element {
-  return (
-    <Card>
-      <div className="overview-target overview-target-planned">
-        <div className="overview-target-head">
-          <span className="overview-goal-pill">{title}</span>
-          <div className="overview-target-summary">{summary}</div>
-        </div>
-        <div className="overview-planned-body">
-          <Tag tone={tone}>即将推出</Tag>
-          <div className="overview-target-foot">该指标即将上线。</div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 export default function Overview(): JSX.Element {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -166,18 +148,18 @@ export default function Overview(): JSX.Element {
           </section>
 
           <section className="overview-grid overview-grid-4">
-            <TargetCard
-              accent="var(--teal)"
-              foot="来自 A0 态势聚合"
-              metric={`${state.data.composite}`}
-              ring={state.data.composite}
-              submetric={`合规 ${state.data.compliance_score} · 安全 ${state.data.security_score}`}
-              summary="安全"
-              title="安全"
-            />
-            <PlannedTargetCard summary="省钱" title="省钱" tone="cost" />
-            <PlannedTargetCard summary="合规" title="合规" tone="muted" />
-            <PlannedTargetCard summary="稳定" title="稳定" tone="security" />
+            {state.data.goals.map((goal) => (
+              <TargetCard
+                key={goal.key}
+                accent={GOAL_ACCENT[goal.key]}
+                foot="来自 A0 实时聚合"
+                metric={goal.metric}
+                ring={goal.score}
+                submetric={goal.submetric}
+                summary={goal.summary}
+                title={goal.summary}
+              />
+            ))}
           </section>
 
           <section>
@@ -192,16 +174,16 @@ export default function Overview(): JSX.Element {
           <section className="overview-grid overview-grid-2">
             <section className="overview-summary-card">
               <div className="overview-summary-title">本月安全小结</div>
-              <div className="overview-summary-text">即将推出</div>
+              <div className="overview-summary-text">{state.data.summaries.security}</div>
               <div className="overview-summary-tags">
-                <Tag tone="muted">待汇总</Tag>
+                <Tag tone="ok">实时聚合</Tag>
               </div>
             </section>
             <section className="overview-summary-card">
               <div className="overview-summary-title">本月成本小结</div>
-              <div className="overview-summary-text">即将推出</div>
+              <div className="overview-summary-text">{state.data.summaries.cost}</div>
               <div className="overview-summary-tags">
-                <Tag tone="cost">待汇总</Tag>
+                <Tag tone="cost">实时聚合</Tag>
               </div>
             </section>
           </section>

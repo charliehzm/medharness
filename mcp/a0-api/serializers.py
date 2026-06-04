@@ -520,10 +520,34 @@ def serialize_posture(data: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    goals: list[dict[str, Any]] = []
+    for goal in data.get("goals") or []:
+        if not isinstance(goal, dict):
+            continue
+        goals.append(
+            {
+                "key": _enum(goal.get("key"), {"security", "cost", "compliance", "stability"}, "security"),
+                "score": _as_int(goal.get("score"), maximum=100),
+                "metric": _as_str(goal.get("metric")),
+                "submetric": _as_str(goal.get("submetric")),
+                "summary": _as_str(goal.get("summary")),
+            }
+        )
+
+    summaries_src = data.get("summaries") if isinstance(data.get("summaries"), dict) else {}
+    summaries = {
+        "security": _as_str(summaries_src.get("security")),
+        "cost": _as_str(summaries_src.get("cost")),
+    }
+
     response = {
         "composite": _as_int(data.get("composite"), maximum=100),
         "compliance_score": _as_int(data.get("compliance_score"), maximum=100),
         "security_score": _as_int(data.get("security_score"), maximum=100),
+        "cost_score": _as_int(data.get("cost_score"), maximum=100),
+        "stability_score": _as_int(data.get("stability_score"), maximum=100),
+        "goals": goals,
+        "summaries": summaries,
         "gates": gates,
         "alerts": alerts,
     }

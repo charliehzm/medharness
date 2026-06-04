@@ -2,6 +2,18 @@
   "composite": 92,
   "compliance_score": 96,
   "security_score": 89,
+  "cost_score": 78,
+  "stability_score": 95,
+  "goals": [
+    { "key": "security", "score": 89, "metric": "拦截 6 次", "submetric": "注入 / 有害拦截 · 0 漏检", "summary": "安全" },
+    { "key": "cost", "score": 78, "metric": "$12.40", "submetric": "今日 $0.80 · 低成本池 78%", "summary": "省钱" },
+    { "key": "compliance", "score": 96, "metric": "PHI 0 出境", "submetric": "脱敏 / 准入 全绿", "summary": "合规" },
+    { "key": "stability", "score": 95, "metric": "p95 22ms", "submetric": "成功率 95% · 失败 2", "summary": "稳定" }
+  ],
+  "summaries": {
+    "security": "近期 40 次受控调用，拦截 6 次风险、告警 2 次，PHI 全程 0 出境。",
+    "cost": "近 30 天真实花费 ¥12.40，低成本池占比 78%（较直连节省 / 缓存 ROI 见商业版）。"
+  },
   "gates": [
     { "id": "phi-inbound", "group": "compliance", "status": "green", "metric": "100%", "desc": "泄漏拦截率·220 样本", "built": true },
     { "id": "desensitize", "group": "compliance", "status": "green", "metric": "0.02ms", "built": true },

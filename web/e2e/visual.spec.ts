@@ -12,7 +12,7 @@ import { gotoScreen, login, switchRole } from "./fixtures";
 // Regenerate baselines after an intended UI change:
 //   MEDHARNESS_LIVE_BASE=https://localhost:18443 bun run e2e -- visual.spec.ts --update-snapshots
 const SCREENS: ReadonlyArray<readonly [string, readonly string[]]> = [
-  ["总览", []], // posture scores are deterministic from the seed; gates are static
+  ["总览", [".overview-attention", ".overview-grid-4", ".overview-grid-2"]], // live goal scores / alerts / summaries vary with audit + cost data
   ["流量监控", [".events"]], // event stream carries live timestamps
   ["合规与报表", [".dtable-scroll"]], // table rows carry timestamps
   ["用量与成本", [".cost-grid-kpi", ".cost-grid-guard", ".cost-grid-bars"]], // live cost aggregates vary per run

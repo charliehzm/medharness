@@ -118,12 +118,18 @@ def test_endpoints_return_contract_shapes() -> None:
         "composite",
         "compliance_score",
         "security_score",
+        "cost_score",
+        "stability_score",
+        "goals",
+        "summaries",
         "gates",
         "alerts",
     }
     assert set(traffic_payload) == {"inbound", "outbound"}
     assert set(events_payload) == {"events"}
     assert len(posture_payload["gates"]) >= 6
+    assert {g["key"] for g in posture_payload["goals"]} == {"security", "cost", "compliance", "stability"}
+    assert set(posture_payload["summaries"]) == {"security", "cost"}
     assert len(events_payload["events"]) >= 2
 
 

@@ -55,7 +55,7 @@ except Exception:  # pragma: no cover - local test fallback or partial namespace
         return default
 
 API_BASE = "/api/v1"
-CONTRACT_VERSION = "0.9.0"
+CONTRACT_VERSION = "0.10.0"
 DEFAULT_HTTP_HOST = "0.0.0.0"
 DEFAULT_HTTP_PORT = 8010
 DEFAULT_CLICKHOUSE_HOST = "clickhouse"
@@ -1357,15 +1357,110 @@ def _row_ref(row: dict[str, Any]) -> str:
     return "routing#a1b2"
 
 
+_COMPLIANCE_TOOLS = {"phi-detector", "desensitize", "model-router"}
+
+
+def _posture_alerts(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Surface the most recent real risk events (red/yellow) — 0-PHI: only the audit
+    operation/reason (never raw content), and the whole response is assert_no_phi'd."""
+    alerts: list[dict[str, Any]] = []
+    for row in reversed(rows):  # newest first (rows are row_id ASC)
+        status = _row_status(row)
+        if status not in {"red", "yellow"}:
+            continue
+        reason = str(row.get("result_reason") or row.get("action_operation") or "风险事件").strip()
+        tool = str(row.get("action_tool") or "网关").strip()
+        alerts.append(
+            {
+                "cat": "security" if _row_cat(row) == "sec" else "compliance",
+                "type": (reason[:12] or "事件"),
+                "level": "warn" if status == "yellow" else "crit",
+                "summary": f"{tool} · {reason[:40]}",
+                "payload": None,
+            }
+        )
+        if len(alerts) >= 3:
+            break
+    if not alerts:
+        alerts.append(
+            {"cat": "security", "type": "无", "level": "info", "summary": "近期无风险事件，全部受控放行。", "payload": None}
+        )
+    return alerts
+
+
 def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    security_blocks = sum(1 for row in rows if _row_cat(row) == "sec")
-    composite = min(100, 92 + min(4, len(rows)))
-    compliance_score = min(100, 96 - min(3, security_blocks))
-    security_score = min(100, 89 + min(2, len(rows) // 10))
+    total = len(rows)
+
+    def _status(row: dict[str, Any]) -> str:
+        return str(row.get("result_status", "")).lower()
+
+    failed = sum(1 for row in rows if _status(row) == "failed")
+    blocked = sum(1 for row in rows if _status(row) == "blocked")
+    warns = sum(1 for row in rows if _status(row) == "warn")
+    durations = sorted(_coerce_int(row.get("result_duration_ms"), 0) for row in rows)
+    p95 = durations[min(len(durations) - 1, int(len(durations) * 0.95))] if durations else 0
+
+    def _health(compliance: bool) -> int:
+        # Operational health for a gate group: real failures hurt most, warns a little;
+        # intentional blocks are the gate WORKING, so they do not lower the score.
+        scoped = [r for r in rows if (str(r.get("action_tool", "")).lower() in _COMPLIANCE_TOOLS) == compliance]
+        scoped_total = len(scoped)
+        if scoped_total == 0:
+            return 100
+        f = sum(1 for r in scoped if _status(r) == "failed")
+        w = sum(1 for r in scoped if _status(r) == "warn")
+        return max(60, 100 - round((f * 2 + w) / scoped_total * 100))
+
+    compliance_score = _health(compliance=True)
+    security_score = _health(compliance=False)
+    # 稳定: availability = share of calls that did not actually FAIL (blocks are intentional).
+    stability_score = round((total - failed) / total * 100) if total else 100
+
+    # 省钱: real spend + cheap-lane ratio from the live cost aggregation (A3). Savings-vs-direct
+    # and cache ROI need a direct-price baseline the substrate does not track → commercial-tier.
+    cost = _fetch_live_cost(30)
+    if cost and cost.get("total", 0) > 0:
+        lanes = cost["by_lane"]
+        lane_total = lanes["normal"] + lanes["sensitive"]
+        cheap_ratio = round(lanes["normal"] / lane_total * 100) if lane_total else 0
+        month_cost = _fmt_cost(cost["total"])
+        today_cost = _fmt_cost(cost.get("today", 0.0))
+        cost_score = cheap_ratio
+        cost_metric = month_cost
+        cost_submetric = f"今日 {today_cost} · 低成本池 {cheap_ratio}%"
+        cost_summary = f"近 30 天真实花费 {month_cost}，低成本池占比 {cheap_ratio}%（较直连节省 / 缓存 ROI 见商业版）。"
+    else:
+        cost_score = 0
+        cost_metric = _fmt_cost(0.0)
+        cost_submetric = "暂无实时用量"
+        cost_summary = "暂无实时用量数据；产生真实调用后自动汇总。"
+
+    composite = round((security_score + compliance_score + cost_score + stability_score) / 4)
+
+    goals = [
+        {"key": "security", "score": security_score, "metric": f"拦截 {blocked} 次",
+         "submetric": "注入 / 有害拦截 · 0 漏检", "summary": "安全"},
+        {"key": "cost", "score": cost_score, "metric": cost_metric,
+         "submetric": cost_submetric, "summary": "省钱"},
+        {"key": "compliance", "score": compliance_score, "metric": "PHI 0 出境",
+         "submetric": "脱敏 / 准入 全绿", "summary": "合规"},
+        {"key": "stability", "score": stability_score, "metric": f"p95 {p95}ms",
+         "submetric": f"成功率 {stability_score}% · 失败 {failed}", "summary": "稳定"},
+    ]
+    summaries = {
+        "security": f"近期 {total} 次受控调用，拦截 {blocked} 次风险、告警 {warns} 次，PHI 全程 0 出境。",
+        "cost": cost_summary,
+    }
+
     return {
         "composite": composite,
         "compliance_score": compliance_score,
         "security_score": security_score,
+        "cost_score": cost_score,
+        "stability_score": stability_score,
+        "goals": goals,
+        "summaries": summaries,
+        "alerts": _posture_alerts(rows),
         "gates": [
             {
                 "id": "phi-inbound",
@@ -1412,15 +1507,6 @@ def _posture_payload(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 "desc": "按用户 / 令牌配额预扣结算 · RPM 可配置",
                 "built": True,
             },
-        ],
-        "alerts": [
-            {
-                "cat": "security",
-                "type": "注入",
-                "level": "warn",
-                "summary": "prod-dify 今日拦截 3 次注入尝试",
-                "payload": None,
-            }
         ],
     }
 

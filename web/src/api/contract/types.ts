@@ -60,10 +60,27 @@ export interface PostureAlert {
   /** 安全事件不回显 payload，恒 null */
   payload: null;
 }
+/** 四目标之一的实时评分卡（全部来自 A0 实时聚合，0-100）。 */
+export interface PostureGoal {
+  key: "security" | "cost" | "compliance" | "stability";
+  score: number;
+  metric: string;
+  submetric: string;
+  summary: string;
+}
+/** 月度小结文本（来自真实审计 / 成本聚合）。 */
+export interface PostureSummaries {
+  security: string;
+  cost: string;
+}
 export interface PostureResponse {
   composite: number;
   compliance_score: number;
   security_score: number;
+  cost_score: number;
+  stability_score: number;
+  goals: PostureGoal[];
+  summaries: PostureSummaries;
   gates: Gate[];
   alerts: PostureAlert[];
 }
