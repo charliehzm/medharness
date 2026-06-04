@@ -44,6 +44,7 @@ import type {
   UpstreamsResponse,
 } from "@/api/contract";
 import type { RoleId } from "@/app/nav";
+import { MEDICAL_CHANNEL_TEMPLATES } from "@/data/medicalChannelTemplates";
 
 import "./Access.css";
 
@@ -86,7 +87,17 @@ const TAB_ITEMS: { id: AccessTab; label: string; note: string }[] = [
 ];
 
 const SAFE_FOOTNOTE = "仅展示脱敏标识,无明文密钥与患者信息";
-const DATA_LEVEL_OPTIONS: DataLevel[] = ["L2", "L3"];
+// A token's allowed data levels have no dedicated column upstream — they are DERIVED
+// from the group (+ allowlist), so the Console shows them read-only rather than letting
+// an operator "edit" a value that would not persist. This mirrors the backend heuristic
+// for the create-time preview only; the row list shows the backend's authoritative value.
+function deriveLevelsFromGroup(group: string): DataLevel[] {
+  const g = group.toLowerCase();
+  const levels: DataLevel[] = ["L2"];
+  if (/l3|prod|production|default|medical|sensitive|phi|claude|gpt/.test(g)) levels.push("L3");
+  if (/l4/.test(g)) levels.push("L4");
+  return levels;
+}
 
 const USER_COLUMNS: TableColumn<UserRow>[] = [
   { key: "publicRef", header: "用户标识", mono: true },
@@ -358,12 +369,11 @@ type TokenMgmtRow = Record<string, unknown> & MgmtToken & {
   dataLabel: string;
 };
 
-type TokenDialogKind = "create" | "quota" | "levels" | "status" | "delete";
+type TokenDialogKind = "create" | "quota" | "status" | "delete";
 
 type TokenDialog =
   | { kind: "create"; status: FormStatus }
   | { kind: "quota"; target: MgmtToken; status: FormStatus }
-  | { kind: "levels"; target: MgmtToken; status: FormStatus }
   | { kind: "status"; target: MgmtToken; status: FormStatus }
   | { kind: "delete"; target: MgmtToken; status: FormStatus };
 
@@ -412,9 +422,6 @@ function TokenManagement(): JSX.Element {
           <div className="access-row-actions">
             <button type="button" onClick={() => setDialog({ kind: "quota", target: row, status: "editing" })}>
               改配额
-            </button>
-            <button type="button" onClick={() => setDialog({ kind: "levels", target: row, status: "editing" })}>
-              数据等级
             </button>
             <button type="button" onClick={() => setDialog({ kind: "status", target: row, status: "editing" })}>
               {row.status === "enabled" ? "停用" : "启用"}
@@ -483,8 +490,6 @@ function tokenDialogTitle(kind: TokenDialogKind): string {
       return "新建接入应用";
     case "quota":
       return "改配额";
-    case "levels":
-      return "改数据等级";
     case "status":
       return "启用 / 停用";
     case "delete":
@@ -511,20 +516,13 @@ function TokenDialogView({
   const [unlimited, setUnlimited] = useState(target?.unlimited_quota ?? false);
   const [quota, setQuota] = useState(target?.unlimited_quota ? "" : target?.remain_quota ?? "");
   const [expiredTime, setExpiredTime] = useState(target?.expired_time ?? "");
-  const [levels, setLevels] = useState<DataLevel[]>(
-    target?.allowed_data_levels.filter((level) => level === "L2" || level === "L3") ?? ["L2"],
-  );
+  // Read-only: the data levels follow the group, they are not independently editable.
+  const derivedLevels = deriveLevelsFromGroup(group);
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   const submitting = dialog.status === "submitting";
   const fail = () => onChange({ ...dialog, status: "error" });
   const begin = () => onChange({ ...dialog, status: "submitting" });
-
-  const toggleLevel = (level: DataLevel) => {
-    setLevels((current) =>
-      current.includes(level) ? current.filter((item) => item !== level) : [...current, level],
-    );
-  };
 
   const buildQuotaBody = (): Pick<MgmtTokenCreate, "remain_quota" | "unlimited_quota" | "expired_time"> | null => {
     let remainQuota: number | undefined;
@@ -551,17 +549,14 @@ function TokenDialogView({
           setFieldError("请填写应用名");
           return;
         }
-        if (!levels.length) {
-          setFieldError("至少选择一个数据等级");
-          return;
-        }
         const quotaBody = buildQuotaBody();
         if (!quotaBody) return;
         begin();
         await createToken({
           name: name.trim(),
           group,
-          allowed_data_levels: levels,
+          // Derived from the group, not independently chosen (read-only in the form).
+          allowed_data_levels: derivedLevels,
           ...quotaBody,
         });
       } else if (dialog.kind === "quota") {
@@ -569,15 +564,6 @@ function TokenDialogView({
         if (!quotaBody) return;
         begin();
         await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), quotaBody);
-      } else if (dialog.kind === "levels") {
-        if (!levels.length) {
-          setFieldError("至少选择一个数据等级");
-          return;
-        }
-        begin();
-        await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), {
-          allowed_data_levels: levels,
-        });
       } else if (dialog.kind === "status") {
         begin();
         await updateToken(publicRefOf(dialog.target as unknown as Record<string, unknown>), {
@@ -595,7 +581,6 @@ function TokenDialogView({
 
   const isCreate = dialog.kind === "create";
   const isQuota = dialog.kind === "create" || dialog.kind === "quota";
-  const isLevels = dialog.kind === "create" || dialog.kind === "levels";
   const isConfirmKind = dialog.kind === "status" || dialog.kind === "delete";
 
   return (
@@ -682,21 +667,17 @@ function TokenDialogView({
             </>
           ) : null}
 
-          {isLevels ? (
+          {isCreate ? (
             <div className="access-form-field">
-              <label>允许数据等级</label>
-              <div className="access-check-grid">
-                {DATA_LEVEL_OPTIONS.map((level) => (
-                  <label key={level} className="access-check-row">
-                    <input
-                      checked={levels.includes(level)}
-                      onChange={() => toggleLevel(level)}
-                      type="checkbox"
-                    />
+              <label>允许数据等级（只读 · 由分组派生）</label>
+              <div className="access-chip-row">
+                {derivedLevels.map((level) => (
+                  <Tag key={level} tone="compliance">
                     {level}
-                  </label>
+                  </Tag>
                 ))}
               </div>
+              <div className="access-field-hint">数据等级随所属分组与 allowlist 治理，不在此独立设置。</div>
             </div>
           ) : null}
 
@@ -993,6 +974,32 @@ function ChannelDialogView({
         </div>
 
         <div className="access-modal-body">
+          {dialog.kind === "create" ? (
+            <div className="access-form-field">
+              <label htmlFor="channel-template">从医疗模型目录预填</label>
+              <select
+                id="channel-template"
+                defaultValue=""
+                onChange={(event) => {
+                  const tmpl = MEDICAL_CHANNEL_TEMPLATES.find((t) => t.name === event.target.value);
+                  if (!tmpl) return;
+                  setName(tmpl.name);
+                  setType(tmpl.type);
+                  setModels(tmpl.models);
+                  setGroup(tmpl.group);
+                  setServiceUrl(tmpl.baseUrl);
+                }}
+              >
+                <option value="">— 不预填（手动配置）—</option>
+                {MEDICAL_CHANNEL_TEMPLATES.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <div className="access-field-hint">预填名称/类型/模型/分组/服务地址；密钥仍需自填，且须满足该通道的合规前置后再启用。</div>
+            </div>
+          ) : null}
           {isForm ? (
             <>
               <div className="access-form-field">
@@ -1042,7 +1049,7 @@ function ChannelDialogView({
                 <div className="access-form-field">
                   <label htmlFor="channel-group">分组</label>
                   <select id="channel-group" value={group} onChange={(event) => setGroup(event.target.value)}>
-                    {(groups.length ? groups : [group]).map((item) => (
+                    {Array.from(new Set([...(groups.length ? groups : []), group])).map((item) => (
                       <option key={item} value={item}>
                         {item}
                       </option>

@@ -276,6 +276,13 @@
   line-height: 1.6;
 }
 
+.access-field-hint {
+  margin-top: 6px;
+  color: var(--text-muted, var(--muted-d));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .access-form-error {
   padding: 10px 14px;
   border-radius: var(--radius-md);
