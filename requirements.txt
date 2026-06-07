@@ -14,7 +14,7 @@ orjson>=3.10,<4.0
 jsonschema>=4.0,<5.0
 
 # 审计
-zstandard>=0.22,<0.23
+zstandard>=0.25.0,<0.26
 
 # 工具
 click>=8.1,<9.0
