@@ -57,7 +57,7 @@ jobs:
           retention-days: 90
       - name: Open issue on failure (scheduled runs only)
         if: failure() && github.event_name == 'schedule'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
